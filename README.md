@@ -25,4 +25,4 @@ See the examples and documentation for more information.
 
 ## License
 
-Apace v2.0 © Jonathon Anderson
+Apache Public License v2.0 © Jonathon Anderson
