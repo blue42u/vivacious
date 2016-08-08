@@ -1,3 +1,5 @@
 set(SRC
 	test.c
-PARENT_SCOPE)
+)
+add_library(vivacious SHARED ${SRC})
+add_library(vivacious-static STATIC ${SRC})
