@@ -1,28 +1,27 @@
 set(GENS
-	suptest.h)
+	suptest.lua)
 set(CPS
 	test.h)
 
 set(OUTPUT ${CMAKE_BINARY_DIR}/include/vivacious)
+file(MAKE_DIRECTORY ${OUTPUT})
 
-add_custom_target(include_dir
-	${CMAKE_COMMAND} -E make_directory ${OUTPUT})
+set(DEPS)
 
-foreach(G ${GENS})
-	string(REPLACE ".h" ".lua" LG ${G})
-	add_custom_command(OUTPUT ${G}
+foreach(LG ${GENS})
+	string(REPLACE ".lua" ".h" G ${LG})
+	add_custom_command(OUTPUT ${OUTPUT}/${G}
 		COMMAND lua ${LG} ${OUTPUT}/${G}
 		WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-		MAIN_DEPENDENCY ${LG}
-		DEPENDS include_dir)
+		MAIN_DEPENDENCY ${LG})
+	set(DEPS ${DEPS} ${OUTPUT}/${G})
 endforeach()
 
 foreach(C ${CPS})
-	add_custom_command(OUTPUT ${C}
-		COMMAND ${CMAKE_COMMAND} -E copy
-			${CMAKE_CURRENT_SOURCE_DIR}/${C}
-			${OUTPUT}/${C}
-		DEPENDS include_dir)
+	add_custom_command(OUTPUT ${OUTPUT}/${C}
+		COMMAND ${CMAKE_COMMAND} -E copy ${C} ${OUTPUT}/${C}
+		WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+	set(DEPS ${DEPS} ${OUTPUT}/${C})
 endforeach()
 
-add_custom_target(include DEPENDS ${GENS} ${CPS})
+add_custom_target(include DEPENDS ${DEPS})
