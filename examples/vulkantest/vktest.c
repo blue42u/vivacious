@@ -1,4 +1,4 @@
-#include "test.h"
+#include "vivacious/test.h"
 
 int main() {
 	test();

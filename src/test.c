@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include "test.h"
+#include "vivacious/test.h"
 
 void ensure() {
 	test();
