@@ -1,7 +1,8 @@
 #include "vivacious/test.h"
+#include "vivacious/suptest.h"
 
 int main() {
 	test();
-	test();
+	ensure();
 	return 0;
 }
