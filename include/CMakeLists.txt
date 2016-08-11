@@ -11,7 +11,7 @@ set(DEPS)
 foreach(LG ${GENS})
 	string(REPLACE ".lua" ".h" G ${LG})
 	add_custom_command(OUTPUT ${OUTPUT}/${G}
-		COMMAND lua ${LG} ${OUTPUT}/${G}
+		COMMAND lua ${LG} ${OUTPUT}/${G} ${CMAKE_CURRENT_SOURCE_DIR}
 		WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 		MAIN_DEPENDENCY ${LG})
 	set(DEPS ${DEPS} ${OUTPUT}/${G})
