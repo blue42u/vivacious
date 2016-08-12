@@ -1,4 +1,4 @@
 add_executable(vulkantest
-	vktest.c
+	vulkantest.c
 )
 target_link_libraries(vulkantest vivacious)

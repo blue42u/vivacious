@@ -3,6 +3,11 @@ set(GENS
 set(CPS
 	test.h)
 
+if(ENABLE_VULKAN)
+set(GENS ${GENS}
+	vulkan-structs.lua)
+endif(ENABLE_VULKAN)
+
 set(OUTPUT ${CMAKE_BINARY_DIR}/include/vivacious)
 file(MAKE_DIRECTORY ${OUTPUT})
 
