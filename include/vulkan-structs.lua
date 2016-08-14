@@ -50,7 +50,9 @@ typedef struct {
 	end)
 
 	f:write([[
-} * VvVulkan_]]..string.gsub(tag.attr.number, '%.', '_')..[[;
+} VvVulkan_]]..string.gsub(tag.attr.number, '%.', '_')..[[;
 
-#endif // ]]..tag.attr.name..'\n\n')
+#endif // ]]..tag.attr.name..[[ endif
+
+]])
 end)
