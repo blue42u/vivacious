@@ -17,3 +17,7 @@ endforeach()
 
 add_library(vivacious SHARED ${FULLSRC})
 add_library(vivacious-static STATIC EXCLUDE_FROM_ALL ${FULLSRC})
+
+if((UNIX AND NOT APPLE) OR CYGWIN)
+	target_link_libraries(vivacious dl)
+endif()

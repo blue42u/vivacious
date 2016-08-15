@@ -58,6 +58,12 @@ edit the corrosponding generation file,
 *****************/
 
 #include "vivacious/vulkan.h"
+
+#if defined(_WIN32)
+#	include <windows.h>
+#else
+#	include <dlfcn.h>
+#endif
 ]])
 
 for _,t in cpairs(dom.root, {name='feature',attr={api='vulkan'}}) do
@@ -80,13 +86,35 @@ for _,t in cpairs(dom.root, {name='feature',attr={api='vulkan'}}) do
 
 	out([[
 #if defined(]]..const..[[)
+static void optimizeInstance_vV_]]..ver..[[(VkInstance, vV_Vulkan_]]..ver..[[*);
+static void optimizeDevice_vV_]]..ver..[[(VkDevice, vV_Vulkan_]]..ver..[[*);
+
 int vV_loadVulkan_]]..ver..[[(vV_Vulkan_]]..ver..[[* vk) {
+	vk->optimizeInstance_vV = &optimizeInstance_vV_]]..ver..[[;
+	vk->optimizeDevice_vV = &optimizeDevice_vV_]]..ver..[[;
+
+#if defined(_WIN32)
+	HMODULE libvk = LoadLibrary("vulkan-1.dll");
+#elseif defined(__APPLE__)
+	void* libvk = dlopen("libvulkan.dylib", RTLD_NOW | RTLD_GLOBAL);
+#else
+	void* libvk = dlopen("libvulkan.so", RTLD_NOW | RTLD_GLOBAL);
+#endif
+	if(!libvk) return 0;
+	int ret = 1;
 ]])
 	for _,cmd in ipairs(allcmds) do
-		out('vk->'..cmdnames[cmd]..' = NULL; //'..cmd..';')
+		out([[
+#if defined(_WIN32)
+	vk->]]..cmdnames[cmd]..[[ = GetProcAddress(libvk, "]]..cmd..[[");
+#else
+	vk->]]..cmdnames[cmd]..[[ = dlsym(libvk, "]]..cmd..[[");
+#endif
+	if(!vk->]]..cmdnames[cmd]..[[) ret = 0;
+]])
 	end
 	out([[
-	return 0;	// Error, since not implemented
+	return ret;
 }
 
 static void optimizeInstance_vV_]]..ver..[[(VkInstance i,

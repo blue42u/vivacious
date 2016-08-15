@@ -23,5 +23,22 @@ int main() {
 		printf("Error loading vulkan!\n");
 		return 1;
 	}
+
+	VkInstance inst;
+	const char* exts[] = { "VK_EXT_debug_report" };
+	VkInstanceCreateInfo ico = {
+		VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
+		NULL, 0,
+		NULL,
+		0, NULL,
+		1, exts
+	};
+	VkResult r = vk.CreateInstance(&ico, NULL, &inst);
+	if(r < 0) printf("Error creating instance: %d\n", r);
+
+	printf("Before I optimize: %p\n", vk.EnumeratePhysicalDevices);
+	vk.optimizeInstance_vV(inst, &vk);
+	printf("After I  optimize: %p\n", vk.EnumeratePhysicalDevices);
+
 	return 0;
 }
