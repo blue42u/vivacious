@@ -5,7 +5,7 @@ set(CPS
 
 if(VULKAN_ENABLE)
 set(GENS ${GENS}
-	vulkan-structs.lua)
+	vulkan.lua)
 endif(VULKAN_ENABLE)
 
 set(OUTPUT ${CMAKE_BINARY_DIR}/include/vivacious)

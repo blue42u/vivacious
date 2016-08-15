@@ -14,10 +14,14 @@
    limitations under the License.
 ***************************************************************************/
 
-#include "vivacious/vulkan-structs.h"
+#include "vivacious/vulkan.h"
+#include <stdio.h>
 
 int main() {
-	VvVulkan_1_0 vk;
-
+	vV_Vulkan_1_0 vk;
+	if(!vV_loadVulkan_1_0(&vk)) {
+		printf("Error loading vulkan!\n");
+		return 1;
+	}
 	return 0;
 }

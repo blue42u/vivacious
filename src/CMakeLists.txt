@@ -1,7 +1,8 @@
 set(SRC
 	test.c)
 set(LUA
-	suptest.lua)
+	suptest.lua
+	vulkan.lua)
 
 set(FULLSRC ${SRC})
 foreach(L ${LUA})

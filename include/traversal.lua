@@ -16,31 +16,41 @@
 
 local trav = {}
 
-function trav.select(ts, where, func)
-	for _,t in ipairs(ts) do
-		local doit
-		if type(where) == 'function' then
-			doit = where(t)
-		else
-			for k,v in pairs(where) do
-				doit = t[k] == v
-			end
-		end
-		if doit then
-			if func(t) then return end
+local function tagcmp(t, w)
+	for k,v in pairs(w) do
+		if k ~= 'attr' and t[k] ~= v then return false end
+	end
+	if w.attr then
+		for k,v in pairs(w.attr) do
+			if t.attr[k] ~= v then return false end
 		end
 	end
-	return all
+	return true
 end
 
-function trav.find(t, where, all)
-	if all then all = {} else all = nil end
-	local out
-	trav.select(t, where, function(t)
-		if all then table.insert(all,t) else out = t end
-		return not all
-	end)
-	return out or all
+function trav.cpairs(tag, where)
+	return function(_,i)
+		repeat
+			i = i + 1
+			local t = tag.kids[i]
+			if t and tagcmp(t, where) then return i, t end
+		until not t
+	end, nil, 0
+end
+
+function trav.first(tag, ...)
+	for _,where in ipairs(table.pack(...)) do
+		local newtag
+		for _,t in ipairs(tag.kids) do
+			if tagcmp(t, where) then
+				newtag = t
+				break
+			end
+		end
+		if not newtag then return nil end
+		tag = newtag
+	end
+	return tag
 end
 
 return trav
