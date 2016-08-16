@@ -58,8 +58,9 @@ VkBool32 debugFunc(
 	case VK_DEBUG_REPORT_OBJECT_TYPE_SURFACE_KHR_EXT: printf("surface"); break;
 	case VK_DEBUG_REPORT_OBJECT_TYPE_SWAPCHAIN_KHR_EXT: printf("swapchain"); break;
 	case VK_DEBUG_REPORT_OBJECT_TYPE_DEBUG_REPORT_EXT: printf("debug report"); break;
+	default: printf("?????");
 	}
-	printf(":%x @ %s): %s\n", obj, lay, mess);
+	printf(":%lx @ %s): %s\n", obj, lay, mess);
 
 	return VK_FALSE;
 }
@@ -96,7 +97,8 @@ int main() {
 		VK_DEBUG_REPORT_ERROR_BIT_EXT |
 			VK_DEBUG_REPORT_WARNING_BIT_EXT |
 			VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT |
-			VK_DEBUG_REPORT_INFORMATION_BIT_EXT,
+//			VK_DEBUG_REPORT_INFORMATION_BIT_EXT |
+			0,
 		debugFunc,
 		NULL
 	};

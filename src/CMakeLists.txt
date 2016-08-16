@@ -1,8 +1,12 @@
 set(SRC
-	test.c)
+	)
 set(LUA
-	suptest.lua
+	)
+
+if(VULKAN_ENABLE)
+set(LUA ${LUA}
 	vulkan.lua)
+endif(VULKAN_ENABLE)
 
 set(FULLSRC ${SRC})
 foreach(L ${LUA})

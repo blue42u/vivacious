@@ -1,7 +1,7 @@
 set(GENS
-	suptest.lua)
+	)
 set(CPS
-	test.h)
+	)
 
 if(VULKAN_ENABLE)
 set(GENS ${GENS}
