@@ -89,6 +89,45 @@ int vV_loadVulkan_]]..ver..[[(vV_Vulkan_]]..ver..[[*);
 ]])
 end
 
+for _,t in cpairs(first(dom.root, {name='extensions'}), {name='extension',
+	attr={supported='vulkan'}}) do
+	local const = t.attr.name
+	local name = string.sub(const, string.find(const, '_', 4)+1)
+
+	local validext = false
+	for _,t in cpairs(t, {name='require'}) do
+		if first(t, {name='command'}) then
+			validext = true
+			break
+		end
+	end
+	if validext then
+
+		out([[
+#if defined(]]..const..[[)
+typedef struct _vV_VulkanEXT_]]..name..[[ vV_VulkanEXT_]]..name..[[;
+struct _vV_VulkanEXT_]]..name..[[ {
+]])
+		for _,t in cpairs(t, {name='require'}) do
+			for _,t in cpairs(t, {name='command'}) do
+				local name = t.attr.name
+				if string.sub(name, 1, 2) == 'vk' then
+					name = string.sub(name, 3)
+				end
+				out('\tPFN_vk'..name..' '..name..';')
+			end
+		end
+		out([[
+};
+void vV_loadVulkanEXT_]]..name..[[(
+	PFN_vkGetInstanceProcAddr, VkInstance,
+	PFN_vkGetDeviceProcAddr, VkDevice,
+	vV_VulkanEXT_]]..name..[[*);
+#endif
+]])
+	end
+end
+
 out([[
 #endif // H_vivacious_vulkan
 ]])

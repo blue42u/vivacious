@@ -122,7 +122,7 @@ static void optimizeInstance_vV_]]..ver..[[(VkInstance i,
 ]])
 	for _,cmd in ipairs(allcmds) do
 		if cmdcats[cmd] == 'instance' then
-			out('vk->'..cmdnames[cmd]..' = (PFN_'..cmd..
+			out('\tvk->'..cmdnames[cmd]..' = (PFN_'..cmd..
 				')vk->GetInstanceProcAddr(i, "'..cmd..'");')
 		end
 	end
@@ -134,7 +134,7 @@ static void optimizeDevice_vV_]]..ver..[[(VkDevice d,
 ]])
 	for _,cmd in ipairs(allcmds) do
 		if cmdcats[cmd] == 'device' then
-			out('vk->'..cmdnames[cmd]..' = (PFN_'..cmd..
+			out('\tvk->'..cmdnames[cmd]..' = (PFN_'..cmd..
 				')vk->GetDeviceProcAddr(d, "'..cmd..'");')
 		end
 	end
@@ -142,4 +142,50 @@ static void optimizeDevice_vV_]]..ver..[[(VkDevice d,
 }
 #endif
 ]])
+end
+
+for _,t in cpairs(first(dom.root, {name='extensions'}), {name='extension',
+	attr={supported='vulkan'}}) do
+	local const = t.attr.name
+	local n = string.sub(const, string.find(const, '_', 4)+1)
+
+	local allcmds = {}
+	local cmdnames = {}
+	for _,t in cpairs(t, {name='require'}) do
+		for _,t in cpairs(t, {name='command'}) do
+			local name = t.attr.name
+			table.insert(allcmds, name)
+			if string.sub(name, 1, 2) == 'vk' then
+				cmdnames[name] = string.sub(name, 3)
+			else
+				cmdnames[name] = name
+			end
+		end
+	end
+
+	if #allcmds > 0 then
+		out([[
+#if defined(]]..const..[[)
+void vV_loadVulkanEXT_]]..n..[[(
+	PFN_vkGetInstanceProcAddr gipa, VkInstance i,
+	PFN_vkGetDeviceProcAddr gdpa, VkDevice d,
+	vV_VulkanEXT_]]..n..[[* vk) {
+]])
+		for _,cmd in ipairs(allcmds) do
+			if cmdcats[cmd] == 'instance' then
+				out('\tvk->'..cmdnames[cmd]..' = (PFN_'..cmd..
+					')gipa(i, "'..cmd..'");')
+			end
+		end
+		for _,cmd in ipairs(allcmds) do
+			if cmdcats[cmd] == 'device' then
+				out('\tvk->'..cmdnames[cmd]..' = (PFN_'..cmd..
+					')gdpa(d, "'..cmd..'");')
+			end
+		end
+		out([[
+}
+#endif
+]])
+	end
 end
