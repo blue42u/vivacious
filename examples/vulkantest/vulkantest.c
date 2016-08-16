@@ -27,7 +27,15 @@ VkBool32 debugFunc(
 	const char* mess,
 	void* udata) {
 
-	printf("DEBUG (");
+	printf("\e[");
+	switch(flag) {
+	case VK_DEBUG_REPORT_INFORMATION_BIT_EXT: printf("32"); break;
+	case VK_DEBUG_REPORT_WARNING_BIT_EXT: printf("1;35"); break;
+	case VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT: printf("35"); break;
+	case VK_DEBUG_REPORT_ERROR_BIT_EXT: printf("1;31"); break;
+	default: printf("");
+	}
+	printf("mDEBUG (");
 	switch(type) {
 	case VK_DEBUG_REPORT_OBJECT_TYPE_UNKNOWN_EXT: printf("unknown"); break;
 	case VK_DEBUG_REPORT_OBJECT_TYPE_INSTANCE_EXT: printf("instance"); break;
@@ -60,7 +68,7 @@ VkBool32 debugFunc(
 	case VK_DEBUG_REPORT_OBJECT_TYPE_DEBUG_REPORT_EXT: printf("debug report"); break;
 	default: printf("?????");
 	}
-	printf(":%lx @ %s): %s\n", obj, lay, mess);
+	printf(":%lx @ %s): %s\e[m\n", obj, lay, mess);
 
 	return VK_FALSE;
 }
