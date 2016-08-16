@@ -26,19 +26,54 @@ int main() {
 
 	VkInstance inst;
 	const char* exts[] = { "VK_EXT_debug_report" };
+	const char* lays[] = { "VK_LAYER_LUNARG_standard_validation" };
 	VkInstanceCreateInfo ico = {
 		VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
 		NULL, 0,
 		NULL,
-		0, NULL,
+		1, lays,
 		1, exts
 	};
 	VkResult r = vk.CreateInstance(&ico, NULL, &inst);
-	if(r < 0) printf("Error creating instance: %d\n", r);
+	printf("Creating instance: %d\n", r);
 
-	printf("Before I optimize: %p\n", vk.EnumeratePhysicalDevices);
+	void* oldepd = vk.EnumeratePhysicalDevices;
 	vk.optimizeInstance_vV(inst, &vk);
-	printf("After I  optimize: %p\n", vk.EnumeratePhysicalDevices);
+	printf("I optimize: %p -> %p\n", oldepd, vk.EnumeratePhysicalDevices);
+
+	VkPhysicalDevice pdev;
+	uint32_t cnt = 1;
+	r = vk.EnumeratePhysicalDevices(inst, &cnt, &pdev);
+	printf("Enum'ing PDevs: %d!\n", r);
+
+	VkPhysicalDeviceProperties pdp;
+	vk.GetPhysicalDeviceProperties(pdev, &pdp);
+	printf("Vk version loaded: %d.%d.%d!\n",
+		VK_VERSION_MAJOR(pdp.apiVersion),
+		VK_VERSION_MINOR(pdp.apiVersion),
+		VK_VERSION_PATCH(pdp.apiVersion));
+
+	const float pris[] = { 0 };
+	VkDeviceQueueCreateInfo dqci = {
+		VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+		NULL, 0,
+		0, 1, pris
+	};
+	VkDeviceCreateInfo dci = {
+		VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+		NULL, 0,
+		1, &dqci,
+		1, lays,
+		0, NULL,
+		NULL
+	};
+	VkDevice dev;
+	r = vk.CreateDevice(pdev, &dci, NULL, &dev);
+	printf("Creating device: %d!\n", r);
+
+	void* oldqwi = vk.QueueWaitIdle;
+	vk.optimizeDevice_vV(dev, &vk);
+	printf("D optimize: %p -> %p\n", oldqwi, vk.QueueWaitIdle);
 
 	return 0;
 }
