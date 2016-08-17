@@ -50,13 +50,9 @@ end
 local function out(s) io.write(s..'\n') end
 
 out([[
-/*****************
-This file is generated as part of compiling
-Vivacious. If changes need to be made, please
-edit the corrosponding generation file,
-/path/to/vivacious/src/vulkan.lua
-*****************/
+// WARNING: Generated file. Do not edit manually.
 
+#define VK_NO_PROTOTYPES
 #include "vivacious/vulkan.h"
 
 #if defined(_WIN32)
@@ -69,6 +65,7 @@ edit the corrosponding generation file,
 for _,t in cpairs(dom.root, {name='feature',attr={api='vulkan'}}) do
 	local const = t.attr.name
 	local ver = string.gsub(t.attr.number, '%.', '_')
+	local major = string.match(t.attr.number, '(%d+)%.')
 
 	local allcmds = {}
 	local cmdnames = {}
@@ -86,19 +83,21 @@ for _,t in cpairs(dom.root, {name='feature',attr={api='vulkan'}}) do
 
 	out([[
 #if defined(]]..const..[[)
-static void optimizeInstance_vV_]]..ver..[[(VkInstance, vV_Vulkan_]]..ver..[[*);
-static void optimizeDevice_vV_]]..ver..[[(VkDevice, vV_Vulkan_]]..ver..[[*);
+static void optimizeInstance_]]..ver..[[(VkInstance, VvVulkan_]]..ver..[[*);
+static void optimizeDevice_]]..ver..[[(VkDevice, VvVulkan_]]..ver..[[*);
 
-int vV_loadVulkan_]]..ver..[[(vV_Vulkan_]]..ver..[[* vk) {
-	vk->optimizeInstance_vV = &optimizeInstance_vV_]]..ver..[[;
-	vk->optimizeDevice_vV = &optimizeDevice_vV_]]..ver..[[;
+int vVloadVulkan_]]..ver..[[(VvVulkan_]]..ver..[[* vk) {
+	vk->vVoptimizeInstance = &optimizeInstance_]]..ver..[[;
+	vk->vVoptimizeDevice = &optimizeDevice_]]..ver..[[;
 
 #if defined(_WIN32)
-	HMODULE libvk = LoadLibrary("vulkan-1.dll");
+	HMODULE libvk = LoadLibrary("vulkan-]]..major..[[.dll");
 #elseif defined(__APPLE__)
-	void* libvk = dlopen("libvulkan.dylib", RTLD_NOW | RTLD_GLOBAL);
+	void* libvk = dlopen("libvulkan.dylib.]]..major..[[",
+		RTLD_NOW | RTLD_GLOBAL);
 #else
-	void* libvk = dlopen("libvulkan.so", RTLD_NOW | RTLD_GLOBAL);
+	void* libvk = dlopen("libvulkan.so.]]..major..[[",
+		RTLD_NOW | RTLD_GLOBAL);
 #endif
 	if(!libvk) return 0;
 	int ret = 1;
@@ -117,8 +116,8 @@ int vV_loadVulkan_]]..ver..[[(vV_Vulkan_]]..ver..[[* vk) {
 	return ret;
 }
 
-static void optimizeInstance_vV_]]..ver..[[(VkInstance i,
-	vV_Vulkan_]]..ver..[[* vk) {
+static void optimizeInstance_]]..ver..[[(VkInstance i,
+	VvVulkan_]]..ver..[[* vk) {
 ]])
 	for _,cmd in ipairs(allcmds) do
 		if cmdcats[cmd] == 'instance' then
@@ -129,8 +128,8 @@ static void optimizeInstance_vV_]]..ver..[[(VkInstance i,
 	out([[
 }
 
-static void optimizeDevice_vV_]]..ver..[[(VkDevice d,
-	vV_Vulkan_]]..ver..[[* vk) {
+static void optimizeDevice_]]..ver..[[(VkDevice d,
+	VvVulkan_]]..ver..[[* vk) {
 ]])
 	for _,cmd in ipairs(allcmds) do
 		if cmdcats[cmd] == 'device' then
@@ -166,10 +165,10 @@ for _,t in cpairs(first(dom.root, {name='extensions'}), {name='extension',
 	if #allcmds > 0 then
 		out([[
 #if defined(]]..const..[[)
-void vV_loadVulkanEXT_]]..n..[[(
+void vVloadVulkanEXT_]]..n..[[(
 	PFN_vkGetInstanceProcAddr gipa, VkInstance i,
 	PFN_vkGetDeviceProcAddr gdpa, VkDevice d,
-	vV_VulkanEXT_]]..n..[[* vk) {
+	VvVulkanEXT_]]..n..[[* vk) {
 ]])
 		for _,cmd in ipairs(allcmds) do
 			if cmdcats[cmd] == 'instance' then

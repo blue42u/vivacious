@@ -50,12 +50,7 @@ end
 local function out(s) io.write(s..'\n') end
 
 out([[
-/*****************
-This file is generated as part of compiling
-Vivacious. If changes need to be made, please
-edit the corrosponding generation file,
-/path/to/vivacious/include/vivacious-vulkan.lua
-*****************/
+// WARNING: Generated file. Do not edit manually.
 
 #include <vulkan/vulkan.h>
 
@@ -68,10 +63,10 @@ for _,t in cpairs(dom.root, {name='feature',attr={api='vulkan'}}) do
 	local ver = string.gsub(t.attr.number, '%.', '_')
 	out([[
 #if defined(]]..const..[[)
-typedef struct _vV_Vulkan_]]..ver..[[ vV_Vulkan_]]..ver..[[;
-struct _vV_Vulkan_]]..ver..[[ {
-	void (*optimizeInstance_vV)(VkInstance, vV_Vulkan_]]..ver..[[*);
-	void (*optimizeDevice_vV)(VkDevice, vV_Vulkan_]]..ver..[[*);
+typedef struct _VvVulkan_]]..ver..[[ VvVulkan_]]..ver..[[;
+struct _VvVulkan_]]..ver..[[ {
+	void (*vVoptimizeInstance)(VkInstance, VvVulkan_]]..ver..[[*);
+	void (*vVoptimizeDevice)(VkDevice, VvVulkan_]]..ver..[[*);
 ]])
 	for _,t in cpairs(t, {name='require'}) do
 		for _,t in cpairs(t, {name='command'}) do
@@ -84,7 +79,7 @@ struct _vV_Vulkan_]]..ver..[[ {
 	end
 	out([[
 };
-int vV_loadVulkan_]]..ver..[[(vV_Vulkan_]]..ver..[[*);
+int vVloadVulkan_]]..ver..[[(VvVulkan_]]..ver..[[*);
 #endif
 ]])
 end
@@ -105,8 +100,8 @@ for _,t in cpairs(first(dom.root, {name='extensions'}), {name='extension',
 
 		out([[
 #if defined(]]..const..[[)
-typedef struct _vV_VulkanEXT_]]..name..[[ vV_VulkanEXT_]]..name..[[;
-struct _vV_VulkanEXT_]]..name..[[ {
+typedef struct _VvVulkanEXT_]]..name..[[ VvVulkanEXT_]]..name..[[;
+struct _VvVulkanEXT_]]..name..[[ {
 ]])
 		for _,t in cpairs(t, {name='require'}) do
 			for _,t in cpairs(t, {name='command'}) do
@@ -119,10 +114,10 @@ struct _vV_VulkanEXT_]]..name..[[ {
 		end
 		out([[
 };
-void vV_loadVulkanEXT_]]..name..[[(
+void vVloadVulkanEXT_]]..name..[[(
 	PFN_vkGetInstanceProcAddr, VkInstance,
 	PFN_vkGetDeviceProcAddr, VkDevice,
-	vV_VulkanEXT_]]..name..[[*);
+	VvVulkanEXT_]]..name..[[*);
 #endif
 ]])
 	end

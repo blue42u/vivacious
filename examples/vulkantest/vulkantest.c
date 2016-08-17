@@ -74,8 +74,8 @@ VkBool32 debugFunc(
 }
 
 int main() {
-	vV_Vulkan_1_0 vk;
-	if(!vV_loadVulkan_1_0(&vk)) {
+	VvVulkan_1_0 vk;
+	if(!vVloadVulkan_1_0(&vk)) {
 		printf("Error loading vulkan!\n");
 		return 1;
 	}
@@ -93,8 +93,8 @@ int main() {
 	VkResult r = vk.CreateInstance(&ico, NULL, &inst);
 	printf("Creating instance: %d\n", r);
 
-	vV_VulkanEXT_debug_report vkdr;
-	vV_loadVulkanEXT_debug_report(
+	VvVulkanEXT_debug_report vkdr;
+	vVloadVulkanEXT_debug_report(
 		vk.GetInstanceProcAddr, inst,
 		NULL, NULL,
 		&vkdr);
@@ -114,7 +114,7 @@ int main() {
 	vkdr.CreateDebugReportCallbackEXT(inst, &drcci, NULL, &drc);
 
 	void* oldepd = vk.EnumeratePhysicalDevices;
-	vk.optimizeInstance_vV(inst, &vk);
+	vk.vVoptimizeInstance(inst, &vk);
 	printf("I optimize: %p -> %p\n", oldepd, vk.EnumeratePhysicalDevices);
 
 	VkPhysicalDevice pdev;
@@ -148,7 +148,7 @@ int main() {
 	printf("Creating device: %d!\n", r);
 
 	void* oldqwi = vk.QueueWaitIdle;
-	vk.optimizeDevice_vV(dev, &vk);
+	vk.vVoptimizeDevice(dev, &vk);
 	printf("D optimize: %p -> %p\n", oldqwi, vk.QueueWaitIdle);
 
 	vk.DestroyDevice(dev, NULL);
