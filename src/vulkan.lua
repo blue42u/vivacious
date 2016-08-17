@@ -52,6 +52,8 @@ local function out(s) io.write(s..'\n') end
 out([[
 // WARNING: Generated file. Do not edit manually.
 
+#ifdef Vv_ENABLE_VULKAN
+
 #define VK_NO_PROTOTYPES
 #include "vivacious/vulkan.h"
 
@@ -188,3 +190,7 @@ void vVloadVulkanEXT_]]..n..[[(
 ]])
 	end
 end
+
+out([[
+#endif // vV_ENABLE_VULKAN
+]])

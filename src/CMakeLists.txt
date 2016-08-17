@@ -1,12 +1,10 @@
 set(SRC
-	)
+	luaopen.c
+)
 set(LUA
-	)
-
-if(VULKAN_ENABLE)
-set(LUA ${LUA}
-	vulkan.lua)
-endif(VULKAN_ENABLE)
+	vulkan.lua
+	lvulkan.lua
+)
 
 set(FULLSRC ${SRC})
 foreach(L ${LUA})
@@ -24,4 +22,8 @@ add_library(vivacious-static STATIC EXCLUDE_FROM_ALL ${FULLSRC})
 
 if((UNIX AND NOT APPLE) OR CYGWIN)
 	target_link_libraries(vivacious dl)
+endif()
+
+if(LUA_ENABLE)
+	target_link_libraries(vivacious lua5.3)
 endif()
