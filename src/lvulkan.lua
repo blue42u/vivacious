@@ -21,169 +21,218 @@ local cpairs, first = trav.cpairs, trav.first
 local xml = io.open(arg[2]..'/vk.xml', 'r'):read('a')
 local dom = require('slaxdom'):dom(xml, {stripWhitespace=true})
 
-io.output(arg[1])
+local outtab = {}
+local waserr = 0
+local function out(s) table.insert(outtab, s) end
+local function derror(err) print(err) ; waserr = waserr + 1 end
 
-local function out(s) io.write(s..'\n') end
-local function print(...)
-	local t = table.pack(...)
-	for i,o in ipairs(t) do t[i] = tostring(o) end
-	io.stderr:write(table.concat(t, '\t')..'\n')
+-- This piece figures out when a command will be availible at compile-time
+local cmdconsts = {}
+for _,feat in cpairs(dom.root, {name='feature'}) do
+	local const = feat.attr.name
+	for _,r in cpairs(feat, {name='require'}) do
+		for _,c in cpairs(r, {name='command'}) do
+			local cmd = c.attr.name
+			cmdconsts[cmd] = cmdconsts[cmd] or {}
+			cmdconsts[cmd][const] = true
+		end
+	end
+end
+for _,ext in cpairs(first(dom.root, {name='extensions'}), {name='extension'}) do
+	local const = ext.attr.name
+	for _,r in cpairs(ext, {name='require'}) do
+		for _,c in cpairs(r, {name='command'}) do
+			local cmd = c.attr.name
+			cmdconsts[cmd] = cmdconsts[cmd] or {}
+			cmdconsts[cmd][const] = true
+		end
+	end
 end
 
+-- This piece builds a tree to represent the types
+local types = {}
+local function regtype(tt)
+	local nam = tt.attr.name or first(tt,{name='name'},{type='text'}).value
+	local desc = {}
+	types[nam] = desc
+	if tt.attr.category == 'handle' then
+		desc.cat = 'handle'
+	elseif tt.attr.category == 'enum' then
+		desc.cat = 'enum'
+	elseif tt.attr.category == 'bitmask' then
+		desc.cat = 'bitmask'
+	elseif tt.attr.category == 'struct' then
+		desc.cat = 'struct'
+	elseif tt.attr.category == 'union' then
+		desc.cat = 'union'
+	elseif tt.attr.category == 'basetype'
+		or tt.attr.requires == 'vk_platform' then
+		desc.cat = 'basetype'	-- For us, basic C types are basetypes
+	end
+end
+
+for _,tt in cpairs(first(dom.root, {name='types'}), {name='type'}) do
+	regtype(tt)
+end
+
+-- This piece gathers some basic info on the commands, specifically the params
+local cmds = {}
+for _,ct in cpairs(first(dom.root, {name='commands'}), {name='command'}) do
+	local nam = first(ct, {name='proto'}, {name='name'},
+		{type='text'}).value
+	local desc = {consts=cmdconsts[nam]}
+	cmds[nam] = desc
+	desc.ret = first(ct, {name='proto'}, {name='type'},
+		{type='text'}).value
+	local arg = 1
+	desc.rets,desc.retenums = {},{}
+	for _,par in cpairs(ct, {name='param'}) do
+		local pd = {
+			name=first(par, {name='name'}, {type='text'}).value,
+			type=first(par, {name='type'}, {type='text'}).value,
+			len=par.attr.len,
+			ptr=0,
+		}
+		local arr
+		for i,t in cpairs(par, {type='text'}) do
+			pd.ptr = pd.ptr + #string.gsub(t.value,
+				'[^%*]', '')
+			if string.find(t.value, '%[') then arr = i end
+		end
+		if arr then
+			if string.find(par.kids[arr].value, ']') then
+				pd.arr = string.match(par.kids[arr].value,
+					'%[(.+)]')
+			else
+				for _,t in cpairs(par.kids[arr+1],
+					{type='text'}) do
+					pd.arr = pd.arr .. t.value
+				end
+			end
+		end
+		pd.islen = false
+		for _,other in cpairs(ct, {name='param'}) do
+			if other.attr.len == pd.name then
+				pd.islen = true
+				break
+			end
+		end
+		pd.arg = arg
+		if not pd.islen then arg = arg + 1 end
+		table.insert(desc, pd)
+		desc[pd] = #desc
+		desc[pd.name] = pd
+	end
+	desc.rets = {}
+	for i,pd in ipairs(desc) do
+		pd.lenpar = pd.len and desc[pd.len]
+		if pd.ptr == 1  then
+			if types[pd.type].cat == 'basetype' then
+				table.insert(desc.rets, i)
+				pd.ret = true
+			elseif pd.len then
+				if not pd.lenpar then
+					print('Huh?',pd.type,pd.name,pd.len)
+					print(desc[pd.len])
+				end
+				table.insert(desc.rets, i)
+				pd.ret = true
+			end
+		end
+	end
+end
+
+-- This function places code to create and fill a variable reasonably
+local function setup(par, nams, neighbors, nam, cleanup)
+	if not nam then
+		nam = 'x'..(#nams+1)
+		nams[#nams+1] = nam
+		out('\t'..par.type..string.rep('*', par.ptr)..' '..nam
+			..(par.arr and '['..par.arr..']' or '')..';');
+	end
+	if par.islen then
+		if par.ptr == 0 then
+			if par.lenpar and par.lenpar.ret then
+				-- Then this is the len of some returned blob
+				out('\t'..nam..' = lua_tointeger(L, -1);')
+			else
+				out('\tlua_len(L, -1);')
+				out('\t'..nam..' = lua_tointeger(L, -1);')
+				out('\tlua_pop(L, 1);')
+			end
+		elseif par.ptr == 1 then
+			-- In this case, this param is part of a var-len return
+		else error('ISLEN') end
+	elseif par.arr then
+		out('\tfor(int i=0; i<'..par.arr..'; i++) {')
+		setup({
+			type=par.type,
+			name=par.name,
+			ptr=par.ptr, len=par.len,
+		}, nams, neighbors, nam..'[i]', cleanup)
+		out('\t}')
+	elseif par.ret then
+		if types[par.type].cat == 'handle' then
+			out('\t'..nam..' = lua_newuserdata(L, sizeof('..par.type..'));')
+		elseif types[par.type].cat == 'basetype' then
+			out('\t'..nam..' = malloc(sizeof('..par.type..'));')
+		end
+	elseif types[par.type].cat == 'handle' then
+		out('\t'..nam..' = luaL_checkudata(L, -1, "'..par.type..'");')
+	elseif types[par.type].cat == 'basetype' then
+		if par.ptr == 1 then
+			-- This is acutally a return param.
+			out('\t'..nam..' = malloc(sizeof('..par.type..'));')
+		elseif par.type == 'uint32_t' then
+			out('\t'..nam..' = lua_tointeger(L, -1);')
+		else
+			print('Unhandled basetype: '..par.type..'!')
+		end
+	else
+		out('\t// SETUP '..nam..' ('..(types[par.type].cat or 'BASE')
+			..')')
+	end
+	return nam
+end
+
+-- Now we stitch all that together into a nice and huge C file
 out([[
 // WARNING: Generated file. Do not edit manually.
 
 #ifdef Vv_ENABLE_VULKAN
 
+#include <stdlib.h>
+
 #include "lua.h"
 #include "vivacious/vulkan.h"
 ]])
 
-local typest = first(dom.root, {name='types'})
-local cmdst = first(dom.root, {name='commands'})
-for _,t in cpairs(dom.root, {name='feature'}) do
-	local reqtypes = {}
-	local mems = {}
-	local function addtype(type)
-		if not reqtypes[type] then
-			local t = first(typest, {name='type',attr={name=type}})
-			if t and t.attr.category == 'struct' and not
-				t.attr.returnedonly then
-			reqtypes[type] = 'struct'
-			mems[type] = {}
-			for _,t in cpairs(t, {name='member'}) do
-				local typ = first(t, {name='type'})
-				typ = first(typ, {type='text'})
-				typ = typ and typ.value
-				local nam = first(t, {name='name'})
-				nam = first(nam, {type='text'}).value
-				local ptr = 0
-				for _,t in cpairs(t, {type='text'}) do
-					ptr = ptr + #string.gsub(
-						t.value, '[^%[%*]', '')
-				end
-				mems[type][nam] = {
-					type=typ, ptr=ptr,
-					values=t.attr.values,
-				}
-				addtype(typ)
-			end
-			elseif t and t.attr.category == 'enum' then
-			reqtypes[type] = 'enum'
-			mems[type] = {}
-			t = first(dom.root, {name='enums',
-				attr={name=type}})
-			local pre = type
-			if t.attr.type == 'bitmask' and
-				string.sub(type, -8) == 'FlagBits' then
-				reqtypes[type] = 'bitmask'
-				pre = string.sub(type, 1, -9)
-			end
-			pre = string.gsub(pre, '(%u)', '_%1')
-			pre = string.sub(pre, 2)
-			pre = string.upper(pre)
-			for _,t in cpairs(t, {name='enum'}) do
-				local nam = string.match(t.attr.name,
-					pre..'(.*)')
-				if nam then
-					nam = string.sub(nam, 2)
-					nam = string.lower(nam)
-					mems[type][t.attr.name] = nam
-					table.insert(mems[type], t.attr.name)
-				end
-			end
-			end
-		end
-	end
-
-	for _,t in cpairs(t, {name='require'}) do
-		for _,t in cpairs(t, {name='type'}) do
-			addtype(t.attr.name)
-		end
-		for _,t in cpairs(t, {name='command'}) do
-			for _,ct in cpairs(cmdst, {name='command'}) do
-				if first(ct, {name='proto'}, {name='name'},
-					{type='text'}).value == t.attr.name then
-					t = ct
-					break
-				end
-			end
-			for _,t in cpairs(t, {name='proto'}) do
-				t = first(t, {name='type'}, {type='text'})
-				if t then
-					addtype(t.value)
-				end
-			end
-			for _,t in cpairs(t, {name='param'}) do
-				t = first(t, {name='type'}, {type='text'})
-				if t then
-					addtype(t.value)
-				end
-			end
-		end
-	end
-
-	local const = t.attr.name
-	local ver = t.attr.number
+for nam,cmd in pairs(cmds) do
+	local strs = {}
+	for c in pairs(cmd.consts) do table.insert(strs, 'defined('..c..')') end
 	out([[
-#ifdef ]]..const..[[
-]])
-	for n in pairs(reqtypes) do
-		out('static void fill_'..n..'('..n..'*, lua_State*, int);')
+#if ]]..table.concat(strs, ' | ')..[[ //
+static int l_]]..nam..[[(lua_State* L) {
+	lua_settop(L, ]]..cmd[#cmd].arg..[[);]])
+	local nams,args,cleanup = {}, {}, {ret=0}
+	for i,par in ipairs(cmd) do
+		out('\tlua_pushvalue(L, '..par.arg..');')
+		table.insert(args, setup(par, nams, cmd, nil, cleanup, true))
+		out('\tlua_pop(L, 1);')
+	end
+	if cmd.ret == 'VkResult' then
+		out('\tVkResult ret =')
+	end
+	out('\t'..nam..'('..table.concat(args, ', ')..');')
+	out(table.concat(cleanup, '\n'))
+	for _,r in ipairs(cmd.rets) do
+		r = cmd[r]
+		out('// RETURN '..r.type..string.rep('*', r.ptr)..' '..r.name)
 	end
 	out([[
-]])
-	for n,t in pairs(reqtypes) do
-		out([[
-static void fill_]]..n..[[(]]..n..[[* x, lua_State* L, int ind) {]])
-		if t == 'struct' then
-
-		for nam,mem in pairs(mems[n]) do
-			local typ = mem.type
-			local ptr = mem.ptr
-			if reqtypes[typ] and ptr == 0 then
-				out('\tlua_getfield(L, ind, "'..nam..'");')
-				out('\tfill_'..typ..'(&x->'..nam..', L, -1);')
-				out('\tlua_pop(L, 1);')
-			elseif typ == 'VkStructureType' then
-				out('\tx->'..nam..' = '..mem.values..';')
-			else
-				print('Unsupported member! '..
-					typ..string.rep('*',ptr)..'\t'..
-					n..'.'..nam)
-			end
-		end
-
-		elseif t == 'enum' then
-
-		out('\tconst char* names[] = {')
-		for _,const in ipairs(mems[n]) do
-			out('\t\t"'..mems[n][const]..'",')
-		end
-		out('\t"NOTANAME", NULL};')
-		out('\tswitch(luaL_checkoption(L, ind, "NOTANAME", names)) {')
-		for i,const in ipairs(mems[n]) do
-			out('\tcase '..i..': *x = '..const..'; break;')
-		end
-		out('\tdefault: *x = 0; };')
-
-		elseif t == 'bitmask' then
-
-		out('\t*x = 0;')
-		for _,const in ipairs(mems[n]) do
-			out('\tlua_getfield(L, ind, "'..mems[n][const]..'");')
-			out('\tif(lua_toboolean(L, -1)) *x |= '..const..';')
-			out('\tlua_pop(L, 1);')
-		end
-
-		else
-		out('#error // '..n)
-		end
-		out('}')
-	end
-	out([[
-#endif // ]]..const..[[
-
+	return 0;
+}
+#endif
 ]])
 end
 
@@ -194,3 +243,11 @@ void loadLVulkan(lua_State* L) {
 
 #endif // vV_ENABLE_VULKAN
 ]])
+
+if waserr > 0 then
+	error('Errors happened: '..waserr..' to be exact!')
+end
+
+local f = io.open(arg[1], 'w')
+f:write(table.concat(outtab, '\n'))
+f:close()
