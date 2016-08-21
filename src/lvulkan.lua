@@ -97,6 +97,10 @@ local function tomem(tag)
 		mem.ptr = mem.ptr-1
 		mem.type = 'string'
 	end
+	if mem.type == 'void' and mem.ptr > 0 then
+		mem.ptr = mem.ptr-1
+		mem.type = 'voidptr'
+	end
 	return mem
 end
 
@@ -132,29 +136,35 @@ for _,tt in cpairs(first(dom.root, {name='types'}), {name='type'}) do
 end
 
 -- This piece gathers enum data, and the constants needed for that
-local function enumprefix(name)
-	if name == 'VkResult' then return 'VK' end	-- Odd exception
+local function enumfix(name)
+	if name == 'VkResult' then return 'VK','' end	-- Odd exception
+	local suf = string.match(name, '(%u+)$')
+	if suf then
+		suf = '_'..suf
+		name = string.sub(name, 1, -#suf)
+	end
 	name = string.gsub(name, '(%u)', '_%1')	-- CamelCase to under_scores
 	name = string.sub(name, 2)	-- Remove the first underscore
 	name = string.upper(name)	-- Uppercase for C #defines
-	return name
+	return name, suf or ''
 end
 
 local enums = {}
 for _,et in cpairs(dom.root, {name='enums'}) do
-	if et.attr.type == 'enum' then
-		local enum = {}
-		enum.name = et.attr.name
-		enum.prefix = enumprefix(enum.name)
-		enums[enum.name] = enum
-		table.insert(enums, enum)
-		for _,e in cpairs(et, {name='enum'}) do
-			local v = {}
-			v.value = e.attr.value
-			v.name = string.sub(v.value, #enum.prefix+2)
-			v.name = string.lower(v.name)
-			table.insert(enum, v)
-		end
+	local enum = {}
+	enum.name = et.attr.name
+	enum.prefix,enum.suffix = enumfix(enum.name)
+	enum.type = et.attr.type
+	enums[enum.name] = enum
+	table.insert(enums, enum)
+	for _,e in cpairs(et, {name='enum'}) do
+		local v = {}
+		v.value = e.attr.value or 2^e.attr.bitpos
+		v.value = math.tointeger(v.value)
+		v.name = string.sub(e.attr.name, #enum.prefix+2)
+		v.name = string.sub(v.name, 1, -#enum.suffix-1)
+		v.name = string.lower(v.name)
+		table.insert(enum, v)
 	end
 end
 local base,range = 1000000000, 1000	-- These values are from the Style Guide
@@ -167,11 +177,14 @@ for _,ext in cpairs(first(dom.root, {name='extensions'}), {name='extension'}) do
 				if e.attr.offset then
 					v.value = (ext.attr.number-1)*range
 						+ base + e.attr.offset
-				else
+				elseif e.attr.value then
 					v.value = e.attr.value
+				else
+					v.value = 2^e.attr.bitpos
 				end
+				v.value = math.tointeger(v.value)
 				if e.attr.dir == '-' then v.value = -v.value end
-				v.name = string.sub(v.value, #enum.prefix+2)
+				v.name = string.sub(e.attr.name, #enum.prefix+2)
 				v.name = string.lower(v.name)
 				v.const = ext.attr.name
 				table.insert(enum, v)
@@ -212,57 +225,30 @@ for _,ct in cpairs(first(dom.root, {name='commands'}), {name='command'}) do
 	end
 end
 
--- This function places code to create and fill a variable reasonably
-local function setup(par, nams, neighbors, nam, cleanup)
-	if not nam then
-		nam = 'x'..(#nams+1)
-		nams[#nams+1] = nam
-		out('\t'..par.type..string.rep('*', par.ptr)..' '..nam
-			..(par.arr and '['..par.arr..']' or '')..';');
+-- This piece builds the framework of pointers and arrays for an argument
+local function setup(type, name, arr, nodef)
+	if not nodef then
+		out('\t'..type..' '..name..(arr and '['..arr..']' or '')..';')
 	end
-	if par.islen then
-		if par.ptr == 0 then
-			if par.lenpar and par.lenpar.ret then
-				-- Then this is the len of some returned blob
-				out('\t'..nam..' = lua_tointeger(L, -1);')
+	if arr then out('\tfor(int i=0; i<'..arr..'; i++) {') end
+	if types[type] and types[type].cat == 'struct' then
+		for _,mem in ipairs(types[type].mems) do
+			if mem.ptr == 0 then
+				setup(mem.type, name..'.'..mem.name, mem.arr,
+					true)
+			elseif mem.ptr == 1 then
+				local memname = string.gsub(name, '%.', '_')
+					..'_'..mem.name
+				setup(mem.type, memname, mem.arr)
+				out('\t'..name..'.'..mem.name..' = &'
+					..memname..';')
 			else
-				out('\tlua_len(L, -1);')
-				out('\t'..nam..' = lua_tointeger(L, -1);')
-				out('\tlua_pop(L, 1);')
+				error(mem.type..string.rep('*', mem.ptr)
+					..' '..mem.name)
 			end
-		elseif par.ptr == 1 then
-			-- In this case, this param is part of a var-len return
-		else error('ISLEN') end
-	elseif par.arr then
-		out('\tfor(int i=0; i<'..par.arr..'; i++) {')
-		setup({
-			type=par.type,
-			name=par.name,
-			ptr=par.ptr, len=par.len,
-		}, nams, neighbors, nam..'[i]', cleanup)
-		out('\t}')
-	elseif par.ret then
-		if types[par.type].cat == 'handle' then
-			out('\t'..nam..' = lua_newuserdata(L, sizeof('..par.type..'));')
-		elseif types[par.type].cat == 'basetype' then
-			out('\t'..nam..' = malloc(sizeof('..par.type..'));')
 		end
-	elseif types[par.type].cat == 'handle' then
-		out('\t'..nam..' = luaL_checkudata(L, -1, "'..par.type..'");')
-	elseif types[par.type].cat == 'basetype' then
-		if par.ptr == 1 then
-			-- This is acutally a return param.
-			out('\t'..nam..' = malloc(sizeof('..par.type..'));')
-		elseif par.type == 'uint32_t' then
-			out('\t'..nam..' = lua_tointeger(L, -1);')
-		else
-			print('Unhandled basetype: '..par.type..'!')
-		end
-	else
-		out('\t// SETUP '..nam..' ('..(types[par.type].cat or 'BASE')
-			..')')
 	end
-	return nam
+	if arr then out('\t}') end
 end
 
 -- Now we stitch all that together into a nice and huge C file
@@ -278,28 +264,37 @@ out([[
 #include "vivacious/vulkan.h"
 
 typedef const char* string;
+typedef void* voidptr;
 ]])
 for _,e in ipairs(enums) do
-	out('static char* name_'..e.name..'('..e.name..' val) {')
+	if e.type == 'enum' then
+	out('static void push_'..e.name..'(lua_State* L, '..e.name..' val) {')
 	for _,v in ipairs(e) do
 		if v.const then out('#ifdef '..v.const) end
-		out('\tif(val == '..v.value..') return "'..v.name..'";')
+		out('\tif(val == '..v.value..') lua_pushliteral(L, "'
+			..v.name..'"); return;')
 		if v.const then out('#endif // '..v.const) end
 	end
-	out('\treturn NULL;\n}')
+	out('}')
 
-	out('static '..e.name..' enum_'..e.name..'(const char* val) {')
+	out('static '..e.name..' to_'..e.name..'(lua_State* L, int ind) {')
+	out('\tint tmp;')
+	out('\tind = lua_absindex(L, ind);')
 	for _,v in ipairs(e) do
 		if v.const then out('#ifdef '..v.const) end
-		out('\tif(strcmp(val, "'..v.name..'") == 0) return '
-			..v.value..';')
+		out('\tlua_pushliteral(L, "'..v.name..'");')
+		out('\ttmp = lua_compare(L, -1, ind, LUA_OPEQ);')
+		out('\tlua_pop(L, 1);')
+		out('\tif(tmp) return '..v.value..';')
 		if v.const then out('#endif // '..v.const) end
 	end
 	out('\treturn 0;\n}')
+	end
 end
 out([[
 static int vkerror(lua_State* L, VkResult r) {
-	return luaL_error(L, "Vulkan error: %s!", name_VkResult(r));
+	push_VkResult(L, r);
+	return luaL_error(L, "Vulkan error: %s!", lua_tostring(L, -1));
 }
 ]])
 
@@ -311,13 +306,13 @@ for _,cmd in ipairs(cmds) do
 static int l_]]..cmd.name..[[(lua_State* L) {]])
 	local params = {}
 	for _,par in ipairs(cmd.params) do
-		out('\t'..par.type..string.rep('*', par.ptr)..' '..par.name
-			..(par.arr and '['..par.arr..']' or '')..';')
-		if par.arr then
-			table.insert(params, '&'..par.name..'[0]')
-		else
+		if par.ptr == 0 then
+			setup(par.type, par.name, par.arr)
 			table.insert(params, par.name)
-		end
+		elseif par.ptr == 1 then
+			setup(par.type, par.name, par.arr)
+			table.insert(params, '&'..par.name)
+		else error('Ptr too big (again!)') end
 	end
 	out('\n\tlua_settop(L, '..#cmd.args..');\n')
 	for i,arg in ipairs(cmd.args) do
@@ -327,9 +322,10 @@ static int l_]]..cmd.name..[[(lua_State* L) {]])
 		out('\tlua_pop(L, 1);')
 		out('')
 	end
-	out('\tlua_settop(L, '..#cmd.args+#cmd.rets..');')
+	out('\tlua_settop(L, '..#cmd.args+#cmd.rets..');\n')
 	for i,ret in ipairs(cmd.rets) do
 		out('// RET '..ret.name..' '..ret.type..string.rep('*',ret.ptr))
+		out('')
 	end
 	out('')
 	if cmd.ret == 'VkResult' then
