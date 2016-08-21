@@ -49,95 +49,165 @@ for _,ext in cpairs(first(dom.root, {name='extensions'}), {name='extension'}) do
 	end
 end
 
--- This piece builds a tree to represent the types
-local types = {}
-local function regtype(tt)
-	local nam = tt.attr.name or first(tt,{name='name'},{type='text'}).value
-	local desc = {}
-	types[nam] = desc
-	if tt.attr.category == 'handle' then
-		desc.cat = 'handle'
-	elseif tt.attr.category == 'enum' then
-		desc.cat = 'enum'
-	elseif tt.attr.category == 'bitmask' then
-		desc.cat = 'bitmask'
-	elseif tt.attr.category == 'struct' then
-		desc.cat = 'struct'
-	elseif tt.attr.category == 'union' then
-		desc.cat = 'union'
-	elseif tt.attr.category == 'basetype'
-		or tt.attr.requires == 'vk_platform' then
-		desc.cat = 'basetype'	-- For us, basic C types are basetypes
+-- This piece concatinates all text tags in the tree with the given root
+local function tconcat(...)
+	local out = {}
+	for _,tag in ipairs(table.pack(...)) do
+		if tag.kids then
+			for _,t in ipairs(tag.kids) do
+				table.insert(out, tconcat(t))
+			end
+		elseif tag.type == 'text' then
+			table.insert(out, tag.value)
+		end
 	end
+	return table.concat(out)
 end
 
+-- This piece gathers info on either a param or a member
+local function tomem(tag)
+	local mem = {}
+	local typei, namei
+	for i,t in ipairs(tag.kids) do
+		if t.name == 'type' then typei = i end
+		if t.name == 'name' then namei = i end
+	end
+	local pretype = tconcat(table.unpack(tag.kids, 1, typei-1))
+	local posttype = tconcat(table.unpack(tag.kids, typei+1, namei-1))
+	local postname = tconcat(table.unpack(tag.kids, namei+1))
+	mem.type = tconcat(tag.kids[typei])
+	mem.name = tconcat(tag.kids[namei])
+	mem.len = tag.attr.len
+	if pretype == 'const' then mem.isconst = true
+	elseif pretype == 'struct' then mem.needstruct = true
+	elseif pretype ~= '' then
+		error('Bad pretype?: '..pretype..' '..mem.name)
+	end
+	if string.sub(postname, 1, 1) == '[' then
+		mem.arr = string.match(postname, '%[(.*)%]')
+	elseif postname ~= '' then
+		error('Bad postname?: '..postname..' '..mem.name)
+	end
+	if posttype == '* const*' then posttype = '**' end
+	if string.gsub(posttype, '[^%*]', '') ~= posttype then
+		error('Bad posttype?: '..posttype..' '..mem.name)
+	end
+	mem.ptr = #posttype
+	if mem.type == 'char' and mem.ptr > 0 then
+		mem.ptr = mem.ptr-1
+		mem.type = 'string'
+	end
+	return mem
+end
+
+-- This piece gathers data about types
+local function totyp(tag)
+	local typ = {}
+	typ.name = tag.attr.name or first(tag,{name='name'},{type='text'}).value
+	if tag.attr.category == 'handle' then
+		typ.cat = 'handle'
+	elseif tag.attr.category == 'enum' then
+		typ.cat = 'enum'
+	elseif tag.attr.category == 'bitmask' then
+		typ.cat = 'bitmask'
+	elseif tag.attr.category == 'struct' then
+		typ.cat = 'struct'
+		typ.mems = {}
+		for _,mem in cpairs(tag, {name='member'}) do
+			table.insert(typ.mems, tomem(mem))
+		end
+	elseif tag.attr.category == 'union' then
+		typ.cat = 'union'
+	elseif tag.attr.category == 'basetype'
+		or tag.attr.requires == 'vk_platform' then
+		typ.cat = 'basetype'	-- For us, basic C types are basetypes
+	end
+	return typ
+end
+
+local types = {}
 for _,tt in cpairs(first(dom.root, {name='types'}), {name='type'}) do
-	regtype(tt)
+	tt = totyp(tt)
+	types[tt.name] = tt
+end
+
+-- This piece gathers enum data, and the constants needed for that
+local function enumprefix(name)
+	if name == 'VkResult' then return 'VK' end	-- Odd exception
+	name = string.gsub(name, '(%u)', '_%1')	-- CamelCase to under_scores
+	name = string.sub(name, 2)	-- Remove the first underscore
+	name = string.upper(name)	-- Uppercase for C #defines
+	return name
+end
+
+local enums = {}
+for _,et in cpairs(dom.root, {name='enums'}) do
+	if et.attr.type == 'enum' then
+		local enum = {}
+		enum.name = et.attr.name
+		enum.prefix = enumprefix(enum.name)
+		enums[enum.name] = enum
+		table.insert(enums, enum)
+		for _,e in cpairs(et, {name='enum'}) do
+			local v = {}
+			v.value = e.attr.value
+			v.name = string.sub(v.value, #enum.prefix+2)
+			v.name = string.lower(v.name)
+			table.insert(enum, v)
+		end
+	end
+end
+local base,range = 1000000000, 1000	-- These values are from the Style Guide
+for _,ext in cpairs(first(dom.root, {name='extensions'}), {name='extension'}) do
+	for _,rt in cpairs(ext, {name='require'}) do
+		for _,e in cpairs(rt, {name='enum'}) do
+			local enum = enums[e.attr.extends]
+			if e.attr.extends and enum then
+				local v = {}
+				if e.attr.offset then
+					v.value = (ext.attr.number-1)*range
+						+ base + e.attr.offset
+				else
+					v.value = e.attr.value
+				end
+				if e.attr.dir == '-' then v.value = -v.value end
+				v.name = string.sub(v.value, #enum.prefix+2)
+				v.name = string.lower(v.name)
+				v.const = ext.attr.name
+				table.insert(enum, v)
+			end
+		end
+	end
 end
 
 -- This piece gathers some basic info on the commands, specifically the params
 local cmds = {}
 for _,ct in cpairs(first(dom.root, {name='commands'}), {name='command'}) do
-	local nam = first(ct, {name='proto'}, {name='name'},
-		{type='text'}).value
-	local desc = {consts=cmdconsts[nam]}
-	cmds[nam] = desc
-	desc.ret = first(ct, {name='proto'}, {name='type'},
-		{type='text'}).value
-	local arg = 1
-	desc.rets,desc.retenums = {},{}
+	local cmd = {}
+	cmd.name = first(ct, {name='proto'}, {name='name'}, {type='text'}).value
+	table.insert(cmds, cmd)
+	cmd.consts = cmdconsts[cmd.name]
+	cmd.ret = first(ct, {name='proto'}, {name='type'}, {type='text'}).value
+	cmd.params = {}		-- These are the C parameters to the cmd
+	local lens = {}
 	for _,par in cpairs(ct, {name='param'}) do
-		local pd = {
-			name=first(par, {name='name'}, {type='text'}).value,
-			type=first(par, {name='type'}, {type='text'}).value,
-			len=par.attr.len,
-			ptr=0,
-		}
-		local arr
-		for i,t in cpairs(par, {type='text'}) do
-			pd.ptr = pd.ptr + #string.gsub(t.value,
-				'[^%*]', '')
-			if string.find(t.value, '%[') then arr = i end
+		par = tomem(par)
+		if not par.isconst and par.ptr > 0 then
+			par.isret = true
 		end
-		if arr then
-			if string.find(par.kids[arr].value, ']') then
-				pd.arr = string.match(par.kids[arr].value,
-					'%[(.+)]')
-			else
-				for _,t in cpairs(par.kids[arr+1],
-					{type='text'}) do
-					pd.arr = pd.arr .. t.value
-				end
-			end
+		if par.len then
+			lens[par.len] = true
 		end
-		pd.islen = false
-		for _,other in cpairs(ct, {name='param'}) do
-			if other.attr.len == pd.name then
-				pd.islen = true
-				break
-			end
-		end
-		pd.arg = arg
-		if not pd.islen then arg = arg + 1 end
-		table.insert(desc, pd)
-		desc[pd] = #desc
-		desc[pd.name] = pd
+		table.insert(cmd.params, par)
 	end
-	desc.rets = {}
-	for i,pd in ipairs(desc) do
-		pd.lenpar = pd.len and desc[pd.len]
-		if pd.ptr == 1  then
-			if types[pd.type].cat == 'basetype' then
-				table.insert(desc.rets, i)
-				pd.ret = true
-			elseif pd.len then
-				if not pd.lenpar then
-					print('Huh?',pd.type,pd.name,pd.len)
-					print(desc[pd.len])
-				end
-				table.insert(desc.rets, i)
-				pd.ret = true
-			end
+	cmd.args = {}		-- These are the Lua arguments to the cmd
+	cmd.rets = {}		-- These are the Lua return values - VkResult
+	for _,par in ipairs(cmd.params) do
+		if not lens[par.name] and not par.isret then
+			table.insert(cmd.args, par)
+		elseif par.isret then
+			table.insert(cmd.rets, par)
+			par.retind = #cmd.rets
 		end
 	end
 end
@@ -202,35 +272,77 @@ out([[
 #ifdef Vv_ENABLE_VULKAN
 
 #include <stdlib.h>
+#include <string.h>
 
 #include "lua.h"
 #include "vivacious/vulkan.h"
+
+typedef const char* string;
+]])
+for _,e in ipairs(enums) do
+	out('static char* name_'..e.name..'('..e.name..' val) {')
+	for _,v in ipairs(e) do
+		if v.const then out('#ifdef '..v.const) end
+		out('\tif(val == '..v.value..') return "'..v.name..'";')
+		if v.const then out('#endif // '..v.const) end
+	end
+	out('\treturn NULL;\n}')
+
+	out('static '..e.name..' enum_'..e.name..'(const char* val) {')
+	for _,v in ipairs(e) do
+		if v.const then out('#ifdef '..v.const) end
+		out('\tif(strcmp(val, "'..v.name..'") == 0) return '
+			..v.value..';')
+		if v.const then out('#endif // '..v.const) end
+	end
+	out('\treturn 0;\n}')
+end
+out([[
+static int vkerror(lua_State* L, VkResult r) {
+	return luaL_error(L, "Vulkan error: %s!", name_VkResult(r));
+}
 ]])
 
-for nam,cmd in pairs(cmds) do
+for _,cmd in ipairs(cmds) do
 	local strs = {}
 	for c in pairs(cmd.consts) do table.insert(strs, 'defined('..c..')') end
 	out([[
 #if ]]..table.concat(strs, ' | ')..[[ //
-static int l_]]..nam..[[(lua_State* L) {
-	lua_settop(L, ]]..cmd[#cmd].arg..[[);]])
-	local nams,args,cleanup = {}, {}, {ret=0}
-	for i,par in ipairs(cmd) do
-		out('\tlua_pushvalue(L, '..par.arg..');')
-		table.insert(args, setup(par, nams, cmd, nil, cleanup, true))
+static int l_]]..cmd.name..[[(lua_State* L) {]])
+	local params = {}
+	for _,par in ipairs(cmd.params) do
+		out('\t'..par.type..string.rep('*', par.ptr)..' '..par.name
+			..(par.arr and '['..par.arr..']' or '')..';')
+		if par.arr then
+			table.insert(params, '&'..par.name..'[0]')
+		else
+			table.insert(params, par.name)
+		end
+	end
+	out('\n\tlua_settop(L, '..#cmd.args..');\n')
+	for i,arg in ipairs(cmd.args) do
+		out('\tlua_pushvalue(L, '..i..');')
+		out('// ARG '..arg.name..' '..arg.type..string.rep('*',arg.ptr)
+			..(arg.arr and '['..arg.arr..']' or ''))
 		out('\tlua_pop(L, 1);')
+		out('')
 	end
+	out('\tlua_settop(L, '..#cmd.args+#cmd.rets..');')
+	for i,ret in ipairs(cmd.rets) do
+		out('// RET '..ret.name..' '..ret.type..string.rep('*',ret.ptr))
+	end
+	out('')
 	if cmd.ret == 'VkResult' then
-		out('\tVkResult ret =')
-	end
-	out('\t'..nam..'('..table.concat(args, ', ')..');')
-	out(table.concat(cleanup, '\n'))
-	for _,r in ipairs(cmd.rets) do
-		r = cmd[r]
-		out('// RETURN '..r.type..string.rep('*', r.ptr)..' '..r.name)
+		out('\tVkResult r = '..cmd.name..'('
+			..table.concat(params, ', ')..');')
+		out('\tif(r < 0) return vkerror(L, r);')
+		out('\tlua_pushstring(L, "");')
+		out('\treturn '..1+#cmd.rets..';')
+	else
+		out('\t'..cmd.name..'('..table.concat(params, ', ')..');')
+		out('\treturn '..#cmd.rets..';')
 	end
 	out([[
-	return 0;
 }
 #endif
 ]])
