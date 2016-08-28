@@ -78,6 +78,7 @@ local function tomem(tag)
 	mem.type = tconcat(tag.kids[typei])
 	mem.name = tconcat(tag.kids[namei])
 	mem.len = tag.attr.len
+	mem.optional = not not tag.attr.optional
 	if pretype == 'const' then mem.isconst = true
 	elseif pretype == 'struct' then mem.needstruct = true
 	elseif pretype ~= '' then
@@ -130,9 +131,13 @@ local function totyp(tag)
 end
 
 local types = {}
+local structs = {}
 for _,tt in cpairs(first(dom.root, {name='types'}), {name='type'}) do
 	tt = totyp(tt)
 	types[tt.name] = tt
+	if tt.cat == 'struct' then
+		table.insert(structs, tt)
+	end
 end
 
 -- This piece gathers enum data, and the constants needed for that
@@ -205,7 +210,9 @@ for _,ct in cpairs(first(dom.root, {name='commands'}), {name='command'}) do
 	local lens = {}
 	for _,par in cpairs(ct, {name='param'}) do
 		par = tomem(par)
-		if not par.isconst and par.ptr > 0 then
+		if not par.isconst and (par.ptr > 0
+			or ((par.type == 'string' or par.type == 'voidptr')
+			and par.len)) then
 			par.isret = true
 		end
 		if par.len then
@@ -218,7 +225,7 @@ for _,ct in cpairs(first(dom.root, {name='commands'}), {name='command'}) do
 	for _,par in ipairs(cmd.params) do
 		if not lens[par.name] and not par.isret then
 			table.insert(cmd.args, par)
-		elseif par.isret then
+		elseif not lens[par.name] and par.isret then
 			table.insert(cmd.rets, par)
 			par.retind = #cmd.rets
 		end
@@ -251,6 +258,56 @@ local function setup(type, name, arr, nodef)
 	if arr then out('\t}') end
 end
 
+-- This piece converts the Lua arguments into the named C parameter variables
+local function prepare(type, ptr, name, arr, optional, len)
+	local var = name
+	if arr then
+		out('\tfor(int i=0; i<'..arr..'; i++) {')
+		out('\t\tlua_geti(L, -1, i+1);')
+		var = var..'[i]'
+	end
+	if optional then out('\tif(!opt_'..name..') {')
+	else out('\tif(opt_'..name..') return luaL_error(L, "Invalid!");') end
+	if type == 'uint32_t' or type == 'uint64_t' or type == 'int32_t'
+		or type == 'size_t' or type == 'VkDeviceSize' then
+		out('\t'..var..' = lua_tointeger(L, -1);')
+	elseif type == 'float' then
+		out('\t'..var..' = lua_tonumber(L, -1);')
+	elseif type == 'VkBool32' then
+		out('\t'..var..' = lua_toboolean(L, -1);')
+	elseif type == 'string' then
+		out('\t'..var..' = lua_tostring(L, -1);')
+	elseif not types[type] or types[type].cat == 'basetype' then
+		out('// BARG '..type..string.rep('*',ptr)..' '
+			..(optional and 'nil ' or '')..name
+			..(len and ' : '..len or ''))
+	else
+		out('// ARG '..type..string.rep('*',ptr)..' '
+			..(optional and 'nil ' or '')..name)
+	end
+	if optional and (not types[type] or types[type].cat == 'basetype') then
+		out('\t} else '..var..' = 0;')
+	elseif optional then out('\t}') end
+	if arr then out('\t\tlua_pop(L, 1);\n\t}') end
+end
+
+-- This piece converts the C types into Lua types
+local function complete(i, type, name, len)
+	local var = name
+	if len then
+		out('\tlua_createtable(L, '..len..', 0);')
+		out('\tfor(int i=0; i<'..len..'; i++) {')
+		var = var..'[i]'
+	end
+	out('// RET '..type..' '..name..(len and '['..len..']' or ''))
+	out('\tlua_pushnil(L);')
+	if len then
+		out('\tlua_rawseti(L, -2, i+1);')
+		out('\t}')
+	end
+	out('\tlua_replace(L, '..i..');')
+end
+
 -- Now we stitch all that together into a nice and huge C file
 out([[
 // WARNING: Generated file. Do not edit manually.
@@ -266,6 +323,7 @@ out([[
 typedef const char* string;
 typedef void* voidptr;
 ]])
+
 for _,e in ipairs(enums) do
 	if e.type == 'enum' then
 	out('static void push_'..e.name..'(lua_State* L, '..e.name..' val) {')
@@ -288,9 +346,12 @@ for _,e in ipairs(enums) do
 		out('\tif(tmp) return '..v.value..';')
 		if v.const then out('#endif // '..v.const) end
 	end
-	out('\treturn 0;\n}')
+	out('\tif(lua_isnil(L, ind)) return 0;')
+	out('\telse luaL_error(L, "Invalid '..e.name..'!");')
+	out('\treturn 0;\n}')	-- To make the compiler happy
 	end
 end
+
 out([[
 static int vkerror(lua_State* L, VkResult r) {
 	push_VkResult(L, r);
@@ -306,39 +367,77 @@ for _,cmd in ipairs(cmds) do
 static int l_]]..cmd.name..[[(lua_State* L) {]])
 	local params = {}
 	for _,par in ipairs(cmd.params) do
-		if par.ptr == 0 then
+		if par.isret and types[par.type]
+			and types[par.type].cat ~= 'basetype' then
+			out('\t'..par.type..string.rep('*',par.ptr)..' '
+				..par.name..';')
+			table.insert(params, par.name)
+		elseif par.ptr == 0 then
 			setup(par.type, par.name, par.arr)
 			table.insert(params, par.name)
 		elseif par.ptr == 1 then
 			setup(par.type, par.name, par.arr)
 			table.insert(params, '&'..par.name)
 		else error('Ptr too big (again!)') end
+		params[par] = #params
+		params[par.name] = par
 	end
 	out('\n\tlua_settop(L, '..#cmd.args..');\n')
 	for i,arg in ipairs(cmd.args) do
 		out('\tlua_pushvalue(L, '..i..');')
-		out('// ARG '..arg.name..' '..arg.type..string.rep('*',arg.ptr)
-			..(arg.arr and '['..arg.arr..']' or ''))
+		out('\tint opt_'..arg.name..' = lua_isnil(L, -1);')
+		if arg.optional and types[arg.type]
+			and types[arg.type] ~= 'basetype' then
+			params[params[arg]] = 'opt_'..arg.name
+				..' ? 0 : '..params[params[arg]]
+		end
+		prepare(arg.type, arg.ptr, arg.name, arg.arr, arg.optional,
+			arg.len)
 		out('\tlua_pop(L, 1);')
 		out('')
 	end
-	out('\tlua_settop(L, '..#cmd.args+#cmd.rets..');\n')
+	local arrayrets
 	for i,ret in ipairs(cmd.rets) do
-		out('// RET '..ret.name..' '..ret.type..string.rep('*',ret.ptr))
+		if ret.len and params[ret.len] and params[ret.len].isret then
+			if not arrayrets then arrayrets = {} end
+			arrayrets[params[ret]] = ret
+		end
+	end
+	local docall
+	if cmd.ret == 'VkResult' then
+		out('\tVkResult r;')
+		docall = function(params)
+			out('\tr = '..cmd.name..'('
+				..table.concat(params, ', ')..');')
+			out('\tif(r < 0) return vkerror(L, r);')
+		end
+	else
+		docall = function(params)
+			out('\t'..cmd.name..'('..table.concat(params, ', ')
+				..');')
+		end
+	end
+	if arrayrets then
+		local arrparams = {}
+		for i,p in ipairs(params) do arrparams[i] = p end
+		for i,r in pairs(arrayrets) do
+			arrparams[i] = 'NULL'
+		end
+		docall(arrparams)
+		for _,r in pairs(arrayrets) do
+			out('\t'..r.name..' = malloc('..r.len..'*sizeof('
+				..r.type..'));')
+		end
+	end
+	docall(params)
+	out('\n\tlua_settop(L, '..#cmd.args+#cmd.rets..');\n')
+	for i,ret in ipairs(cmd.rets) do
+		complete(i+#cmd.args, ret.type, ret.name, params[ret.len]
+			and params[ret.len].isret and ret.len or ret.arr)
 		out('')
 	end
-	out('')
-	if cmd.ret == 'VkResult' then
-		out('\tVkResult r = '..cmd.name..'('
-			..table.concat(params, ', ')..');')
-		out('\tif(r < 0) return vkerror(L, r);')
-		out('\tlua_pushstring(L, "");')
-		out('\treturn '..1+#cmd.rets..';')
-	else
-		out('\t'..cmd.name..'('..table.concat(params, ', ')..');')
-		out('\treturn '..#cmd.rets..';')
-	end
 	out([[
+	return ]]..#cmd.rets..[[;
 }
 #endif
 ]])
