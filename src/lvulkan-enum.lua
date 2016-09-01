@@ -83,7 +83,7 @@ for _,es in cpairs(dom.root, {name="enums"}) do
 				or math.tointeger(2^e.attr.bitpos)
 			local n = string.match(e.attr.name, fix)
 			n = string.lower(n)
-			values[v] = n
+			values[e.attr.name] = n
 		end
 
 		out('static const char* '..es.attr.name..'_names[] = {')
@@ -94,7 +94,7 @@ for _,es in cpairs(dom.root, {name="enums"}) do
 
 		out('static '..es.attr.name..' '..es.attr.name..'_values[] = {')
 		for v,n in pairs(values) do
-			out('\t'..v..',\t// '..n)
+			out('\t'..v..',')
 		end
 		out('\t0};')
 
