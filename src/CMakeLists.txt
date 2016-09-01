@@ -5,6 +5,7 @@ set(SRC
 set(LUA
 	vulkan.lua
 	lvulkan-enum.lua
+	lvulkan-struct.lua
 )
 
 set(FULLSRC ${SRC})

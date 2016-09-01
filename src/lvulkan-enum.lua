@@ -49,6 +49,29 @@ out([[
 // This file is include'd into lvulkan.c. Files were split for readability.
 
 #ifdef IN_LVULKAN
+
+static const char* toname(uint32_t target, const uint32_t* values,
+	const char** names) {
+	int i = 0;
+	while(names[i]) {
+		if(values[i] == target)
+			return names[i];
+		i++;
+	}
+	return NULL;
+}
+
+static const char* toname_s(int32_t target, const int32_t* values,
+	const char** names) {
+	int i = 0;
+	while(names[i]) {
+		if(values[i] == target)
+			return names[i];
+		i++;
+	}
+	return NULL;
+}
+
 ]])
 
 for _,es in cpairs(dom.root, {name="enums"}) do
@@ -67,7 +90,7 @@ for _,es in cpairs(dom.root, {name="enums"}) do
 		for v,n in pairs(values) do
 			out('\t"'..n..'",')
 		end
-		out('\tNULL};')
+		out('\t"DEFAULT", NULL};')
 
 		out('static '..es.attr.name..' '..es.attr.name..'_values[] = {')
 		for v,n in pairs(values) do
@@ -75,7 +98,39 @@ for _,es in cpairs(dom.root, {name="enums"}) do
 		end
 		out('\t0};')
 
+		local name = es.attr.name
+		out('#define setup_'..name..'(R, P) {};')
+		out('#define to_'..name..'(L, D, P) ({ (D) = '
+			..name..'_values[luaL_checkoption(L, -1, "DEFAULT", '
+			..name..'_names)]; })')
+		out('#define free_'..name..'(R, P) {};')
+
+		-- And once again, a case where VkResult *has* to be different.
+		local toname = 'toname'
+		if name == 'VkResult' then toname = 'toname_s' end
+		out('#define push_'..name..'(L, D) ({ lua_pushstring(L, '
+			..toname..'((D), '..name..'_values, '..name..'_names));'
+			..' })')
+
 		out('')
+	end
+end
+
+out('')
+
+for _,es in cpairs(dom.root, {name="enums"}) do
+	if es.attr.type == 'enum' then	-- We only handle true enums here
+		local nm = es.attr.name
+		out([[
+// Compile test for ]]..nm..[[:
+static void test_]]..nm..[[(lua_State* L) {
+	]]..nm..[[ val;
+	setup_]]..nm..[[(val, val);
+	to_]]..nm..[[(L, val, val);
+	free_]]..nm..[[(val, val);
+	push_]]..nm..[[(L, val);
+}
+]])
 	end
 end
 
