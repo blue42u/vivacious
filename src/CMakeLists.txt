@@ -1,9 +1,10 @@
 set(SRC
 	luaopen.c
+	lvulkan.c
 )
 set(LUA
 	vulkan.lua
-	lvulkan.lua
+	lvulkan-enum.lua
 )
 
 set(FULLSRC ${SRC})
@@ -16,6 +17,8 @@ foreach(L ${LUA})
 		MAIN_DEPENDENCY ${L})
 	set(FULLSRC ${FULLSRC} ${CMAKE_CURRENT_BINARY_DIR}/${O})
 endforeach()
+
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
 add_library(vivacious SHARED ${FULLSRC})
 add_library(vivacious-static STATIC EXCLUDE_FROM_ALL ${FULLSRC})
