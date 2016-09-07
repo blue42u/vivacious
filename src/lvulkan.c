@@ -75,6 +75,7 @@ typedef char* string;	// Abstract char* into string, helps array params
 
 #define IN_LVULKAN
 
+//#include "lvulkan-types.c"	// Defines type-availability flags
 #include "lvulkan-enum.c"	// Defines to_<enum> and push_<enum> macros
 //#include "lvulkan-bitmask.c"	// Defines to_<bitm> and push_<bitm> macros
 #include "lvulkan-struct.c"	// Defines setup_*, to_*, free_*, and push_*

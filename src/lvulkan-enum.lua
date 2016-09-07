@@ -26,14 +26,23 @@ local waserr = 0
 local function out(s) table.insert(outtab, s) end
 local function derror(err) print(err) ; waserr = waserr + 1 end
 
-local function enumfixes(name)
+local function enumfixes(name, protect)
+	-- If this is from an extension, remove that suffix
+	local ext = ''
+	if protect then
+		ext = '_'..string.match(protect, '^VK_(%u+)')
+	end
+
 	-- The only special case (so far)
-	if name == 'VkResult' then return '^VK_([%w_]+)$' end
+	if name == 'VkResult' then return '^VK_([%w_]-)'..ext..'$' end
 
 	-- First we determine and remove the author/extension suffix
 	local suffix = string.match(name, '(%u+)$')
 	if suffix then
 		name = string.match(name, '(.*)'..suffix)
+		suffix = '_'..suffix
+	else
+		suffix = ''
 	end
 
 	-- Now we convert the CamelCase to CAPITAL_UNDERSCORES
@@ -41,7 +50,42 @@ local function enumfixes(name)
 	name = string.sub(name, 2)	-- Remove the extra first _
 	name = string.upper(name)	-- Uppercase it all
 
-	return '^'..name..'_([%w_]+)'..(suffix and '_'..suffix or '')..'$'
+	return '^'..name..'_([%w_]-)'..suffix..ext..'$'
+end
+
+local enumvs, enumcs = {},{}
+local function addenum(enum, const, protect)
+	if not enumvs[enum] then enumvs[enum] = {} end
+	if not enumcs[enum] then enumcs[enum] = {} end
+	local n = string.match(const, enumfixes(enum, protect))
+	if string.sub(n, -4) == '_KHR' then
+		n = string.sub(n, 1, -4)
+	end
+	n = string.lower(n)
+	enumvs[enum][const] = n
+	enumcs[enum][const] = protect
+end
+
+for _,es in cpairs(dom.root, {name='enums'}) do
+	if es.attr.type == 'enum' then	-- We only handle true enums here
+		local fix = enumfixes(es.attr.name)
+		for _,e in cpairs(es, {name='enum'}) do
+			addenum(es.attr.name, e.attr.name)
+		end
+	end
+end
+
+for _,ext in cpairs(first(dom.root, {name='extensions'}), {name='extension'}) do
+	if ext.attr.supported == 'vulkan' then
+	for _,r in cpairs(ext, {name='require'}) do
+		for _,e in cpairs(r, {name='enum'}) do
+			if e.attr.extends and enumvs[e.attr.extends] then
+				addenum(e.attr.extends, e.attr.name,
+					not e.attr.value and ext.attr.name)
+			end
+		end
+	end
+	end
 end
 
 out([[
@@ -74,46 +118,36 @@ static const char* toname_s(int32_t target, const int32_t* values,
 
 ]])
 
-for _,es in cpairs(dom.root, {name="enums"}) do
-	if es.attr.type == 'enum' then	-- We only handle true enums here
-		local fix = enumfixes(es.attr.name)
-		local values = {}
-		for _,e in cpairs(es, {name="enum"}) do
-			local v = math.tointeger(e.attr.value)
-				or math.tointeger(2^e.attr.bitpos)
-			local n = string.match(e.attr.name, fix)
-			n = string.lower(n)
-			values[e.attr.name] = n
-		end
-
-		out('static const char* '..es.attr.name..'_names[] = {')
-		for v,n in pairs(values) do
-			out('\t"'..n..'",')
-		end
-		out('\t"DEFAULT", NULL};')
-
-		out('static '..es.attr.name..' '..es.attr.name..'_values[] = {')
-		for v,n in pairs(values) do
-			out('\t'..v..',')
-		end
-		out('\t0};')
-
-		local name = es.attr.name
-		out('#define setup_'..name..'(R, P) {};')
-		out('#define to_'..name..'(L, D, P) ({ (D) = '
-			..name..'_values[luaL_checkoption(L, -1, "DEFAULT", '
-			..name..'_names)]; })')
-		out('#define free_'..name..'(R, P) {};')
-
-		-- And once again, a case where VkResult *has* to be different.
-		local toname = 'toname'
-		if name == 'VkResult' then toname = 'toname_s' end
-		out('#define push_'..name..'(L, D) ({ lua_pushstring(L, '
-			..toname..'((D), '..name..'_values, '..name..'_names));'
-			..' })')
-
-		out('')
+for e,vs in pairs(enumvs) do
+	out('static const char* '..e..'_names[] = {')
+	for c,n in pairs(vs) do
+		if enumcs[e][c] then out('#ifdef '..enumcs[e][c]) end
+		out('\t"'..n..'",')
+		if enumcs[e][c] then out('#endif') end
 	end
+	out('\t"DEFAULT", NULL};')
+
+	out('static const '..e..' '..e..'_values[] = {')
+	for c,n in pairs(vs) do
+		if enumcs[e][c] then out('#ifdef '..enumcs[e][c]) end
+		out('\t'..c..',')
+		if enumcs[e][c] then out('#endif') end
+	end
+	out('\t0};')
+
+	-- Of couse VkResult has to be different. Is this case, its signed.
+	local toname = 'toname'
+	if e == 'VkResult' then toname = 'toname_s' end
+
+	out('#define setup_'..e..'(R, P) {};')
+	out('#define to_'..e..'(L, D, P) ({ (D) = '
+		..e..'_values[luaL_checkoption(L, -1, "DEFAULT", '
+		..e..'_names)]; })')
+	out('#define free_'..e..'(R, P) {};')
+	out('#define push_'..e..'(L, D) ({ lua_pushstring(L, '
+		..toname..'((D), '..e..'_values, '..e..'_names)); })')
+
+	out('')
 end
 
 out('')

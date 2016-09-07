@@ -90,6 +90,7 @@ for _,ss in cpairs(first(dom.root, {name="types"}), {name="type"}) do
 		local nm = ss.attr.name
 		out([[
 // Compile test for ]]..nm..[[:
+//#ifdef LVULKAN_]]..nm..[[	// Define barrier
 static void test_]]..nm..[[(lua_State* L) {
 	]]..nm..[[ val;
 	setup_]]..nm..[[(val, val);
@@ -97,6 +98,7 @@ static void test_]]..nm..[[(lua_State* L) {
 	free_]]..nm..[[(val, val);
 	push_]]..nm..[[(L, val);
 }
+//#endif
 ]])
 	end
 end
