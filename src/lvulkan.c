@@ -45,10 +45,10 @@ typedef char* string;	// Abstract char* into string, helps array params
 #define to_string(L, D, P) ({ (D) = luaL_checkstring(L, -1); })
 #define to_float(L, D, P) ({ (D) = luaL_checknumber(L, -1); })
 #define to_uint8_t(L, D, P) ({ (D) = luaL_checkinteger(L, -1); })
-#define to_uint32_t(L, D, P) to_uint8_t(L, D)
-#define to_uint64_t(L, D, P) to_uint8_t(L, D)
-#define to_int32_t(L, D, P) to_uint8_t(L, D)
-#define to_size_t(L, D, P) to_uint8_t(L, D)
+#define to_uint32_t(L, D, P) to_uint8_t(L, D, P)
+#define to_uint64_t(L, D, P) to_uint8_t(L, D, P)
+#define to_int32_t(L, D, P) to_uint8_t(L, D, P)
+#define to_size_t(L, D, P) to_uint8_t(L, D, P)
 #define to_VkBool32(L, D, P) ({ (D) = lua_toboolean(L, -1); })
 
 // free_* macros free any extra data that the corrosponding to_* alloc'd.
@@ -75,7 +75,6 @@ typedef char* string;	// Abstract char* into string, helps array params
 
 #define IN_LVULKAN
 
-//#include "lvulkan-types.c"	// Defines type-availability flags
 #include "lvulkan-enum.c"	// Defines to_<enum> and push_<enum> macros
 //#include "lvulkan-bitmask.c"	// Defines to_<bitm> and push_<bitm> macros
 #include "lvulkan-struct.c"	// Defines setup_*, to_*, free_*, and push_*

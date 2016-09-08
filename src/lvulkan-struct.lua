@@ -49,14 +49,12 @@ out([[
 // This file is include'd into lvulkan.c. Files were split for readability.
 
 #ifdef IN_LVULKAN
-
 ]])
 
 for _,ss in cpairs(first(dom.root, {name="types"}), {name="type"}) do
 	if ss.attr.category == 'struct' then	-- We only handle structs here
 		local name = ss.attr.name or
 			first(ss, {name="name"}, {type="text"}).value
-		out('// STRUCT '..name)
 
 		local mems = {}
 		for _,m in cpairs(ss, {name="member"}) do
@@ -67,17 +65,47 @@ for _,ss in cpairs(first(dom.root, {name="types"}), {name="type"}) do
 			if tp == 'char' then tp = 'string'
 				pr = string.sub(pr,2) end
 			if pr ~= '' and pr ~= '*' then error(pr) end
-			table.insert(mems, {t=tp, n=mn, p=pr, m=m})
+			table.insert(mems, {t=tp, n=mn, p=pr, m=m,
+				l=m.attr.len})
 		end
 
-		out('#define setup_'..name..'(R, P) {};')
-		out('#define to_'..name..'(L, D, P) {};')
-		out('#define free_'..name..'(D, P) {};')
-		out('#define push_'..name..'(L, D) {};')
-
+		if not ss.attr.returnedonly then
+		out('#define setup_'..name..'(R, P) \\')
 		for _,m in ipairs(mems) do
-			out('\t// '..m.t..m.p..' '..m.n)
+			if m.t == 'void' then
+			elseif #m.p == 1 then
+				if m.l then
+				out('\t'..m.t..m.p..' P##_'..m.n..'; \\')
+				else
+				out('\t'..m.t..' P##_'..m.n..'; \\')
+				out('\tsetup_'..m.t..'((R).'..m.n
+					..', P##_'..m.n..') \\')
+				end
+			elseif #m.p == 0 then
+			else error() end
 		end
+		out('// END setup_'..name)
+
+		out('#define to_'..name..'(L, R, P) ({ \\')
+		for _,m in ipairs(mems) do
+			out('\tlua_getfield(L, -1, "'..m.n..'"); \\')
+			if m.t == 'void' then
+			elseif #m.p == 1 then
+				if m.m.attr.len then
+				else
+				end
+			elseif #m.p == 0 then
+				out('\tto_'..m.t..'(L, (R).'..m.n..', P##_'
+					..m.n..'); \\')
+			else error() end
+			out('\\')
+		end
+		out('})')
+
+		out('#define free_'..name..'(R, P)')
+		end
+
+		out('#define push_'..name..'(L, R)')
 
 		out('')
 	end
@@ -88,18 +116,20 @@ out('')
 for _,ss in cpairs(first(dom.root, {name="types"}), {name="type"}) do
 	if ss.attr.category == 'struct' then	-- We only handle structs here
 		local nm = ss.attr.name
+		if string.sub(nm, -3) ~= 'KHR' then	-- TMP for testing
 		out([[
 // Compile test for ]]..nm..[[:
-//#ifdef LVULKAN_]]..nm..[[	// Define barrier
 static void test_]]..nm..[[(lua_State* L) {
-	]]..nm..[[ val;
-	setup_]]..nm..[[(val, val);
+	]]..nm..[[ val;]])
+		if not ss.attr.returnedonly then
+			out([[
+	setup_]]..nm..[[(val, val)
 	to_]]..nm..[[(L, val, val);
-	free_]]..nm..[[(val, val);
-	push_]]..nm..[[(L, val);
-}
-//#endif
-]])
+	free_]]..nm..[[(val, val);]])
+		end
+		out('\tpush_'..nm..'(L, val);')
+		out('}')
+		end	-- TMP for testing
 	end
 end
 
