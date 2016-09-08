@@ -44,6 +44,22 @@ local function findptr(m)
 	return ''
 end
 
+local function findarr(m)
+	local namei
+	for i,k in ipairs(m.kids) do
+		if k.name == 'name' then
+			namei = i
+			break
+		end
+	end
+	for i=namei+1,#m.kids do
+		if m.kids[i].type == 'text' then
+			return string.match(m.kids[i].value, '%[(.-)%]')
+		end
+	end
+	return
+end
+
 out([[
 // WARNING: Generated file. Do not edit manually.
 // This file is include'd into lvulkan.c. Files were split for readability.
@@ -60,12 +76,12 @@ for _,ss in cpairs(first(dom.root, {name="types"}), {name="type"}) do
 		for _,m in cpairs(ss, {name="member"}) do
 			local tp = first(m, {name="type"}, {type="text"}).value
 			local mn = first(m, {name="name"}, {type="text"}).value
-			local pr = findptr(m)
+			local pr,ar = findptr(m),findarr(m)
 			if pr == '* const*' then pr = '**' end
 			if tp == 'char' then tp = 'string'
 				pr = string.sub(pr,2) end
 			if pr ~= '' and pr ~= '*' then error(pr) end
-			table.insert(mems, {t=tp, n=mn, p=pr, m=m,
+			table.insert(mems, {t=tp, n=mn, p=pr, m=m, a=ar,
 				l=m.attr.len})
 		end
 
@@ -89,15 +105,21 @@ for _,ss in cpairs(first(dom.root, {name="types"}), {name="type"}) do
 		out('#define to_'..name..'(L, R, P) ({ \\')
 		for _,m in ipairs(mems) do
 			out('\tlua_getfield(L, -1, "'..m.n..'"); \\')
+			local ref = 'R.'..m.n
+			if m.a then
+				out('\tfor(int i=0; i<'..m.a..'; i++) { \\')
+				ref = 'R.'..m.n..'[i]'
+			end
 			if m.t == 'void' then
 			elseif #m.p == 1 then
 				if m.m.attr.len then
 				else
 				end
 			elseif #m.p == 0 then
-				out('\tto_'..m.t..'(L, (R).'..m.n..', P##_'
+				out('\tto_'..m.t..'(L, '..ref..', P##_'
 					..m.n..'); \\')
 			else error() end
+			if m.a then out('\t} \\') end
 			out('\\')
 		end
 		out('})')

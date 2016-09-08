@@ -77,6 +77,13 @@ typedef char* string;	// Abstract char* into string, helps array params
 #define push_VkBool32(L, D) lua_pushboolean(L, (D))
 #define push_VkDeviceSize(L, D) push_uint8_t(L, D)
 
+// These are the odd types that are only used a few places, but make a mess
+#define to_PFN_vkAllocationFunction(L, R, P) ({ (R) = NULL; })
+#define to_PFN_vkReallocationFunction(L, R, P) ({ (R) = NULL; })
+#define to_PFN_vkFreeFunction(L, R, P) ({ (R) = NULL; })
+#define to_PFN_vkInternalAllocationNotification(L, R, P) ({ (R) = NULL; })
+#define to_PFN_vkInternalFreeNotification(L, R, P) ({ (R) = NULL; })
+
 #define IN_LVULKAN
 
 #include "lvulkan-enum.c"	// Handles enums (VkStructureType, etc.)
