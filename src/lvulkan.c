@@ -31,14 +31,15 @@ typedef char* string;	// Abstract char* into string, helps array params
 
 // setup_* macros define the needed sub-types for the type in question.
 // Use: setup_<type>((<type>)ref, pathname);
-#define setup_string(R, P) {};
-#define setup_float(R, P) {};
-#define setup_uint8_t(R, P) {};
-#define setup_uint32_t(R, P) {};
-#define setup_uint64_t(R, P) {};
-#define setup_int32_t(R, P) {};
-#define setup_size_t(R, P) {};
-#define setup_VkBool32(R, P) {};
+#define setup_string(R, P)
+#define setup_float(R, P)
+#define setup_uint8_t(R, P)
+#define setup_uint32_t(R, P)
+#define setup_uint64_t(R, P)
+#define setup_int32_t(R, P)
+#define setup_size_t(R, P)
+#define setup_VkBool32(R, P)
+#define setup_VkDeviceSize(R, P)
 
 // to_* macros convert a compatible Lua object into the C type.
 // Use: to_<type>((lua_State*)L, (<type>)data, pathname);
@@ -50,17 +51,19 @@ typedef char* string;	// Abstract char* into string, helps array params
 #define to_int32_t(L, D, P) to_uint8_t(L, D, P)
 #define to_size_t(L, D, P) to_uint8_t(L, D, P)
 #define to_VkBool32(L, D, P) ({ (D) = lua_toboolean(L, -1); })
+#define to_VkDeviceSize(L, D, P) to_uint8_t(L, D, P)
 
 // free_* macros free any extra data that the corrosponding to_* alloc'd.
 // Use: free_<type>((<type>)data, pathname);
-#define free_string(R, P) {};
-#define free_float(R, P) {};
-#define free_uint8_t(R, P) {};
-#define free_uint32_t(R, P) {};
-#define free_uint64_t(R, P) {};
-#define free_int32_t(R, P) {};
-#define free_size_t(R, P) {};
-#define free_VkBool32(R, P) {};
+#define free_string(R, P)
+#define free_float(R, P)
+#define free_uint8_t(R, P)
+#define free_uint32_t(R, P)
+#define free_uint64_t(R, P)
+#define free_int32_t(R, P)
+#define free_size_t(R, P)
+#define free_VkBool32(R, P)
+#define free_VkDeviceSize(R, P)
 
 // push_* macros convert a C type into a suitable Lua object.
 // Use: push_<type>((lua_State*)L, (<type>)data)
@@ -72,12 +75,14 @@ typedef char* string;	// Abstract char* into string, helps array params
 #define push_int32_t(L, D) push_uint8_t(L, D)
 #define push_size_t(L, D) push_uint8_t(L, D)
 #define push_VkBool32(L, D) lua_pushboolean(L, (D))
+#define push_VkDeviceSize(L, D) push_uint8_t(L, D)
 
 #define IN_LVULKAN
 
-#include "lvulkan-enum.c"	// Defines to_<enum> and push_<enum> macros
-//#include "lvulkan-bitmask.c"	// Defines to_<bitm> and push_<bitm> macros
-#include "lvulkan-struct.c"	// Defines setup_*, to_*, free_*, and push_*
+#include "lvulkan-enum.c"	// Handles enums (VkStructureType, etc.)
+#include "lvulkan-bitmask.c"	// Handles bitmasks (VkQueueFlags, etc.)
+#include "lvulkan-handle.c"	// Handles the handles (VkInstance, etc.)
+#include "lvulkan-struct.c"	// Handles the structs (VkSubmitInfo, etc.)
 
 // TMP: To keep link errors away!
 void loadLVulkan(lua_State* L) { lua_pushnil(L); }

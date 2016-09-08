@@ -5,6 +5,8 @@ set(SRC
 set(LUA
 	vulkan.lua
 	lvulkan-enum.lua
+	lvulkan-bitmask.lua
+	lvulkan-handle.lua
 	lvulkan-struct.lua
 )
 
