@@ -83,6 +83,7 @@ typedef char* string;	// Abstract char* into string, helps array params
 #define to_PFN_vkFreeFunction(L, R, P) ({ (R) = NULL; })
 #define to_PFN_vkInternalAllocationNotification(L, R, P) ({ (R) = NULL; })
 #define to_PFN_vkInternalFreeNotification(L, R, P) ({ (R) = NULL; })
+#define to_PFN_vkDebugReportCallbackEXT(L, R, P) ({ (R) = NULL; })
 
 #define IN_LVULKAN
 
@@ -90,6 +91,8 @@ typedef char* string;	// Abstract char* into string, helps array params
 #include "lvulkan-bitmask.c"	// Handles bitmasks (VkQueueFlags, etc.)
 #include "lvulkan-handle.c"	// Handles the handles (VkInstance, etc.)
 #include "lvulkan-struct.c"	// Handles the structs (VkSubmitInfo, etc.)
+#include "lvulkan-union.c"	// Handles the unions (VkClearValue, etc.)
+#include "lvulkan-test.c"	// Compile-time test, for testing
 
 // TMP: To keep link errors away!
 void loadLVulkan(lua_State* L) { lua_pushnil(L); }

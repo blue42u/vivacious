@@ -26,24 +26,6 @@ local waserr = 0
 local function out(s) table.insert(outtab, s) end
 local function derror(err) print(err) ; waserr = waserr + 1 end
 
-local function findptr(m)
-	local typei
-	for i,k in ipairs(m.kids) do
-		if k.name == 'type' then
-			typei = i
-			break
-		end
-	end
-	for i=typei+1,#m.kids do
-		if m.kids[i].type == 'text' then
-			return m.kids[i].value
-		elseif m.kids[i].name == 'name' then
-			break
-		end
-	end
-	return ''
-end
-
 local function findarr(m)
 	local namei
 	for i,k in ipairs(m.kids) do
@@ -68,7 +50,7 @@ out([[
 ]])
 
 for _,ss in cpairs(first(dom.root, {name="types"}), {name="type"}) do
-	if ss.attr.category == 'struct' then	-- We only handle structs here
+	if ss.attr.category == 'union' then	-- We only handle structs here
 		local name = ss.attr.name or
 			first(ss, {name="name"}, {type="text"}).value
 
@@ -76,56 +58,27 @@ for _,ss in cpairs(first(dom.root, {name="types"}), {name="type"}) do
 		for _,m in cpairs(ss, {name="member"}) do
 			local tp = first(m, {name="type"}, {type="text"}).value
 			local mn = first(m, {name="name"}, {type="text"}).value
-			local pr,ar = findptr(m),findarr(m)
-			if pr == '* const*' then pr = '**' end
-			if tp == 'char' then tp = 'string'
-				pr = string.sub(pr,2) end
-			if pr ~= '' and pr ~= '*' then error(pr) end
-			table.insert(mems, {t=tp, n=mn, p=pr, m=m, a=ar,
-				l=m.attr.len})
+			table.insert(mems, {t=tp, n=mn, m=m, a=findarr(m)})
 		end
 
-		if not ss.attr.returnedonly then
-		out('#define setup_'..name..'(R, P) \\')
-		for _,m in ipairs(mems) do
-			if m.t == 'void' then
-			elseif #m.p == 1 then
-				if m.l then
-				out('\t'..m.t..m.p..' P##_'..m.n..'; \\')
-				else
-				out('\t'..m.t..' P##_'..m.n..'; \\')
-				out('\tsetup_'..m.t..'((R).'..m.n
-					..', P##_'..m.n..') \\')
-				end
-			elseif #m.p == 0 then
-			else error() end
-		end
-		out('// END setup_'..name)
+		out('#define setup_'..name..'(R, P)')
 
 		out('#define to_'..name..'(L, R, P) ({ \\')
 		for _,m in ipairs(mems) do
-			out('\tlua_getfield(L, -1, "'..m.n..'"); \\')
 			local ref = 'R.'..m.n
 			if m.a then
 				out('\tfor(int i=0; i<'..m.a..'; i++) { \\')
 				ref = 'R.'..m.n..'[i]'
 			end
-			if m.t == 'void' then
-			elseif #m.p == 1 then
-				if m.m.attr.len then
-				else
-				end
-			elseif #m.p == 0 then
-				out('\tto_'..m.t..'(L, '..ref..', P##_'
-					..m.n..'); \\')
-			else error() end
+			out([[
+	lua_getfield(L, -1, "]]..m.n..[["); \
+	if(!lua_isnil(L, -1)) \
+		to_]]..m.t..[[(L, ]]..ref..[[, P##_]]..m.n..[[); \]])
 			if m.a then out('\t} \\') end
-			out('\\')
 		end
 		out('})')
 
 		out('#define free_'..name..'(R, P)')
-		end
 
 		out('#define push_'..name..'(L, R)')
 

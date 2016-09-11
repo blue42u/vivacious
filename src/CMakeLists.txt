@@ -8,6 +8,8 @@ set(LUA
 	lvulkan-bitmask.lua
 	lvulkan-handle.lua
 	lvulkan-struct.lua
+	lvulkan-union.lua
+	lvulkan-test.lua
 )
 
 set(FULLSRC ${SRC})
