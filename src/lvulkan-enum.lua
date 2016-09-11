@@ -150,24 +150,6 @@ for e,vs in pairs(enumvs) do
 	out('')
 end
 
-out('')
-
-for _,es in cpairs(dom.root, {name="enums"}) do
-	if es.attr.type == 'enum' then	-- We only handle true enums here
-		local nm = es.attr.name
-		out([[
-// Compile test for ]]..nm..[[:
-static void test_]]..nm..[[(lua_State* L) {
-	]]..nm..[[ val;
-	setup_]]..nm..[[(val, val);
-	to_]]..nm..[[(L, val, val);
-	free_]]..nm..[[(val, val);
-	push_]]..nm..[[(L, val);
-}
-]])
-	end
-end
-
 out('#endif // IN_LVULKAN')
 
 if waserr > 0 then

@@ -119,7 +119,6 @@ out([[
 
 #ifdef IN_LVULKAN
 
-// toname is defined in lvulkan-enum.c. No need to define it here.
 ]])
 
 for e,vs in pairs(bmvs) do
@@ -142,12 +141,24 @@ for e,vs in pairs(bmvs) do
 	local t = bm2typ(e)
 
 	out('#define setup_'..t..'(R, P)')
-	out('#define to_'..t..'(L, D, P) ({ (D) = '
-		..e..'_values[luaL_checkoption(L, -1, "DEFAULT", '
-		..e..'_names)]; })')
+	out([[
+#define to_]]..t..[[(L, D, P) ({ \
+	(D) = 0; \
+	for(int i=0; i<sizeof(]]..e..[[_values)/sizeof(]]..e..[[); i++) { \
+		lua_getfield(L, -1, ]]..e..[[_names[i]); \
+		if(lua_toboolean(L, -1)) (D) |= ]]..e..[[_values[i]; \
+		lua_pop(L, 1); \
+	} \
+})]])
 	out('#define free_'..t..'(R, P)')
-	out('#define push_'..t..'(L, D) ({ lua_pushstring(L, '
-		..'toname((D), '..e..'_values, '..e..'_names)); })')
+	out([[
+#define push_]]..t..[[(L, D) ({ \
+	lua_newtable(L); \
+	for(int i=0; i<sizeof(]]..e..[[_values)/sizeof(]]..e..[[); i++) { \
+		lua_pushboolean(L, (D) & ]]..e..[[_values[i]); \
+		lua_setfield(L, -2, ]]..e..[[_names[i]); \
+	} \
+})]])
 
 	out('#define setup_'..e..'(R, P) setup_'..t..'(R, P)')
 	out('#define to_'..e..'(L, R, P) to_'..t..'(L, R, P)')
@@ -171,24 +182,6 @@ for _,t in cpairs(first(dom.root, {name="types"}), {name='type'}) do
 			out('#define free_'..t..'(R, P)')
 			out('#define push_'..t..'(L, D) ({ lua_pushnil(L); })')
 		end
-	end
-end
-
-out('')
-
-for _,es in cpairs(dom.root, {name="enums"}) do
-	if es.attr.type == 'bitmask' then	-- We only handle bitmasks here
-		local nm = bm2typ(es.attr.name)
-		out([[
-// Compile test for ]]..nm..[[:
-static void test_]]..nm..[[(lua_State* L) {
-	]]..nm..[[ val;
-	setup_]]..nm..[[(val, val);
-	to_]]..nm..[[(L, val, val);
-	free_]]..nm..[[(val, val);
-	push_]]..nm..[[(L, val);
-}
-]])
 	end
 end
 

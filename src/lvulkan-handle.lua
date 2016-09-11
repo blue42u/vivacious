@@ -47,24 +47,6 @@ for _,ss in cpairs(first(dom.root, {name="types"}), {name="type"}) do
 	end
 end
 
-out('')
-
-for _,ss in cpairs(first(dom.root, {name="types"}), {name="type"}) do
-	if ss.attr.category == 'handle' then
-		local nm = first(ss, {name='name'}, {type='text'}).value
-		out([[
-// Compile test for ]]..nm..[[:
-static void test_]]..nm..[[(lua_State* L) {
-	]]..nm..[[ val;
-	setup_]]..nm..[[(val, val)
-	to_]]..nm..[[(L, val, val);
-	free_]]..nm..[[(val, val);
-	push_]]..nm..[[(L, val);
-}
-]])
-	end
-end
-
 out('#endif // IN_LVULKAN')
 
 if waserr > 0 then
