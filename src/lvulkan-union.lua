@@ -71,24 +71,33 @@ for _,ss in cpairs(first(dom.root, {name="types"}), {name="type"}) do
 		out('#define size_'..name..'(L) sizeof('..name..')')
 
 		out('#define to_'..name..'(L, R) ({ \\')
+		out('\tint cont = 1; \\')
 		for _,m in ipairs(mems) do
 			if not m.a then
 				fout([[
-	lua_getfield(L, -1, "`n`"); \
-	if(!lua_isnil(L, -1)) \
-		to_`t`(L, &((]]..name..[[*)R)->`n`); \
-	lua_pop(L, 1); \
+	if(cont) { \
+		lua_getfield(L, -1, "`n`"); \
+		if(!lua_isnil(L, -1)) { \
+			to_`t`(L, &((]]..name..[[*)R)->`n`); \
+			cont = 0; \
+		} \
+		lua_pop(L, 1); \
+	} \
 \]], m)
 			else
 				fout([[
-	lua_getfield(L, -1, "`n`"); \
-	if(!lua_isnil(L, -1)) \
-		for(int i=0; i<`a`; i++) { \
-			lua_geti(L, -1, i+1); \
-			to_`t`(L, &((]]..name..[[*)R)->`n`[i]); \
-			lua_pop(L, 1); \
+	if(cont) { \
+		lua_getfield(L, -1, "`n`"); \
+		if(!lua_isnil(L, -1)) { \
+			for(int i=0; i<`a`; i++) { \
+				lua_geti(L, -1, i+1); \
+				to_`t`(L, &((]]..name..[[*)R)->`n`[i]); \
+				lua_pop(L, 1); \
+			} \
+			cont = 0; \
 		} \
-	lua_pop(L, 1); \
+		lua_pop(L, 1); \
+	} \
 \]], m)
 			end
 		end
