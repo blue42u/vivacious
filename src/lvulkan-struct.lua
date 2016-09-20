@@ -26,6 +26,13 @@ local waserr = 0
 local function out(s) table.insert(outtab, s) end
 local function derror(err) print(err) ; waserr = waserr + 1 end
 
+local function fout(s, t)
+	for k,v in pairs(t) do
+		s = string.gsub(s, '`'..k..'`', v)
+	end
+	out(s)
+end
+
 local function findptr(m)
 	local typei
 	for i,k in ipairs(m.kids) do
@@ -84,51 +91,76 @@ for _,ss in cpairs(first(dom.root, {name="types"}), {name="type"}) do
 			table.insert(mems, {t=tp, n=mn, p=pr, m=m, a=ar,
 				l=m.attr.len})
 		end
-
-		if not ss.attr.returnedonly then
-		out('#define setup_'..name..'(R, P) \\')
+		-- Figure out whether this type has any subtypes early.
+		local comp = false
 		for _,m in ipairs(mems) do
-			if m.t == 'void' then
-			elseif #m.p == 1 then
-				if m.l then
-				out('\t'..m.t..m.p..' P##_'..m.n..'; \\')
-				else
-				out('\t'..m.t..' P##_'..m.n..'; \\')
-				out('\tsetup_'..m.t..'((R).'..m.n
-					..', P##_'..m.n..') \\')
-				end
-			elseif #m.p == 0 then
-			else error() end
-		end
-		out('// END setup_'..name)
-
-		out('#define to_'..name..'(L, R, P) ({ \\')
-		for _,m in ipairs(mems) do
-			out('\tlua_getfield(L, -1, "'..m.n..'"); \\')
-			local ref = 'R.'..m.n
-			if m.a then
-				out('\tfor(int i=0; i<'..m.a..'; i++) { \\')
-				ref = 'R.'..m.n..'[i]'
+			if #m.p > 0 then
+				comp = true
+				break
 			end
-			if m.t == 'void' then
-			elseif #m.p == 1 then
-				if m.m.attr.len then
-				else
-				end
-			elseif #m.p == 0 then
-				out('\tto_'..m.t..'(L, '..ref..', P##_'
-					..m.n..'); \\')
-			else error() end
-			if m.a then out('\t} \\') end
-			out('\\')
 		end
-		out('})')
 
-		out('#define free_'..name..'(R, P)')
-		end
+-- NOTE: Currently in Vulkan, there are no members which define a static-length
+-- array of pointers. This may happen in the future, so we test for it here.
+		for _,m in ipairs(mems) do if m.a and #m.p > 0 then
+			error('Array of pointers: '..name..'.'..m.n..'!')
+		end end
 
 		out('#define push_'..name..'(L, R)')
 
+		if ss.attr.returnedonly then goto returnonly end
+
+		if not comp then
+			fout([[
+#define size_`name`(L) sizeof(`name`)]], {name=name})
+		else
+			fout([[
+#define size_`name`(L) ({ \
+	size_t res = sizeof(`name`); \
+\]], {name=name})
+			for _,m in ipairs(mems) do
+				if #m.p > 0 and m.t ~= 'void' then
+					if m.l then fout([[
+	lua_getfield(L, -1, "`n`"); \
+	if(!lua_isnil(L, -1)) { \
+		lua_len(L, -1); \
+		int len = lua_tointeger(L, -1); \
+		lua_pop(L, 1); \
+		for(int i=1; i<=len; i++) { \
+			lua_geti(L, -1, i); \
+			res += size_`t`(L); \
+			lua_pop(L, 1); \
+		} \
+	} \
+	lua_pop(L, 1); \
+\]], m)
+					else fout([[
+	lua_getfield(L, -1, "`n`"); \
+	if(!lua_isnil(L, -1)) res += size_`t`(L); \
+	lua_pop(L, 1); \
+\]], m)
+					end
+				end
+			end
+			out([[
+	res; })]])
+		end
+
+		if not comp then
+			out('#define to_'..name..'(L, R) ({ \\')
+			for _,m in ipairs(mems) do
+				fout([[
+	lua_getfield(L, -1, "`n`"); \
+	if(!lua_isnil(L, -1)) to_`t`(L, &((]]..name..[[*)R)->`n`); \
+	lua_pop(L, 1); \
+\]], m)
+			end
+			out('\t(void*)(R) + sizeof('..name..'); })')
+		else
+			out('#define to_'..name..'(L, R)')
+		end
+
+::returnonly::
 		out('')
 	end
 end

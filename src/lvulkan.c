@@ -27,63 +27,69 @@
 typedef char* string;	// Abstract char* into string, helps array params
 
 // Many of the files will define function-like macros. These macros
-// are of six varieties: setup_*, to_*, alloc_*, fill_*, free_* and push_*
+// are of three varieties: size_*, to_*, push_*
 
-// setup_* macros define the needed sub-types for the type in question.
-// Use: setup_<type>((<type>)ref, pathname);
-#define setup_string(R, P)
-#define setup_float(R, P)
-#define setup_uint8_t(R, P)
-#define setup_uint32_t(R, P)
-#define setup_uint64_t(R, P)
-#define setup_int32_t(R, P)
-#define setup_size_t(R, P)
-#define setup_VkBool32(R, P)
-#define setup_VkDeviceSize(R, P)
+// size_* macros return the total size of the object on top of the stack.
+// Use: size_<type>((lua_State*)L);
+#define size_string(L) sizeof(const string)
+#define size_float(L) sizeof(float)
+#define size_uint8_t(L) sizeof(uint8_t)
+#define size_uint32_t(L) sizeof(uint32_t)
+#define size_uint64_t(L) sizeof(uint64_t)
+#define size_int32_t(L) sizeof(int32_t)
+#define size_size_t(L) sizeof(size_t)
+#define size_VkBool32(L) sizeof(VkBool32)
+#define size_VkDeviceSize(L) sizeof(VkDeviceSize)
 
-// to_* macros convert a compatible Lua object into the C type.
-// Use: to_<type>((lua_State*)L, (<type>)data, pathname);
-#define to_string(L, D, P) ({ (D) = luaL_checkstring(L, -1); })
-#define to_float(L, D, P) ({ (D) = luaL_checknumber(L, -1); })
-#define to_uint8_t(L, D, P) ({ (D) = luaL_checkinteger(L, -1); })
-#define to_uint32_t(L, D, P) to_uint8_t(L, D, P)
-#define to_uint64_t(L, D, P) to_uint8_t(L, D, P)
-#define to_int32_t(L, D, P) to_uint8_t(L, D, P)
-#define to_size_t(L, D, P) to_uint8_t(L, D, P)
-#define to_VkBool32(L, D, P) ({ (D) = lua_toboolean(L, -1); })
-#define to_VkDeviceSize(L, D, P) to_uint8_t(L, D, P)
-
-// free_* macros free any extra data that the corrosponding to_* alloc'd.
-// Use: free_<type>((<type>)data, pathname);
-#define free_string(R, P)
-#define free_float(R, P)
-#define free_uint8_t(R, P)
-#define free_uint32_t(R, P)
-#define free_uint64_t(R, P)
-#define free_int32_t(R, P)
-#define free_size_t(R, P)
-#define free_VkBool32(R, P)
-#define free_VkDeviceSize(R, P)
+// to_* macros convert a compatible Lua object into the C type. They also
+// return a pointer to the space after the C object, in its full form.
+// Use: to_<type>((lua_State*)L, (<type>*)ref);
+#define to_BASE(L, R, T, V) ({ \
+	*(T*)(R) = (V); \
+	(void*)(R)+sizeof(T); \
+})
+#define to_string(L, R) to_BASE(L, R, string, luaL_optstring(L, -1, NULL))
+#define to_float(L, R) to_BASE(L, R, float, luaL_optnumber(L, -1, 0))
+#define to_uint8_t(L, R) to_BASE(L, R, uint8_t, luaL_optinteger(L, -1, 0))
+#define to_uint32_t(L, R) to_BASE(L, R, uint32_t, luaL_optinteger(L, -1, 0))
+#define to_uint64_t(L, R) to_BASE(L, R, uint64_t, luaL_optinteger(L, -1, 0))
+#define to_int32_t(L, R) to_BASE(L, R, int32_t, luaL_optinteger(L, -1, 0))
+#define to_size_t(L, R) to_BASE(L, R, size_t, luaL_optinteger(L, -1, 0))
+#define to_VkBool32(L, R) to_BASE(L, R, VkBool32, lua_toboolean(L, -1))
+#define to_VkDeviceSize(L, R) to_BASE(L, R, VkDeviceSize, \
+	luaL_optinteger(L, -1, 0))
 
 // push_* macros convert a C type into a suitable Lua object.
-// Use: push_<type>((lua_State*)L, (<type>)data)
-#define push_string(L, D) lua_pushstring(L, (D))
-#define push_float(L, D) lua_pushnumber(L, (D))
-#define push_uint8_t(L, D) lua_pushinteger(L, (D))
-#define push_uint32_t(L, D) push_uint8_t(L, D)
-#define push_uint64_t(L, D) push_uint8_t(L, D)
-#define push_int32_t(L, D) push_uint8_t(L, D)
-#define push_size_t(L, D) push_uint8_t(L, D)
-#define push_VkBool32(L, D) lua_pushboolean(L, (D))
-#define push_VkDeviceSize(L, D) push_uint8_t(L, D)
+// Use: push_<type>((lua_State*)L, (<type>*)data)
+#define push_string(L, D) lua_pushstring(L, *(const string*)(D))
+#define push_float(L, D) lua_pushnumber(L, *(float*)(D))
+#define push_uint8_t(L, D) lua_pushinteger(L, *(uint8_t*)(D))
+#define push_uint32_t(L, D) lua_pushinteger(L, *(uint32_t*)(D))
+#define push_uint64_t(L, D) lua_pushinteger(L, *(uint64_t*)(D))
+#define push_int32_t(L, D) lua_pushinteger(L, *(int32_t*)(D))
+#define push_size_t(L, D) lua_pushinteger(L, *(size_t*)(D))
+#define push_VkBool32(L, D) lua_pushboolean(L, *(VkBool32*)(D))
+#define push_VkDeviceSize(L, D) lua_pushinteger(L, *(VkDeviceSize*)(D))
 
 // These are the odd types that are only used a few places, but make a mess
-#define to_PFN_vkAllocationFunction(L, R, P) ({ (R) = NULL; })
-#define to_PFN_vkReallocationFunction(L, R, P) ({ (R) = NULL; })
-#define to_PFN_vkFreeFunction(L, R, P) ({ (R) = NULL; })
-#define to_PFN_vkInternalAllocationNotification(L, R, P) ({ (R) = NULL; })
-#define to_PFN_vkInternalFreeNotification(L, R, P) ({ (R) = NULL; })
-#define to_PFN_vkDebugReportCallbackEXT(L, R, P) ({ (R) = NULL; })
+#define size_PFN_vkAllocationFunction(L) sizeof(PFN_vkAllocationFunction)
+#define size_PFN_vkReallocationFunction(L) sizeof(PFN_vkReallocationFunction)
+#define size_PFN_vkFreeFunction(L) sizeof(PFN_vkFreeFunction)
+#define size_PFN_vkInternalAllocationNotification(L) sizeof(PFN_vkInternalAllocationNotification)
+#define size_PFN_vkInternalFreeNotification(L) sizeof(PFN_vkInternalFreeNotification)
+#define size_PFN_vkDebugReportCallbackEXT(L) sizeof(PFN_vkDebugReportCallbackEXT)
+#define to_PFN_vkAllocationFunction(L, R) to_BASE(L, R, \
+	PFN_vkAllocationFunction, NULL)
+#define to_PFN_vkReallocationFunction(L, R) to_BASE(L, R, \
+	PFN_vkReallocationFunction, NULL)
+#define to_PFN_vkFreeFunction(L, R) to_BASE(L, R, \
+	PFN_vkFreeFunction, NULL)
+#define to_PFN_vkInternalAllocationNotification(L, R) to_BASE(L, R, \
+	PFN_vkInternalAllocationNotification, NULL)
+#define to_PFN_vkInternalFreeNotification(L, R) to_BASE(L, R, \
+	PFN_vkInternalFreeNotification, NULL)
+#define to_PFN_vkDebugReportCallbackEXT(L, R) to_BASE(L, R, \
+	PFN_vkDebugReportCallbackEXT, NULL)
 
 #define IN_LVULKAN
 

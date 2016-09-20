@@ -26,6 +26,13 @@ local waserr = 0
 local function out(s) table.insert(outtab, s) end
 local function derror(err) print(err) ; waserr = waserr + 1 end
 
+local function fout(s, t)
+	for k,v in pairs(t) do
+		s = string.gsub(s, '`'..k..'`', v)
+	end
+	out(s)
+end
+
 out([[
 // WARNING: Generated file. Do not edit manually.
 // This file is include'd into lvulkan.c. Files were split for readability.
@@ -36,16 +43,17 @@ out([[
 for _,ss in cpairs(first(dom.root, {name="types"}), {name="type"}) do
 	if ss.attr.category == 'struct' then
 		local nm = ss.attr.name
-		if string.sub(nm, -3) ~= 'KHR' then	-- Edit out WSI
-		out([[
-// Compile test for ]]..nm..[[:
-static void test_]]..nm..[[(lua_State* L) {
-	]]..nm..[[ val;]])
+		if string.sub(nm, -3) ~= 'KHR' and nm ~= 'VkRect3D' then	-- Edit out WSI
+		fout([[
+// Compile test for `nm`
+static void test_`nm`(lua_State* L) {
+	`nm`* val;]], {nm=nm})
 		if not ss.attr.returnedonly then
-			out([[
-	setup_]]..nm..[[(val, val)
-	to_]]..nm..[[(L, val, val);
-	free_]]..nm..[[(val, val);]])
+			fout([[
+	val = malloc(size_`nm`(L));
+	to_`nm`(L, val);
+	free(val);
+]], {nm=nm})
 		end
 		out('\tpush_'..nm..'(L, val);')
 		out('}')

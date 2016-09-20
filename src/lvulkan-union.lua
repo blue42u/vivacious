@@ -61,27 +61,22 @@ for _,ss in cpairs(first(dom.root, {name="types"}), {name="type"}) do
 			table.insert(mems, {t=tp, n=mn, m=m, a=findarr(m)})
 		end
 
-		out('#define setup_'..name..'(R, P)')
+		out('#define size_'..name..'(L) sizeof('..name..')')
 
-		out('#define to_'..name..'(L, R, P) ({ \\')
+		out('#define to_'..name..'(L, R) ({ \\')
 		for _,m in ipairs(mems) do
-			local ref = 'R.'..m.n
+			local ref = '&R->'..m.n
 			if m.a then
 				out('\tfor(int i=0; i<'..m.a..'; i++) { \\')
-				ref = 'R.'..m.n..'[i]'
+				ref = '&(R->'..m.n..'[i])'
 			end
 			out([[
 	lua_getfield(L, -1, "]]..m.n..[["); \
 	if(!lua_isnil(L, -1)) \
-		to_]]..m.t..[[(L, ]]..ref..[[, P##_]]..m.n..[[); \]])
+		to_]]..m.t..[[(L, ]]..ref..[[); \]])
 			if m.a then out('\t} \\') end
 		end
 		out('})')
-
-		out('#define free_'..name..'(R, P)')
-
-		out('#define push_'..name..'(L, R)')
-
 		out('')
 	end
 end

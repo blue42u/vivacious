@@ -26,6 +26,13 @@ local waserr = 0
 local function out(s) table.insert(outtab, s) end
 local function derror(err) print(err) ; waserr = waserr + 1 end
 
+local function fout(s, t)
+	for k,v in pairs(t) do
+		s = string.gsub(s, '`'..k..'`', v)
+	end
+	out(s)
+end
+
 out([[
 // WARNING: Generated file. Do not edit manually.
 // This file is include'd into lvulkan.c. Files were split for readability.
@@ -36,14 +43,12 @@ out([[
 for _,ss in cpairs(first(dom.root, {name="types"}), {name="type"}) do
 	if ss.attr.category == 'handle' then
 		local name = first(ss, {name='name'}, {type='text'}).value
-		out('#define setup_'..name..'(R, P)')
-		out('#define to_'..name..'(L, R, P) ({ '
-			..'(R) = lua_touserdata(L, -1); })')
-		out('#define free_'..name..'(R, P)')
-		out('#define push_'..name..'(L, R) ({ '
-			..'lua_pushlightuserdata(L, (R)); })')
+		fout([[
+#define size_`name`(L) sizeof(`name`)
+#define to_`name`(L, R) ({ *(`name`*)(R) = lua_touserdata(L, -1); })
+#define push_`name`(L, R) ({ lua_pushlightuserdata(L, *(`name`*)(R)); })
 
-		out('')
+]], {name=name})
 	end
 end
 

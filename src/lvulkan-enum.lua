@@ -26,6 +26,13 @@ local waserr = 0
 local function out(s) table.insert(outtab, s) end
 local function derror(err) print(err) ; waserr = waserr + 1 end
 
+local function fout(s, t)
+	for k,v in pairs(t) do
+		s = string.gsub(s, '`'..k..'`', v)
+	end
+	out(s)
+end
+
 local function enumfixes(name, protect)
 	-- If this is from an extension, remove that suffix
 	local ext = ''
@@ -139,15 +146,17 @@ for e,vs in pairs(enumvs) do
 	local toname = 'toname'
 	if e == 'VkResult' then toname = 'toname_s' end
 
-	out('#define setup_'..e..'(R, P) {};')
-	out('#define to_'..e..'(L, D, P) ({ (D) = '
-		..e..'_values[luaL_checkoption(L, -1, "DEFAULT", '
-		..e..'_names)]; })')
-	out('#define free_'..e..'(R, P) {};')
-	out('#define push_'..e..'(L, D) ({ lua_pushstring(L, '
-		..toname..'((D), '..e..'_values, '..e..'_names)); })')
+	fout([[
+#define size_`enum`(L) sizeof(`enum`)
+#define to_`enum`(L, R) ({ \
+	*(`enum`*)(R) = `enum`_values[luaL_checkoption(L, -1, \
+		"DEFAULT", `enum`_names)]; \
+})
+#define push_`enum`(L, R) ({ \
+	lua_pushstring(L, `toname`(*(`type`*)(R), \
+		`enum`_values, `enum`_names)); })
 
-	out('')
+]], {enum=e, toname=toname})
 end
 
 out('#endif // IN_LVULKAN')

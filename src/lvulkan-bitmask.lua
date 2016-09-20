@@ -26,6 +26,13 @@ local waserr = 0
 local function out(s) table.insert(outtab, s) end
 local function derror(err) print(err) ; waserr = waserr + 1 end
 
+local function fout(s, t)
+	for k,v in pairs(t) do
+		s = string.gsub(s, '`'..k..'`', v)
+	end
+	out(s)
+end
+
 local function bmfixes(name, protect)
 	-- If this is from an extension, remove that suffix
 	local ext = ''
@@ -140,32 +147,28 @@ for e,vs in pairs(bmvs) do
 
 	local t = bm2typ(e)
 
-	out('#define setup_'..t..'(R, P)')
-	out([[
-#define to_]]..t..[[(L, D, P) ({ \
-	(D) = 0; \
-	for(int i=0; i<sizeof(]]..e..[[_values)/sizeof(]]..e..[[); i++) { \
-		lua_getfield(L, -1, ]]..e..[[_names[i]); \
-		if(lua_toboolean(L, -1)) (D) |= ]]..e..[[_values[i]; \
+	fout([[
+#define size_`type`(L) sizeof(`type`)
+#define to_`type`(L, R) ({ \
+	*(`type`*)(R) = 0; \
+	for(int i=0; i<sizeof(`enum`_values)/sizeof(`enum`); i++) { \
+		lua_getfield(L, -1, `enum`_names[i]); \
+		if(lua_toboolean(L, -1)) *(`type`*)(R) |= `enum`_values[i]; \
 		lua_pop(L, 1); \
 	} \
-})]])
-	out('#define free_'..t..'(R, P)')
-	out([[
-#define push_]]..t..[[(L, D) ({ \
+})
+#define push_`type`(L, R) ({ \
 	lua_newtable(L); \
-	for(int i=0; i<sizeof(]]..e..[[_values)/sizeof(]]..e..[[); i++) { \
-		lua_pushboolean(L, (D) & ]]..e..[[_values[i]); \
-		lua_setfield(L, -2, ]]..e..[[_names[i]); \
+	for(int i=0; i<sizeof(`enum`_values)/sizeof(`enum`); i++) { \
+		lua_pushboolean(L, *(`type`*)(R) & `enum`_values[i]); \
+		lua_setfield(L, -2, `enum`_names[i]); \
 	} \
-})]])
+})
+#define size_`enum`(L) size_`type`(L)
+#define to_`enum`(L, R) to_`type`(L, R)
+#define push_`enum`(L, R) push_`type`(L, R)
 
-	out('#define setup_'..e..'(R, P) setup_'..t..'(R, P)')
-	out('#define to_'..e..'(L, R, P) to_'..t..'(L, R, P)')
-	out('#define free_'..e..'(R, P) free_'..t..'(R, P)')
-	out('#define push_'..e..'(L, R) push_'..t..'(L, R)')
-
-	out('')
+]], {type=t, enum=e})
 end
 
 out('')
@@ -177,9 +180,8 @@ for _,t in cpairs(first(dom.root, {name="types"}), {name='type'}) do
 		local t = first(t, {name='name'}, {type='text'}).value
 		local n = typ2bm(t)
 		if not bmvs[n] then
-			out('#define setup_'..t..'(R, P)')
+			out('#define size_'..t..'(L) sizeof('..t..')')
 			out('#define to_'..t..'(L, D, P) ({ (D) = 0; })')
-			out('#define free_'..t..'(R, P)')
 			out('#define push_'..t..'(L, D) ({ lua_pushnil(L); })')
 		end
 	end
