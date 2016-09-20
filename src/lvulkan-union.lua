@@ -26,6 +26,13 @@ local waserr = 0
 local function out(s) table.insert(outtab, s) end
 local function derror(err) print(err) ; waserr = waserr + 1 end
 
+local function fout(s, t)
+	for k,v in pairs(t) do
+		s = string.gsub(s, '`'..k..'`', v)
+	end
+	out(s)
+end
+
 local function findarr(m)
 	local namei
 	for i,k in ipairs(m.kids) do
@@ -65,19 +72,27 @@ for _,ss in cpairs(first(dom.root, {name="types"}), {name="type"}) do
 
 		out('#define to_'..name..'(L, R) ({ \\')
 		for _,m in ipairs(mems) do
-			local ref = '&R->'..m.n
-			if m.a then
-				out('\tfor(int i=0; i<'..m.a..'; i++) { \\')
-				ref = '&(R->'..m.n..'[i])'
-			end
-			out([[
-	lua_getfield(L, -1, "]]..m.n..[["); \
+			if not m.a then
+				fout([[
+	lua_getfield(L, -1, "`n`"); \
 	if(!lua_isnil(L, -1)) \
-		to_]]..m.t..[[(L, ]]..ref..[[); \]])
-			if m.a then out('\t} \\') end
+		to_`t`(L, &((]]..name..[[*)R)->`n`); \
+	lua_pop(L, 1); \
+\]], m)
+			else
+				fout([[
+	lua_getfield(L, -1, "`n`"); \
+	if(!lua_isnil(L, -1)) \
+		for(int i=0; i<`a`; i++) { \
+			lua_geti(L, -1, i+1); \
+			to_`t`(L, &((]]..name..[[*)R)->`n`[i]); \
+			lua_pop(L, 1); \
+		} \
+	lua_pop(L, 1); \
+\]], m)
+			end
 		end
-		out('})')
-		out('')
+		out('})\n')
 	end
 end
 
