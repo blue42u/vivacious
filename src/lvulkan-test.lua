@@ -54,8 +54,9 @@ static void test_`nm`(lua_State* L) {
 	to_`nm`(L, val);
 	free(val);
 ]], {nm=nm})
+		else
+			out('\tpush_'..nm..'(L, val);')
 		end
-		out('\tpush_'..nm..'(L, val);')
 		out('}')
 		end
 	end

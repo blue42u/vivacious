@@ -181,8 +181,8 @@ for _,t in cpairs(first(dom.root, {name="types"}), {name='type'}) do
 		local n = typ2bm(t)
 		if not bmvs[n] then
 			out('#define size_'..t..'(L) sizeof('..t..')')
-			out('#define to_'..t..'(L, D, P) ({ (D) = 0; })')
-			out('#define push_'..t..'(L, D) ({ lua_pushnil(L); })')
+			out('#define to_'..t..'(L, R) ({ *('..t..'*)(R) = 0; })')
+			out('#define push_'..t..'(L, R) lua_pushnil(L)')
 		end
 	end
 end

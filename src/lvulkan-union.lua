@@ -101,7 +101,28 @@ for _,ss in cpairs(first(dom.root, {name="types"}), {name="type"}) do
 \]], m)
 			end
 		end
-		out('})\n')
+		out('})')
+
+		out('#define push_'..name..'(L, R) ({ \\')
+		out('\tlua_newtable(L); \\')
+		for _,m in ipairs(mems) do
+			if not m.a then fout([[
+	push_`t`(L, &((]]..name..[[*)R)->`n`); \
+	lua_setfield(L, -2, "`n`"); \
+\]], m)
+			else fout([[
+	lua_newtable(L); \
+	for(int i=0; i<`a`; i++) { \
+		push_`t`(L, &((]]..name..[[*)R)->`n`[i]); \
+		lua_seti(L, -2, i+1); \
+	} \
+	lua_setfield(L, -2, "`n`"); \
+\]], m)
+			end
+		end
+		out('})')
+
+		out('')
 	end
 end
 

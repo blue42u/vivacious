@@ -26,9 +26,11 @@ local waserr = 0
 local function out(s) table.insert(outtab, s) end
 local function derror(err) print(err) ; waserr = waserr + 1 end
 
-local function fout(s, t)
-	for k,v in pairs(t) do
-		s = string.gsub(s, '`'..k..'`', v)
+local function fout(s, ...)
+	for _,t in ipairs(table.pack(...)) do
+		for k,v in pairs(t) do
+			s = string.gsub(s, '`'..k..'`', v)
+		end
 	end
 	out(s)
 end
@@ -88,8 +90,17 @@ for _,ss in cpairs(first(dom.root, {name="types"}), {name="type"}) do
 			if tp == 'char' then tp = 'string'
 				pr = string.sub(pr,2) end
 			if pr ~= '' and pr ~= '*' then error(pr) end
+			local ln = m.attr.len
+			if #pr > 0 and tp == 'string' then
+				ln = string.match(ln, '(.*),.*$')
+			elseif ln and string.sub(ln, 1, 9) == 'latexmath' then
+				-- Most (if not all) the latexmath in the
+				-- registry is filled by us, and thus by
+				-- Lua. We just assume the length is right?
+				ln = nil
+			end
 			table.insert(mems, {t=tp, n=mn, p=pr, m=m, a=ar,
-				l=m.attr.len})
+				l=ln})
 		end
 		-- Figure out whether this type has any subtypes early.
 		local comp = false
@@ -106,9 +117,36 @@ for _,ss in cpairs(first(dom.root, {name="types"}), {name="type"}) do
 			error('Array of pointers: '..name..'.'..m.n..'!')
 		end end
 
-		out('#define push_'..name..'(L, R)')
+		if ss.attr.returnedonly then
 
-		if ss.attr.returnedonly then goto returnonly end
+		fout([[
+#define push_`name`(L, R) ({ \
+	lua_newtable(L); \
+\]], {name=name})
+		for _,m in ipairs(mems) do
+			if #m.p > 0 then
+				if m.l then fout([[
+	lua_newtable(L); \
+	for(int i=0; i<((`name`*)R)->`l`; i++) { \
+		push_`t`(L, &((`name`*)R)->`n`[i]); \
+		lua_seti(L, -2, i+1); \
+	} \
+	lua_setfield(L, -2, "`n`"); \
+\]], m, {name=name})
+				else fout([[
+	push_`t`(L, ((`name`*)R)->`n`); \
+	lua_setfield(L, -2, "`n`"); \
+\]], m, {name=name})
+				end
+			else fout([[
+	push_`t`(L, &((`name`*)R)->`n`); \
+	lua_setfield(L, -2, "`n`"); \
+\]], m, {name=name})
+			end
+		end
+		out('})')
+
+		else	-- returnedonly
 
 		if not comp then
 			fout([[
@@ -116,11 +154,11 @@ for _,ss in cpairs(first(dom.root, {name="types"}), {name="type"}) do
 		else
 			fout([[
 #define size_`name`(L) ({ \
-	size_t res = sizeof(`name`); \
-\]], {name=name})
+	size_t res = sizeof(`name`); \]], {name=name})
 			for _,m in ipairs(mems) do
 				if #m.p > 0 and m.t ~= 'void' then
 					if m.l then fout([[
+\
 	lua_getfield(L, -1, "`n`"); \
 	if(!lua_isnil(L, -1)) { \
 		lua_len(L, -1); \
@@ -132,13 +170,12 @@ for _,ss in cpairs(first(dom.root, {name="types"}), {name="type"}) do
 			lua_pop(L, 1); \
 		} \
 	} \
-	lua_pop(L, 1); \
-\]], m)
+	lua_pop(L, 1); \]], m)
 					else fout([[
+\
 	lua_getfield(L, -1, "`n`"); \
 	if(!lua_isnil(L, -1)) res += size_`t`(L); \
-	lua_pop(L, 1); \
-\]], m)
+	lua_pop(L, 1); \]], m)
 					end
 				end
 			end
@@ -155,12 +192,30 @@ for _,ss in cpairs(first(dom.root, {name="types"}), {name="type"}) do
 	lua_pop(L, 1); \
 \]], m)
 			end
-			out('\t(void*)(R) + sizeof('..name..'); })')
+			out('})')
 		else
-			out('#define to_'..name..'(L, R)')
+			fout([[
+#define to_`name`(L, R) ({ \
+	`name`* r = (void*)(R) + sizeof(`name`); \
+\]], {name=name})
+			for _,m in ipairs(mems) do
+				if #m.p > 0 then
+					if m.l then fout([[
+\]], m, {name=name})
+					else fout([[
+\]], m, {name=name})
+					end
+				else fout([[
+	lua_getfield(L, -1, "`n`"); \
+	to_`t`(L, &((`name`*)R)->`n`); \
+	lua_pop(L, 1); \
+\]], m, {name=name})
+				end
+			end
+			out('})')
 		end
 
-::returnonly::
+		end	-- returnedonly
 		out('')
 	end
 end

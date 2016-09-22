@@ -24,7 +24,7 @@
 #include "lua.h"	// For Lua
 #include "vivacious/vulkan.h"	// For Vulkan
 
-typedef char* string;	// Abstract char* into string, helps array params
+typedef const char* string;	// Abstract char* into string, helps array params
 
 // Many of the files will define function-like macros. These macros
 // are of three varieties: size_*, to_*, push_*
@@ -90,6 +90,24 @@ typedef char* string;	// Abstract char* into string, helps array params
 	PFN_vkInternalFreeNotification, NULL)
 #define to_PFN_vkDebugReportCallbackEXT(L, R) to_BASE(L, R, \
 	PFN_vkDebugReportCallbackEXT, NULL)
+#define push_PFN_vkAllocationFunction(L, R) lua_pushnil(L)
+#define push_PFN_vkReallocationFunction(L, R) lua_pushnil(L)
+#define push_PFN_vkFreeFunction(L, R) lua_pushnil(L)
+#define push_PFN_vkInternalAllocationNotification(L, R) lua_pushnil(L)
+#define push_PFN_vkInternalFreeNotification(L, R) lua_pushnil(L)
+#define push_PFN_vkDebugReportCallbackEXT(L, R) lua_pushnil(L)
+#define push_void(L, R) lua_pushnil(L)
+
+// This is particular is an odd type. This seems the best way to handle it.
+#define size_VkSampleMask(L) sizeof(VkSampleMask)
+#define push_VkSampleMask(L, R) ({ \
+	VkSampleMask v = *(VkSampleMask*)R; \
+	lua_newtable(L); \
+	for(int i=0; i<32; i++) { \
+		lua_pushboolean(L, v & (1<<i)); \
+		lua_seti(L, -2, i+1); \
+	} \
+})
 
 #define IN_LVULKAN
 

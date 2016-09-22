@@ -153,7 +153,7 @@ for e,vs in pairs(enumvs) do
 		"DEFAULT", `enum`_names)]; \
 })
 #define push_`enum`(L, R) ({ \
-	lua_pushstring(L, `toname`(*(`type`*)(R), \
+	lua_pushstring(L, `toname`(*(`enum`*)(R), \
 		`enum`_values, `enum`_names)); })
 
 ]], {enum=e, toname=toname})
