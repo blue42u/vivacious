@@ -68,9 +68,9 @@ for _,ss in cpairs(first(dom.root, {name="types"}), {name="type"}) do
 			table.insert(mems, {t=tp, n=mn, m=m, a=findarr(m)})
 		end
 
-		out('#define size_'..name..'(L) sizeof('..name..')')
+		out('#define size_'..name..'(L, O)')
 
-		out('#define to_'..name..'(L, R) ({ \\')
+		out('#define to_'..name..'(L, D, R) ({ \\')
 		out('\tint cont = 1; \\')
 		for _,m in ipairs(mems) do
 			if not m.a then
@@ -78,7 +78,7 @@ for _,ss in cpairs(first(dom.root, {name="types"}), {name="type"}) do
 	if(cont) { \
 		lua_getfield(L, -1, "`n`"); \
 		if(!lua_isnil(L, -1)) { \
-			to_`t`(L, &((]]..name..[[*)R)->`n`); \
+			to_`t`(L, (D).`n`, R); \
 			cont = 0; \
 		} \
 		lua_pop(L, 1); \
@@ -91,7 +91,7 @@ for _,ss in cpairs(first(dom.root, {name="types"}), {name="type"}) do
 		if(!lua_isnil(L, -1)) { \
 			for(int i=0; i<`a`; i++) { \
 				lua_geti(L, -1, i+1); \
-				to_`t`(L, &((]]..name..[[*)R)->`n`[i]); \
+				to_`t`(L, (D).`n`[i], R); \
 				lua_pop(L, 1); \
 			} \
 			cont = 0; \
@@ -101,19 +101,20 @@ for _,ss in cpairs(first(dom.root, {name="types"}), {name="type"}) do
 \]], m)
 			end
 		end
+		out('\tif(cont) luaL_error(L, "Empty union!"); \\')
 		out('})')
 
-		out('#define push_'..name..'(L, R) ({ \\')
+		out('#define push_'..name..'(L, D) ({ \\')
 		out('\tlua_newtable(L); \\')
 		for _,m in ipairs(mems) do
 			if not m.a then fout([[
-	push_`t`(L, &((]]..name..[[*)R)->`n`); \
+	push_`t`(L, (D).`n`); \
 	lua_setfield(L, -2, "`n`"); \
 \]], m)
 			else fout([[
 	lua_newtable(L); \
 	for(int i=0; i<`a`; i++) { \
-		push_`t`(L, &((]]..name..[[*)R)->`n`[i]); \
+		push_`t`(L, (D).`n`[i]); \
 		lua_seti(L, -2, i+1); \
 	} \
 	lua_setfield(L, -2, "`n`"); \

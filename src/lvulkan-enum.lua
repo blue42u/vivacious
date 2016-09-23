@@ -132,7 +132,7 @@ for e,vs in pairs(enumvs) do
 		out('\t"'..n..'",')
 		if enumcs[e][c] then out('#endif') end
 	end
-	out('\t"DEFAULT", NULL};')
+	out('\tNULL};')
 
 	out('static const '..e..' '..e..'_values[] = {')
 	for c,n in pairs(vs) do
@@ -147,14 +147,11 @@ for e,vs in pairs(enumvs) do
 	if e == 'VkResult' then toname = 'toname_s' end
 
 	fout([[
-#define size_`enum`(L) sizeof(`enum`)
-#define to_`enum`(L, R) ({ \
-	*(`enum`*)(R) = `enum`_values[luaL_checkoption(L, -1, \
-		"DEFAULT", `enum`_names)]; \
-})
-#define push_`enum`(L, R) ({ \
-	lua_pushstring(L, `toname`(*(`enum`*)(R), \
-		`enum`_values, `enum`_names)); })
+#define size_`enum`(L, O)
+#define to_`enum`(L, D, R) ({ \
+	(D) = `enum`_values[luaL_checkoption(L, -1, NULL, `enum`_names)]; })
+#define push_`enum`(L, D) ({ \
+	lua_pushstring(L, `toname`((D), `enum`_values, `enum`_names)); })
 
 ]], {enum=e, toname=toname})
 end

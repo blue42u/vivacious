@@ -44,9 +44,9 @@ for _,ss in cpairs(first(dom.root, {name="types"}), {name="type"}) do
 	if ss.attr.category == 'handle' then
 		local name = first(ss, {name='name'}, {type='text'}).value
 		fout([[
-#define size_`name`(L) sizeof(`name`)
-#define to_`name`(L, R) ({ *(`name`*)(R) = lua_touserdata(L, -1); })
-#define push_`name`(L, R) ({ lua_pushlightuserdata(L, *(`name`*)(R)); })
+#define size_`name`(L, O)
+#define to_`name`(L, D, R) ({ (D) = lua_touserdata(L, -1); })
+#define push_`name`(L, D) ({ lua_pushlightuserdata(L, (D)); })
 
 ]], {name=name})
 	end

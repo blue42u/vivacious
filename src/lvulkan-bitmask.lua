@@ -135,7 +135,7 @@ for e,vs in pairs(bmvs) do
 		out('\t"'..n..'",')
 		if bmcs[e][c] then out('#endif') end
 	end
-	out('\t"DEFAULT", NULL};')
+	out('\tNULL};')
 
 	out('static const '..e..' '..e..'_values[] = {')
 	for c,n in pairs(vs) do
@@ -148,25 +148,25 @@ for e,vs in pairs(bmvs) do
 	local t = bm2typ(e)
 
 	fout([[
-#define size_`type`(L) sizeof(`type`)
-#define to_`type`(L, R) ({ \
-	*(`type`*)(R) = 0; \
+#define size_`type`(L, O)
+#define to_`type`(L, D, R) ({ \
+	(D) = 0; \
 	for(int i=0; i<sizeof(`enum`_values)/sizeof(`enum`); i++) { \
 		lua_getfield(L, -1, `enum`_names[i]); \
-		if(lua_toboolean(L, -1)) *(`type`*)(R) |= `enum`_values[i]; \
+		if(lua_toboolean(L, -1)) (D) |= `enum`_values[i]; \
 		lua_pop(L, 1); \
 	} \
 })
-#define push_`type`(L, R) ({ \
+#define push_`type`(L, D) ({ \
 	lua_newtable(L); \
 	for(int i=0; i<sizeof(`enum`_values)/sizeof(`enum`); i++) { \
-		lua_pushboolean(L, *(`type`*)(R) & `enum`_values[i]); \
+		lua_pushboolean(L, (D) & `enum`_values[i]); \
 		lua_setfield(L, -2, `enum`_names[i]); \
 	} \
 })
 #define size_`enum`(L) size_`type`(L)
-#define to_`enum`(L, R) to_`type`(L, R)
-#define push_`enum`(L, R) push_`type`(L, R)
+#define to_`enum`(L, D, R) to_`type`(L, D, R)
+#define push_`enum`(L, D) push_`type`(L, D)
 
 ]], {type=t, enum=e})
 end
@@ -180,9 +180,9 @@ for _,t in cpairs(first(dom.root, {name="types"}), {name='type'}) do
 		local t = first(t, {name='name'}, {type='text'}).value
 		local n = typ2bm(t)
 		if not bmvs[n] then
-			out('#define size_'..t..'(L) sizeof('..t..')')
-			out('#define to_'..t..'(L, R) ({ *('..t..'*)(R) = 0; })')
-			out('#define push_'..t..'(L, R) lua_pushnil(L)')
+			out('#define size_'..t..'(L, O)')
+			out('#define to_'..t..'(L, D, R) ({ (D) = 0; })')
+			out('#define push_'..t..'(L, D) lua_pushnil(L)')
 		end
 	end
 end

@@ -47,16 +47,17 @@ for _,ss in cpairs(first(dom.root, {name="types"}), {name="type"}) do
 		fout([[
 // Compile test for `nm`
 static void test_`nm`(lua_State* L) {
-	`nm`* val;]], {nm=nm})
+	`nm` val;]], {nm=nm})
 		if not ss.attr.returnedonly then
 			fout([[
-	val = malloc(size_`nm`(L));
-	to_`nm`(L, val);
-	free(val);
+	size_t extrasize;
+	size_`nm`(L, extrasize);
+	void* extra = malloc(extrasize);
+	to_`nm`(L, val, extra);
+	free(extra);
 ]], {nm=nm})
-		else
-			out('\tpush_'..nm..'(L, val);')
 		end
+		out('\tpush_'..nm..'(L, val);')
 		out('}')
 		end
 	end
