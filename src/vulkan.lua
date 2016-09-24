@@ -23,6 +23,37 @@ local dom = require('slaxdom'):dom(xml, {stripWhitespace=true})
 
 io.output(arg[1])
 
+local cmds = {}
+for _,t in cpairs(dom.root, {name='feature'}) do
+	local const = t.attr.name
+	for _,t in cpairs(t, {name='require'}) do
+		for _,t in cpairs(t, {name='command'}) do
+			if not cmds[t.attr.name] then
+				cmds[#cmds+1] = t.attr.name
+				cmds[t.attr.name] = 'defined('..const..')'
+			else
+				cmds[t.attr.name] = cmds[t.attr.name]
+					..' || defined('..const..')'
+			end
+		end
+	end
+end
+for _,t in cpairs(first(dom.root, {name='extensions'}), {name='extension',
+	attr={supported='vulkan'}}) do
+	local const = t.attr.name
+	for _,t in cpairs(t, {name='require'}) do
+		for _,t in cpairs(t, {name='command'}) do
+			if not cmds[t.attr.name] then
+				cmds[#cmds+1] = t.attr.name
+				cmds[t.attr.name] = 'defined('..const..')'
+			else
+				cmds[t.attr.name] = cmds[t.attr.name]
+					..' || defined('..const..')'
+			end
+		end
+	end
+end
+
 local cmdtypes = {}
 for _,t in cpairs(first(dom.root, {name='commands'}), {name='command'}) do
 	local name = first(t,{name='proto'},{name='name'},{type='text'}).value
@@ -38,16 +69,44 @@ for _,t in cpairs(first(dom.root, {name='types'}), {name='type'}) do
 	end
 end
 
-local cmdcats = {}
+local cmdcats = {
+	vkGetInstanceProcAddr=-1,	-- Pre-Instance
+	vkGetDeviceProcAddr=1,
+}
 for c,t in pairs(cmdtypes) do
 	while t ~= 'VkInstance' and t ~= 'VkDevice' and t do
 		t = typepars[t]
 	end
-	cmdcats[c] = t == 'VkInstance' and 'instance' or
-		(t == 'VkDevice' and 'device' or 'global')
+	cmdcats[c] = cmdcats[c] or
+		(t == 'VkInstance' and 1 or
+		(t == 'VkDevice' and 2 or 0))
 end
 
 local function out(s) io.write(s..'\n') end
+
+local function rep(cat, f, fall)
+	fall = fall or f
+	for _,c in ipairs(cmds) do
+		if cmdcats[c] == cat then
+			local n = string.sub(c,3)
+			out([[
+		#if ]]..cmds[c]..[[ //
+		vk->]]..n..[[ = ]]..f(n)..[[;
+		#endif]])
+		end
+	end
+	out('\t\tif(all) {')
+	for _,c in ipairs(cmds) do
+		if cmdcats[c] > cat then
+			local n = string.sub(c,3)
+			out([[
+			#if ]]..cmds[c]..[[ //
+			vk->]]..n..[[ = ]]..fall(n)..[[;
+			#endif]])
+		end
+	end
+	out('\t\t}')
+end
 
 out([[
 // WARNING: Generated file. Do not edit manually.
@@ -62,135 +121,41 @@ out([[
 #else
 #	include <dlfcn.h>
 #endif
+
+VvVulkanError vVloadVulkan(VvVulkan* vk, VkBool32 all, VkInstance inst,
+	VkDevice dev) {
+
+	if(!(inst || dev)) {
+		#if defined(_WIN32)
+		HMODULE libvk = LoadLibrary("vulkan-1.dll");
+		if(!libvk) return VvVK_ERROR_DL;
+		vk->GetInstanceProcAddr = GetProcAddress(libvk,
+			"vkGetInstanceProcAddr");
+		if(!vk->GetInstanceProcAddr) return VvVK_ERROR_DL;
+		#else
+		void* libvk = dlopen("libvulkan.so", RTLD_NOW | RTLD_LOCAL);
+		if(!libvk) return VvVK_ERROR_DL;
+		vk->GetInstanceProcAddr = dlsym(libvk, "vkGetInstanceProcAddr");
+		if(!vk->GetInstanceProcAddr) return VvVK_ERROR_DL;
+		#endif
+		vk->internalData = libvk;
 ]])
-
-for _,t in cpairs(dom.root, {name='feature',attr={api='vulkan'}}) do
-	local const = t.attr.name
-	local ver = string.gsub(t.attr.number, '%.', '_')
-	local major = string.match(t.attr.number, '(%d+)%.')
-
-	local allcmds = {}
-	local cmdnames = {}
-	for _,t in cpairs(t, {name='require'}) do
-		for _,t in cpairs(t, {name='command'}) do
-			local name = t.attr.name
-			table.insert(allcmds, name)
-			if string.sub(name, 1, 2) == 'vk' then
-				cmdnames[name] = string.sub(name, 3)
-			else
-				cmdnames[name] = name
-			end
-		end
-	end
-
-	out([[
-#if defined(]]..const..[[)
-static void optimizeInstance_]]..ver..[[(VkInstance, VvVulkan_]]..ver..[[*);
-static void optimizeDevice_]]..ver..[[(VkDevice, VvVulkan_]]..ver..[[*);
-
-int vVloadVulkan_]]..ver..[[(VvVulkan_]]..ver..[[* vk) {
-	vk->vVoptimizeInstance = &optimizeInstance_]]..ver..[[;
-	vk->vVoptimizeDevice = &optimizeDevice_]]..ver..[[;
-
-#if defined(_WIN32)
-	HMODULE libvk = LoadLibrary("vulkan-]]..major..[[.dll");
-#elseif defined(__APPLE__)
-	void* libvk = dlopen("libvulkan.dylib.]]..major..[[",
-		RTLD_NOW | RTLD_GLOBAL);
-#else
-	void* libvk = dlopen("libvulkan.so.]]..major..[[",
-		RTLD_NOW | RTLD_GLOBAL);
-#endif
-	if(!libvk) return 0;
-	int ret = 1;
-]])
-	for _,cmd in ipairs(allcmds) do
-		out([[
-#if defined(_WIN32)
-	vk->]]..cmdnames[cmd]..[[ = GetProcAddress(libvk, "]]..cmd..[[");
-#else
-	vk->]]..cmdnames[cmd]..[[ = dlsym(libvk, "]]..cmd..[[");
-#endif
-	if(!vk->]]..cmdnames[cmd]..[[) ret = 0;
-]])
-	end
-	out([[
-	return ret;
-}
-
-static void optimizeInstance_]]..ver..[[(VkInstance i,
-	VvVulkan_]]..ver..[[* vk) {
-]])
-	for _,cmd in ipairs(allcmds) do
-		if cmdcats[cmd] == 'instance' then
-			out('\tvk->'..cmdnames[cmd]..' = (PFN_'..cmd..
-				')vk->GetInstanceProcAddr(i, "'..cmd..'");')
-		end
-	end
-	out([[
-}
-
-static void optimizeDevice_]]..ver..[[(VkDevice d,
-	VvVulkan_]]..ver..[[* vk) {
-]])
-	for _,cmd in ipairs(allcmds) do
-		if cmdcats[cmd] == 'device' then
-			out('\tvk->'..cmdnames[cmd]..' = (PFN_'..cmd..
-				')vk->GetDeviceProcAddr(d, "'..cmd..'");')
-		end
-	end
-	out([[
-}
-#endif
-]])
-end
-
-for _,t in cpairs(first(dom.root, {name='extensions'}), {name='extension',
-	attr={supported='vulkan'}}) do
-	local const = t.attr.name
-	local n = string.sub(const, string.find(const, '_', 4)+1)
-
-	local allcmds = {}
-	local cmdnames = {}
-	for _,t in cpairs(t, {name='require'}) do
-		for _,t in cpairs(t, {name='command'}) do
-			local name = t.attr.name
-			table.insert(allcmds, name)
-			if string.sub(name, 1, 2) == 'vk' then
-				cmdnames[name] = string.sub(name, 3)
-			else
-				cmdnames[name] = name
-			end
-		end
-	end
-
-	if #allcmds > 0 then
-		out([[
-#if defined(]]..const..[[)
-void vVloadVulkanEXT_]]..n..[[(
-	PFN_vkGetInstanceProcAddr gipa, VkInstance i,
-	PFN_vkGetDeviceProcAddr gdpa, VkDevice d,
-	VvVulkanEXT_]]..n..[[* vk) {
-]])
-		for _,cmd in ipairs(allcmds) do
-			if cmdcats[cmd] == 'instance' then
-				out('\tvk->'..cmdnames[cmd]..' = (PFN_'..cmd..
-					')gipa(i, "'..cmd..'");')
-			end
-		end
-		for _,cmd in ipairs(allcmds) do
-			if cmdcats[cmd] == 'device' then
-				out('\tvk->'..cmdnames[cmd]..' = (PFN_'..cmd..
-					')gdpa(d, "'..cmd..'");')
-			end
-		end
-		out([[
-}
-#endif
-]])
-	end
-end
-
+rep(0, function(n) return 'vk->GetInstanceProcAddr(NULL, "vk'..n..'")' end,
+	function(n) return 'dlsym(libvk, "vk'..n..'")' end)
 out([[
+	} else if(inst && !dev) {]])
+rep(1, function(n) return 'vk->GetInstanceProcAddr(inst, "vk'..n..'")' end)
+out([[
+	} else if(inst && dev) {]])
+rep(2, function(n) return 'vk->GetDeviceProcAddr(dev, "vk'..n..'")' end)
+out([[
+	} else return VvVK_ERROR_INVALID;
+	return VvVK_ERROR_NONE;
+}
+
+VvVulkanError vVunloadVulkan(VvVulkan* vk) {
+	if(vk->internalData) dlclose(vk->internalData);
+}
+
 #endif // vV_ENABLE_VULKAN
 ]])

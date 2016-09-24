@@ -23,28 +23,35 @@ local dom = require('slaxdom'):dom(xml, {stripWhitespace=true})
 
 io.output(arg[1])
 
-local cmdtypes = {}
-for _,t in cpairs(first(dom.root, {name='commands'}), {name='command'}) do
-	local name = first(t,{name='proto'},{name='name'},{type='text'}).value
-	local type = first(t,{name='param'},{name='type'},{type='text'}).value
-	cmdtypes[name] = type
-end
-
-local typepars = {}
-for _,t in cpairs(first(dom.root, {name='types'}), {name='type'}) do
-	if t.attr.category == 'handle' then
-		local type = first(t,{name='name'},{type='text'}).value
-		typepars[type] = t.attr.parent
+local cmds = {}
+for _,t in cpairs(dom.root, {name='feature',attr={api='vulkan'}}) do
+	local const = t.attr.name
+	for _,t in cpairs(t, {name='require'}) do
+		for _,t in cpairs(t, {name='command'}) do
+			if not cmds[t.attr.name] then
+				cmds[#cmds+1] = t.attr.name
+				cmds[t.attr.name] = 'defined('..const..')'
+			else
+				cmds[t.attr.name] = cmds[t.attr.name]
+					..' || defined('..const..')'
+			end
+		end
 	end
 end
-
-local cmdcats = {}
-for c,t in pairs(cmdtypes) do
-	while t ~= 'VkInstance' and t ~= 'VkDevice' and t do
-		t = typepars[t]
+for _,t in cpairs(first(dom.root, {name='extensions'}), {name='extension',
+	attr={supported='vulkan'}}) do
+	local const = t.attr.name
+	for _,t in cpairs(t, {name='require'}) do
+		for _,t in cpairs(t, {name='command'}) do
+			if not cmds[t.attr.name] then
+				cmds[#cmds+1] = t.attr.name
+				cmds[t.attr.name] = 'defined('..const..')'
+			else
+				cmds[t.attr.name] = cmds[t.attr.name]
+					..' || defined('..const..')'
+			end
+		end
 	end
-	cmdcats[c] = t == 'VkInstance' and 'instance' or
-		(t == 'VkDevice' and 'device' or 'global')
 end
 
 local function out(s) io.write(s..'\n') end
@@ -56,73 +63,31 @@ out([[
 
 #ifndef H_vivacious_vulkan
 #define H_vivacious_vulkan
+
+typedef struct VvVulkan {
 ]])
 
-for _,t in cpairs(dom.root, {name='feature',attr={api='vulkan'}}) do
-	local const = t.attr.name
-	local ver = string.gsub(t.attr.number, '%.', '_')
+for _,c in ipairs(cmds) do
+	local name = string.sub(c,3)
 	out([[
-#if defined(]]..const..[[)
-typedef struct _VvVulkan_]]..ver..[[ VvVulkan_]]..ver..[[;
-struct _VvVulkan_]]..ver..[[ {
-	void (*vVoptimizeInstance)(VkInstance, VvVulkan_]]..ver..[[*);
-	void (*vVoptimizeDevice)(VkDevice, VvVulkan_]]..ver..[[*);
-]])
-	for _,t in cpairs(t, {name='require'}) do
-		for _,t in cpairs(t, {name='command'}) do
-			local name = t.attr.name
-			if string.sub(name, 1, 2) == 'vk' then
-				name = string.sub(name, 3)
-			end
-			out('\tPFN_vk'..name..' '..name..';')
-		end
-	end
-	out([[
-};
-int vVloadVulkan_]]..ver..[[(VvVulkan_]]..ver..[[*);
-#endif
-]])
-end
-
-for _,t in cpairs(first(dom.root, {name='extensions'}), {name='extension',
-	attr={supported='vulkan'}}) do
-	local const = t.attr.name
-	local name = string.sub(const, string.find(const, '_', 4)+1)
-
-	local validext = false
-	for _,t in cpairs(t, {name='require'}) do
-		if first(t, {name='command'}) then
-			validext = true
-			break
-		end
-	end
-	if validext then
-
-		out([[
-#if defined(]]..const..[[)
-typedef struct _VvVulkanEXT_]]..name..[[ VvVulkanEXT_]]..name..[[;
-struct _VvVulkanEXT_]]..name..[[ {
-]])
-		for _,t in cpairs(t, {name='require'}) do
-			for _,t in cpairs(t, {name='command'}) do
-				local name = t.attr.name
-				if string.sub(name, 1, 2) == 'vk' then
-					name = string.sub(name, 3)
-				end
-				out('\tPFN_vk'..name..' '..name..';')
-			end
-		end
-		out([[
-};
-void vVloadVulkanEXT_]]..name..[[(
-	PFN_vkGetInstanceProcAddr, VkInstance,
-	PFN_vkGetDeviceProcAddr, VkDevice,
-	VvVulkanEXT_]]..name..[[*);
-#endif
-]])
-	end
+#if ]]..cmds[c]..[[ //
+	PFN_vk]]..name..[[ ]]..name..[[;
+#endif]])
 end
 
 out([[
+	void* internalData;
+} VvVulkan;
+
+typedef enum VvVulkanError {
+	VvVK_ERROR_NONE = 0,	// No error
+	VvVK_ERROR_DL = 1,	// Error loading the library or symbol
+	VvVK_ERROR_INVALID = 2,	// VkDevice given without VkInstance
+	_VvVK_ERROR_MAXENUM
+} VvVulkanError;
+
+VvVulkanError vVloadVulkan(VvVulkan*, VkBool32 all, VkInstance, VkDevice);
+VvVulkanError vVunloadVulkan(VvVulkan*);
+
 #endif // H_vivacious_vulkan
 ]])
