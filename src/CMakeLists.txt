@@ -4,6 +4,7 @@ set(DIR
 set(SRC
 	luaopen.c
 	lvulkan/lvulkan.c
+	cpdl.c
 )
 set(LUA
 	vulkan.lua

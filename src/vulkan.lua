@@ -116,45 +116,40 @@ out([[
 #define VK_NO_PROTOTYPES
 #include "vivacious/vulkan.h"
 
-#if defined(_WIN32)
-#	include <windows.h>
-#else
-#	include <dlfcn.h>
-#endif
+#include "cpdl.h"
 
 VvVulkanError vVloadVulkan(VvVulkan* vk, VkBool32 all, VkInstance inst,
 	VkDevice dev) {
 
 	if(!(inst || dev)) {
-		#if defined(_WIN32)
-		HMODULE libvk = LoadLibrary("vulkan-1.dll");
+		vk->internalData = NULL;
+		void* libvk = cpdlopen("libvulkan.so", "libvulkan.dynlib",
+			"vulkan-1.dll");
 		if(!libvk) return VvVK_ERROR_DL;
-		vk->GetInstanceProcAddr = GetProcAddress(libvk,
+		vk->GetInstanceProcAddr = cpdlsym(libvk,
 			"vkGetInstanceProcAddr");
 		if(!vk->GetInstanceProcAddr) return VvVK_ERROR_DL;
-		#else
-		void* libvk = dlopen("libvulkan.so", RTLD_NOW | RTLD_LOCAL);
-		if(!libvk) return VvVK_ERROR_DL;
-		vk->GetInstanceProcAddr = dlsym(libvk, "vkGetInstanceProcAddr");
-		if(!vk->GetInstanceProcAddr) return VvVK_ERROR_DL;
-		#endif
 		vk->internalData = libvk;
 ]])
-rep(0, function(n) return 'vk->GetInstanceProcAddr(NULL, "vk'..n..'")' end,
-	function(n) return 'dlsym(libvk, "vk'..n..'")' end)
+rep(0, function(n)
+	return '(PFN_vk'..n..')vk->GetInstanceProcAddr(NULL, "vk'..n..'")' end,
+	function(n) return 'cpdlsym(libvk, "vk'..n..'")' end)
 out([[
 	} else if(inst && !dev) {]])
-rep(1, function(n) return 'vk->GetInstanceProcAddr(inst, "vk'..n..'")' end)
+rep(1, function(n)
+	return '(PFN_vk'..n..')vk->GetInstanceProcAddr(inst, "vk'..n..'")' end)
 out([[
 	} else if(inst && dev) {]])
-rep(2, function(n) return 'vk->GetDeviceProcAddr(dev, "vk'..n..'")' end)
+rep(2, function(n)
+	return '(PFN_vk'..n..')vk->GetDeviceProcAddr(dev, "vk'..n..'")' end)
 out([[
 	} else return VvVK_ERROR_INVALID;
 	return VvVK_ERROR_NONE;
 }
 
 VvVulkanError vVunloadVulkan(VvVulkan* vk) {
-	if(vk->internalData) dlclose(vk->internalData);
+	if(vk->internalData) cpdlclose(vk->internalData);
+	return VvVK_ERROR_NONE;
 }
 
 #endif // vV_ENABLE_VULKAN
