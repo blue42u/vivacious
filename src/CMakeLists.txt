@@ -1,16 +1,23 @@
+set(DIR
+	lvulkan
+)
 set(SRC
 	luaopen.c
-	lvulkan.c
+	lvulkan/lvulkan.c
 )
 set(LUA
 	vulkan.lua
-	lvulkan-enum.lua
-	lvulkan-bitmask.lua
-	lvulkan-handle.lua
-	lvulkan-struct.lua
-	lvulkan-union.lua
-	lvulkan-test.lua
+	lvulkan/enum.lua
+	lvulkan/bitmask.lua
+	lvulkan/handle.lua
+	lvulkan/struct.lua
+	lvulkan/union.lua
+	lvulkan/test.lua
 )
+
+foreach(D ${DIR})
+	file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${D})
+endforeach()
 
 set(FULLSRC ${SRC})
 foreach(L ${LUA})

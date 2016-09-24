@@ -79,8 +79,14 @@ end
 
 local latex = {
 	VkShaderModuleCreateInfo_pCode = 'codeSize // 4',
+	VkPipelineMultisampleStateCreateInfo_pSampleMask =
+		'ceil((D).rasterizationSamples / 32)',
 }
-local void = {
+local void = {	-- TODO: Overanilize the potential in these.
+	VkSpecializationInfo_pData = true,
+	VkPipelineCacheCreateInfo_pInitialData = true,
+	VkDebugReportCallbackCreateInfoEXT_pUserData = true,
+	VkDebugMarkerObjectTagInfoEXT_pTag = true,
 }
 
 out([[
@@ -114,16 +120,16 @@ for _,ss in cpairs(first(dom.root, {name="types"}), {name="type"}) do
 			if #pr > 0 and tp == 'string' then
 				ln = string.match(ln, '(.*),.*$')
 			end
+			local lx
 			if ln and string.sub(ln, 1, 9) == 'latexmath' then
-				ln = latex[name..'_'..mn]
-				if ln then print('Latex',ln,name,mn) end
-				if not ln then
+				lx = latex[name..'_'..mn]
+				if not lx then
 					derror('Unhandled latex: '
 						..name..'.'..mn)
 				end
 			end
 			table.insert(mems, {t=tp, n=mn, p=pr, m=m, a=ar,
-				l=ln})
+				l=ln, latex=lx})
 		end
 
 -- NOTE: Currently in Vulkan, there are no members which define a static-length
@@ -151,8 +157,7 @@ for _,ss in cpairs(first(dom.root, {name="types"}), {name="type"}) do
 						..name..'.'..m.n)
 					end
 				elseif m.l then
-					print(m.l)
-					fout([[
+					if not m.latex then fout([[
 	lua_newtable(L); \
 	for(int i=0; i<(D).`l`; i++) { \
 		push_`t`(L, (D).`n`[i]); \
@@ -160,6 +165,7 @@ for _,ss in cpairs(first(dom.root, {name="types"}), {name="type"}) do
 	} \
 	lua_setfield(L, -2, "`n`"); \
 \]], m, {name=name})
+					end
 				else fout([[
 	push_`t`(L, *((D).`n`)); \
 	lua_setfield(L, -2, "`n`"); \

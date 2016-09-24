@@ -103,12 +103,12 @@ typedef const char* string;	// Abstract char* into string, helps array params
 
 #define IN_LVULKAN
 
-#include "lvulkan-enum.c"	// Handles enums (VkStructureType, etc.)
-#include "lvulkan-bitmask.c"	// Handles bitmasks (VkQueueFlags, etc.)
-#include "lvulkan-handle.c"	// Handles the handles (VkInstance, etc.)
-#include "lvulkan-struct.c"	// Handles the structs (VkSubmitInfo, etc.)
-#include "lvulkan-union.c"	// Handles the unions (VkClearValue, etc.)
-#include "lvulkan-test.c"	// Compile-time test, for testing
+#include "lvulkan/enum.c"	// Handles enums (VkStructureType, etc.)
+#include "lvulkan/bitmask.c"	// Handles bitmasks (VkQueueFlags, etc.)
+#include "lvulkan/handle.c"	// Handles the handles (VkInstance, etc.)
+#include "lvulkan/struct.c"	// Handles the structs (VkSubmitInfo, etc.)
+#include "lvulkan/union.c"	// Handles the unions (VkClearValue, etc.)
+#include "lvulkan/test.c"	// Compile-time test, for testing
 
 // TMP: To keep link errors away!
 void loadLVulkan(lua_State* L) { lua_pushnil(L); }
