@@ -116,9 +116,10 @@ out([[
 #define VK_NO_PROTOTYPES
 #include "vivacious/vulkan.h"
 
+#include "core.h"
 #include "cpdl.h"
 
-VvVulkanError vVloadVulkan(VvVulkan* vk, VkBool32 all, VkInstance inst,
+VvAPI VvVulkanError vVloadVulkan(VvVulkan* vk, VkBool32 all, VkInstance inst,
 	VkDevice dev) {
 
 	if(!(inst || dev)) {
@@ -147,7 +148,7 @@ out([[
 	return VvVK_ERROR_NONE;
 }
 
-VvVulkanError vVunloadVulkan(VvVulkan* vk) {
+VvAPI VvVulkanError vVunloadVulkan(VvVulkan* vk) {
 	if(vk->internalData) cpdlclose(vk->internalData);
 	return VvVK_ERROR_NONE;
 }

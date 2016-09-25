@@ -25,6 +25,9 @@ if(LUA_ENABLE)
 add_definitions(-DVv_ENABLE_LUA)
 endif(LUA_ENABLE)
 
+set(CMAKE_C_VISIBILITY_PRESET hidden)
+set(CMAKE_CXX_VISIBILITY_PRESET hidden)
+
 add_subdirectory(include)
 add_subdirectory(src)
 add_subdirectory(examples)
