@@ -119,17 +119,17 @@ out([[
 #include "core.h"
 #include "cpdl.h"
 
-VvAPI VvVulkanError vVloadVulkan(VvVulkan* vk, VkBool32 all, VkInstance inst,
+VvAPI int vVloadVulkan(VvVulkan* vk, VkBool32 all, VkInstance inst,
 	VkDevice dev) {
 
 	if(!(inst || dev)) {
 		vk->internalData = NULL;
 		void* libvk = cpdlopen("libvulkan.so", "libvulkan.dynlib",
 			"vulkan-1.dll");
-		if(!libvk) return VvVK_ERROR_DL;
+		if(!libvk) return 1;
 		vk->GetInstanceProcAddr = cpdlsym(libvk,
 			"vkGetInstanceProcAddr");
-		if(!vk->GetInstanceProcAddr) return VvVK_ERROR_DL;
+		if(!vk->GetInstanceProcAddr) return 1;
 		vk->internalData = libvk;
 ]])
 rep(0, function(n)
@@ -144,13 +144,13 @@ out([[
 rep(2, function(n)
 	return '(PFN_vk'..n..')vk->GetDeviceProcAddr(dev, "vk'..n..'")' end)
 out([[
-	} else return VvVK_ERROR_INVALID;
-	return VvVK_ERROR_NONE;
+	} else return 1;
+	return 0;
 }
 
-VvAPI VvVulkanError vVunloadVulkan(VvVulkan* vk) {
+VvAPI int vVunloadVulkan(VvVulkan* vk) {
 	if(vk->internalData) cpdlclose(vk->internalData);
-	return VvVK_ERROR_NONE;
+	return 0;
 }
 
 #endif // vV_ENABLE_VULKAN

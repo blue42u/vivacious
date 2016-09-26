@@ -65,6 +65,7 @@ out([[
 #define H_vivacious_vulkan
 
 typedef struct VvVulkan {
+	void* internalData;
 ]])
 
 for _,c in ipairs(cmds) do
@@ -76,18 +77,10 @@ for _,c in ipairs(cmds) do
 end
 
 out([[
-	void* internalData;
 } VvVulkan;
 
-typedef enum VvVulkanError {
-	VvVK_ERROR_NONE = 0,	// No error
-	VvVK_ERROR_DL = 1,	// Error loading the library or symbol
-	VvVK_ERROR_INVALID = 2,	// VkDevice given without VkInstance
-	_VvVK_ERROR_MAXENUM
-} VvVulkanError;
-
-VvVulkanError vVloadVulkan(VvVulkan*, VkBool32 all, VkInstance, VkDevice);
-VvVulkanError vVunloadVulkan(VvVulkan*);
+int vVloadVulkan(VvVulkan*, VkBool32 all, VkInstance, VkDevice);
+int vVunloadVulkan(VvVulkan*);
 
 #endif // H_vivacious_vulkan
 ]])
