@@ -66,6 +66,7 @@ out([[
 
 typedef struct VvVulkan {
 	void* internalData;
+	int (*unload)(struct VvVulkan*);
 ]])
 
 for _,c in ipairs(cmds) do
@@ -80,7 +81,6 @@ out([[
 } VvVulkan;
 
 int vVloadVulkan(VvVulkan*, VkBool32 all, VkInstance, VkDevice);
-int vVunloadVulkan(VvVulkan*);
 
 #endif // H_vivacious_vulkan
 ]])

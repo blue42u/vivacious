@@ -148,7 +148,7 @@ int main() {
 	vk.DestroyDevice(dev, NULL);
 	vk.DestroyDebugReportCallbackEXT(inst, drc, NULL);
 	vk.DestroyInstance(inst, NULL);
-	vVunloadVulkan(&vk);
+	vk.unload(&vk);
 
 	return 0;
 }

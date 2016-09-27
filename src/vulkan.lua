@@ -119,11 +119,15 @@ out([[
 #include "core.h"
 #include "cpdl.h"
 
+static int unload(VvVulkan* vk) {
+	cpdlclose(vk->internalData);
+	return 0;
+}
+
 VvAPI int vVloadVulkan(VvVulkan* vk, VkBool32 all, VkInstance inst,
 	VkDevice dev) {
 
 	if(!(inst || dev)) {
-		vk->internalData = NULL;
 		void* libvk = cpdlopen("libvulkan.so", "libvulkan.dynlib",
 			"vulkan-1.dll");
 		if(!libvk) return 1;
@@ -131,6 +135,7 @@ VvAPI int vVloadVulkan(VvVulkan* vk, VkBool32 all, VkInstance inst,
 			"vkGetInstanceProcAddr");
 		if(!vk->GetInstanceProcAddr) return 1;
 		vk->internalData = libvk;
+		vk->unload = unload;
 ]])
 rep(0, function(n)
 	return '(PFN_vk'..n..')vk->GetInstanceProcAddr(NULL, "vk'..n..'")' end,
@@ -145,11 +150,7 @@ rep(2, function(n)
 	return '(PFN_vk'..n..')vk->GetDeviceProcAddr(dev, "vk'..n..'")' end)
 out([[
 	} else return 1;
-	return 0;
-}
 
-VvAPI int vVunloadVulkan(VvVulkan* vk) {
-	if(vk->internalData) cpdlclose(vk->internalData);
 	return 0;
 }
 
