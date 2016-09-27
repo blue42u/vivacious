@@ -2,18 +2,18 @@ set(DIR
 	lvulkan
 )
 set(SRC
-	luaopen.c
-	lvulkan/lvulkan.c
+#	luaopen.c
+#	lvulkan/lvulkan.c
 	cpdl.c
 )
 set(LUA
 	vulkan.lua
-	lvulkan/enum.lua
-	lvulkan/bitmask.lua
-	lvulkan/handle.lua
-	lvulkan/struct.lua
-	lvulkan/union.lua
-	lvulkan/test.lua
+#	lvulkan/enum.lua
+#	lvulkan/bitmask.lua
+#	lvulkan/handle.lua
+#	lvulkan/struct.lua
+#	lvulkan/union.lua
+#	lvulkan/test.lua
 )
 
 foreach(D ${DIR})

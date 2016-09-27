@@ -7,6 +7,9 @@ set(VULKAN_INCLUDE_DIR "" CACHE PATH "Vulkan include directory")
 set(LUA_ENABLE ON CACHE BOOL "Enable Lua support")
 set(LUA_INCLUDE_DIR "" CACHE PATH "Lua include directory")
 
+set(X_ENABLE ON CACHE BOOL "Enable X support")
+set(X_INCLUDE_DIR "" CACHE PATH "X include directory")
+
 include_directories(
 	${VULKAN_INCLUDE_DIR}
 	${LUA_INCLUDE_DIR}
@@ -24,6 +27,10 @@ endif(VULKAN_ENABLE)
 if(LUA_ENABLE)
 add_definitions(-DVv_ENABLE_LUA)
 endif(LUA_ENABLE)
+
+if(X_ENABLE)
+add_definitions(-DVv_ENABLE_X)
+endif(X_ENABLE)
 
 set(CMAKE_C_VISIBILITY_PRESET hidden)
 set(CMAKE_CXX_VISIBILITY_PRESET hidden)
