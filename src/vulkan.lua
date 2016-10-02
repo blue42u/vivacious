@@ -22,34 +22,38 @@ local xml = io.open(arg[2]..'/vk.xml', 'r'):read('a')
 local dom = require('slaxdom'):dom(xml, {stripWhitespace=true})
 
 io.output(arg[1])
+local function out(s) io.write(s..'\n') end
+local function fout(s, ...)
+local repl = {}
+	for _,t in ipairs(table.pack(...)) do
+		for k,v in pairs(t) do
+			repl[k] = v
+		end
+	end
+	s = string.gsub(s, '`(%w*)`', repl)
+	out(s)
+end
 
-local cmds = {}
+local ids = {}
+local cmdids = {}
 for _,t in cpairs(dom.root, {name='feature'}) do
-	local const = t.attr.name
+	local id = 'vk'..string.gsub(t.attr.number, '%.', '_')
+	ids[t.attr.name] = id
+	cmdids[id] = {}
 	for _,t in cpairs(t, {name='require'}) do
 		for _,t in cpairs(t, {name='command'}) do
-			if not cmds[t.attr.name] then
-				cmds[#cmds+1] = t.attr.name
-				cmds[t.attr.name] = 'defined('..const..')'
-			else
-				cmds[t.attr.name] = cmds[t.attr.name]
-					..' || defined('..const..')'
-			end
+			table.insert(cmdids[id], t.attr.name)
 		end
 	end
 end
 for _,t in cpairs(first(dom.root, {name='extensions'}), {name='extension',
 	attr={supported='vulkan'}}) do
-	local const = t.attr.name
+	local id = string.match(t.attr.name, 'VK_(.*)')
+	ids[t.attr.name] = id
+	cmdids[id] = {}
 	for _,t in cpairs(t, {name='require'}) do
 		for _,t in cpairs(t, {name='command'}) do
-			if not cmds[t.attr.name] then
-				cmds[#cmds+1] = t.attr.name
-				cmds[t.attr.name] = 'defined('..const..')'
-			else
-				cmds[t.attr.name] = cmds[t.attr.name]
-					..' || defined('..const..')'
-			end
+			table.insert(cmdids[id], t.attr.name)
 		end
 	end
 end
@@ -82,30 +86,45 @@ for c,t in pairs(cmdtypes) do
 		(t == 'VkDevice' and 2 or 0))
 end
 
-local function out(s) io.write(s..'\n') end
+local function rep(cat, f, fall, id, const)
+	if not id then
+		for const,id in pairs(ids) do
+			rep(cat, f, fall, id, const)
+		end
+		return
+	end
 
-local function rep(cat, f, fall)
-	fall = fall or f
-	for _,c in ipairs(cmds) do
+	if fall == nil then fall = f end
+	out('#ifdef '..const)
+	for _,c in ipairs(cmdids[id]) do
 		if cmdcats[c] == cat then
 			local n = string.sub(c,3)
 			out([[
-		#if ]]..cmds[c]..[[ //
-		vk->]]..n..[[ = ]]..f(n)..[[;
-		#endif]])
+		vk->]]..id..[[.]]..n..[[ = ]]..
+			string.gsub(f, '`', n)..[[;]])
 		end
 	end
-	out('\t\tif(all) {')
-	for _,c in ipairs(cmds) do
-		if cmdcats[c] > cat then
-			local n = string.sub(c,3)
-			out([[
-			#if ]]..cmds[c]..[[ //
-			vk->]]..n..[[ = ]]..fall(n)..[[;
-			#endif]])
+	if fall then
+		out('\t\tif(all) {')
+		for _,c in ipairs(cmdids[id]) do
+			if cmdcats[c] > cat then
+				local n = string.sub(c,3)
+				out([[
+				vk->]]..id..[[.]]..n..[[ = ]]..
+					string.gsub(fall, '`', n)..[[;]])
+			end
+		end
+		out('\t\t}')
+	else
+		for _,c in ipairs(cmdids[id]) do
+			if cmdcats[c] > cat then
+				local n = string.sub(c,3)
+				out([[
+			vk->]]..id..[[.]]..n..[[ = NULL;]])
+			end
 		end
 	end
-	out('\t\t}')
+	out('#endif')
 end
 
 out([[
@@ -113,17 +132,98 @@ out([[
 
 #ifdef Vv_ENABLE_VULKAN
 
-#define VK_NO_PROTOTYPES
 #include "vivacious/vulkan.h"
 
 #include "internal.h"
 #include "cpdl.h"
+#include <stdlib.h>
 
-static int unload(VvVulkan* vk) {
-	_vVclosedl(vk->internalData);
-	return 0;
+typedef struct {
+	void* libvk;
+	PFN_vkGetInstanceProcAddr gipa;]])
+for _,t in cpairs(dom.root, {name='feature'}) do
+	local ver = string.gsub(t.attr.number, '%.', '_')
+	fout([[
+#ifdef `const`
+	VvVulkan_`ver` vk`ver`;
+#endif]], {ver=ver, const=t.attr.name})
+end
+for _,t in cpairs(first(dom.root, {name='extensions'}), {name='extension',
+	attr={supported='vulkan'}}) do
+	local name = string.match(t.attr.name, 'VK_(.*)')
+	fout([[
+#ifdef `const`
+	VvVulkan_`name` `name`;
+#endif]], {name=name, const=t.attr.name})
+end
+out([[
+} VvVulkanReal;
+
+static VvVulkan Create() {
+	void* libvk = _vVopendl("libvulkan.so", "libvulkan.dynlib",
+		"vulkan-1.dll");
+	if(!libvk) return NULL;
+
+	PFN_vkGetInstanceProcAddr gipa = _vVsymdl(libvk,
+		"vkGetInstanceProcAddr");
+	if(!gipa) {
+		_vVclosedl(libvk);
+		return NULL;
+	}
+
+	VvVulkanReal* vk = malloc(sizeof(VvVulkanReal));
+	vk->libvk = libvk;
+	vk->gipa = gipa;
+]])
+rep(0, '(PFN_vk`)gipa(NULL, "vk`")', false)
+out([[
+
+	return vk;
 }
 
+static void Destroy(VvVulkan vkh) {
+	VvVulkanReal* vk = (VvVulkanReal*)vkh;
+	_vVclosedl(vk->libvk);
+	free(vk);
+}
+
+static void LoadInstance(VvVulkan vkh, VkInstance inst, VkBool32 all) {
+	VvVulkanReal* vk = (VvVulkanReal*)vkh;
+]])
+rep(1, '(PFN_vk`)vk->gipa(inst, "vk`")')
+out([[
+}
+
+static void LoadDevice(VvVulkan vkh, VkDevice dev, VkBool32 all) {
+	VvVulkanReal* vk = (VvVulkanReal*)vkh;
+]])
+rep(2, '(PFN_vk`)vk->vk1_0.GetDeviceProcAddr(dev, "vk`")')
+out([[
+}
+
+static const VvVulkanAPI api = {
+	Create, Destroy, LoadInstance, LoadDevice
+};
+
+VvAPI const VvVulkanAPI* _vVloadVulkan(int ver) {
+	return ver == H_vivacious_vulkan ? &api : NULL;
+}
+]])
+for const,id in pairs(ids) do
+	local n = id
+	if string.sub(n,1,2) == 'vk' then
+		n = string.sub(n, 3)
+	end
+	fout([[
+#ifdef `const`
+VvAPI const VvVulkan_`n`* vVgetVulkan_`n`(const VvVulkan vkh) {
+	return &((VvVulkanReal*)vkh)->`id`;
+}
+#endif
+]], {n=n, id=id, const=const})
+end
+
+--[==[
 VvAPI int vVloadVulkan(VvVulkan* vk, VkBool32 all, VkInstance inst,
 	VkDevice dev) {
 
@@ -156,3 +256,5 @@ out([[
 
 #endif // vV_ENABLE_VULKAN
 ]])
+--]==]
+out('#endif // vV_ENABLE_VULKAN')

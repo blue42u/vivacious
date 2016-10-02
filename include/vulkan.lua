@@ -23,64 +23,104 @@ local dom = require('slaxdom'):dom(xml, {stripWhitespace=true})
 
 io.output(arg[1])
 
-local cmds = {}
-for _,t in cpairs(dom.root, {name='feature',attr={api='vulkan'}}) do
-	local const = t.attr.name
-	for _,t in cpairs(t, {name='require'}) do
-		for _,t in cpairs(t, {name='command'}) do
-			if not cmds[t.attr.name] then
-				cmds[#cmds+1] = t.attr.name
-				cmds[t.attr.name] = 'defined('..const..')'
-			else
-				cmds[t.attr.name] = cmds[t.attr.name]
-					..' || defined('..const..')'
-			end
-		end
-	end
-end
-for _,t in cpairs(first(dom.root, {name='extensions'}), {name='extension',
-	attr={supported='vulkan'}}) do
-	local const = t.attr.name
-	for _,t in cpairs(t, {name='require'}) do
-		for _,t in cpairs(t, {name='command'}) do
-			if not cmds[t.attr.name] then
-				cmds[#cmds+1] = t.attr.name
-				cmds[t.attr.name] = 'defined('..const..')'
-			else
-				cmds[t.attr.name] = cmds[t.attr.name]
-					..' || defined('..const..')'
-			end
-		end
-	end
-end
-
 local function out(s) io.write(s..'\n') end
+local function fout(s, ...)
+	local repl = {}
+	for _,t in ipairs(table.pack(...)) do
+		for k,v in pairs(t) do
+			repl[k] = v
+		end
+	end
+	s = string.gsub(s, '`(%w*)`', repl)
+	out(s)
+end
 
 out([[
 // WARNING: Generated file. Do not edit manually.
 
+#define VK_NO_PROTOTYPES
 #include <vulkan/vulkan.h>
 
 #ifndef H_vivacious_vulkan
-#define H_vivacious_vulkan
+#define H_vivacious_vulkan 1	// Acts as the "major" version of this header
 
-typedef struct VvVulkan {
-	void* internalData;
-	int (*unload)(struct VvVulkan*);
+typedef void* VvVulkan;
+
+typedef struct VvVulkanAPI {
+	// Create the opaque structure responsible for obtaining the pieces of
+	// Vulkan. PFNs will be available after the first call to Refresh with
+	// a non-NULL <inst>.
+	VvVulkan (*Create)();
+
+	// Destroy the structure. Do not use the PFNs obtained from <vk> after
+	// calling this.
+	void (*Destroy)(VvVulkan vk);
+
+	// Load the PFNs which directly require an instance before use. If
+	// <all> is true, this will also load those which indirectly require
+	// an instance. After this, all PFNs are limited to <inst>.
+	void (*LoadInstance)(VvVulkan vk, VkInstance inst, VkBool32 all);
+
+	// Load the PFNs which directly require a device before use. If
+	// <all> is true, this will also load those which indirectly require
+	// a device. After this, all PFNs are limited to <dev>.
+	void (*LoadDevice)(VvVulkan vk, VkDevice dev, VkBool32 all);
+} VvVulkanAPI;
+
+const VvVulkanAPI* _vVloadVulkan(int version);
+#define vVloadVulkan() _vVloadVulkan(H_vivacious_vulkan)
 ]])
 
-for _,c in ipairs(cmds) do
-	local name = string.sub(c,3)
-	out([[
-#if ]]..cmds[c]..[[ //
-	PFN_vk]]..name..[[ ]]..name..[[;
-#endif]])
+for _,t in cpairs(dom.root, {name='feature',attr={api='vulkan'}}) do
+	local const = t.attr.name
+	local maj,min = string.match(t.attr.number, '(%d+)%.(%d+)')
+	local ver = maj..'_'..min
+
+	fout([[
+#ifdef `const`
+typedef struct VvVulkan_`ver` {]], {const=const, ver=ver})
+
+	for _,r in cpairs(t, {name='require'}) do
+		for _,c in cpairs(r, {name='command'}) do
+			local cmd = string.match(c.attr.name, 'vk(%w+)')
+			if not cmd then
+				herror('No command name: '..c.attr.name) end
+			fout('\tPFN_vk`cmd` `cmd`;', {cmd=cmd})
+		end
+	end
+
+	fout([[
+} VvVulkan_`ver`;
+const VvVulkan_`ver`* vVgetVulkan_`ver`(const VvVulkan);
+#endif // `const`
+]], {const=const, ver=ver})
+end
+
+for _,t in cpairs(first(dom.root, {name='extensions'}), {name='extension',
+	attr={supported='vulkan'}}) do
+	local const = t.attr.name
+	local name = string.match(const, 'VK_(.*)')
+
+	fout([[
+#ifdef `const`
+typedef struct VvVulkan_`name` {]], {const=const, name=name})
+
+	for _,r in cpairs(t, {name='require'}) do
+		for _,c in cpairs(r, {name='command'}) do
+			local cmd = string.match(c.attr.name, 'vk(%w+)')
+			if not cmd then
+				herror('No command name: '..c.attr.name) end
+			fout('\tPFN_vk`cmd` `cmd`;', {cmd=cmd})
+		end
+	end
+
+	fout([[
+} VvVulkan_`name`;
+const VvVulkan_`name`* vVgetVulkan_`name`(const VvVulkan);
+#endif // `const`
+]], {const=const, name=name})
 end
 
 out([[
-} VvVulkan;
-
-int vVloadVulkan(VvVulkan*, VkBool32 all, VkInstance, VkDevice);
-
 #endif // H_vivacious_vulkan
 ]])

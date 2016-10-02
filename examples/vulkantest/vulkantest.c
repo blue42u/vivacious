@@ -74,11 +74,16 @@ VkBool32 debugFunc(
 }
 
 int main() {
-	VvVulkan vk;
-	if(vVloadVulkan(&vk, VK_FALSE, NULL, NULL)) {
-		printf("Error loading vulkan!\n");
+	const VvVulkanAPI* vkapi = vVloadVulkan();
+	if(!vkapi) {
+		printf("Error loading VvVulkan!\n");
 		return 1;
 	}
+
+	VvVulkan vVvk = vkapi->Create();
+	const VvVulkan_1_0* vk = vVgetVulkan_1_0(vVvk);
+	const VvVulkan_EXT_debug_report* vkdr
+		= vVgetVulkan_EXT_debug_report(vVvk);
 
 	VkInstance inst;
 	const char* exts[] = { "VK_EXT_debug_report" };
@@ -90,11 +95,8 @@ int main() {
 		1, lays,
 		1, exts
 	};
-	VkResult r = vk.CreateInstance(&ico, NULL, &inst);
-	if(vVloadVulkan(&vk, VK_FALSE, inst, NULL)) {
-		printf("Error loading I Vulkan!\n");
-		return 1;
-	}
+	VkResult r = vk->CreateInstance(&ico, NULL, &inst);
+	vkapi->LoadInstance(vVvk, inst, VK_FALSE);
 	printf("Creating instance: %d!\n", r);
 
 	VkDebugReportCallbackCreateInfoEXT drcci = {
@@ -109,15 +111,15 @@ int main() {
 		NULL
 	};
 	VkDebugReportCallbackEXT drc;
-	vk.CreateDebugReportCallbackEXT(inst, &drcci, NULL, &drc);
+	vkdr->CreateDebugReportCallbackEXT(inst, &drcci, NULL, &drc);
 
 	uint32_t cnt = 1;
 	VkPhysicalDevice pdev;
-	r = vk.EnumeratePhysicalDevices(inst, &cnt, &pdev);
+	r = vk->EnumeratePhysicalDevices(inst, &cnt, &pdev);
 	printf("Enum'ing PDevs: %d!\n", r);
 
 	VkPhysicalDeviceProperties pdp;
-	vk.GetPhysicalDeviceProperties(pdev, &pdp);
+	vk->GetPhysicalDeviceProperties(pdev, &pdp);
 	printf("Vk version loaded: %d.%d.%d!\n",
 		VK_VERSION_MAJOR(pdp.apiVersion),
 		VK_VERSION_MINOR(pdp.apiVersion),
@@ -138,17 +140,14 @@ int main() {
 		NULL
 	};
 	VkDevice dev;
-	r = vk.CreateDevice(pdev, &dci, NULL, &dev);
+	r = vk->CreateDevice(pdev, &dci, NULL, &dev);
+	vkapi->LoadDevice(vVvk, dev, VK_TRUE);
 	printf("Creating device: %d!\n", r);
-	if(vVloadVulkan(&vk, VK_FALSE, inst, dev)) {
-		printf("Error loading I Vulkan!\n");
-		return 1;
-	}
 
-	vk.DestroyDevice(dev, NULL);
-	vk.DestroyDebugReportCallbackEXT(inst, drc, NULL);
-	vk.DestroyInstance(inst, NULL);
-	vk.unload(&vk);
+	vk->DestroyDevice(dev, NULL);
+	vkdr->DestroyDebugReportCallbackEXT(inst, drc, NULL);
+	vk->DestroyInstance(inst, NULL);
+	vkapi->Destroy(vVvk);
 
 	return 0;
 }
