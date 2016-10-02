@@ -116,11 +116,11 @@ out([[
 #define VK_NO_PROTOTYPES
 #include "vivacious/vulkan.h"
 
-#include "core.h"
+#include "internal.h"
 #include "cpdl.h"
 
 static int unload(VvVulkan* vk) {
-	cpdlclose(vk->internalData);
+	_vVclosedl(vk->internalData);
 	return 0;
 }
 
@@ -128,10 +128,10 @@ VvAPI int vVloadVulkan(VvVulkan* vk, VkBool32 all, VkInstance inst,
 	VkDevice dev) {
 
 	if(!(inst || dev)) {
-		void* libvk = cpdlopen("libvulkan.so", "libvulkan.dynlib",
+		void* libvk = _vVopendl("libvulkan.so", "libvulkan.dynlib",
 			"vulkan-1.dll");
 		if(!libvk) return 1;
-		vk->GetInstanceProcAddr = cpdlsym(libvk,
+		vk->GetInstanceProcAddr = _vVsymdl(libvk,
 			"vkGetInstanceProcAddr");
 		if(!vk->GetInstanceProcAddr) return 1;
 		vk->internalData = libvk;
@@ -139,7 +139,7 @@ VvAPI int vVloadVulkan(VvVulkan* vk, VkBool32 all, VkInstance inst,
 ]])
 rep(0, function(n)
 	return '(PFN_vk'..n..')vk->GetInstanceProcAddr(NULL, "vk'..n..'")' end,
-	function(n) return 'cpdlsym(libvk, "vk'..n..'")' end)
+	function(n) return '_vVsymdl(libvk, "vk'..n..'")' end)
 out([[
 	} else if(inst && !dev) {]])
 rep(1, function(n)

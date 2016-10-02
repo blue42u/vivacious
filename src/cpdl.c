@@ -19,17 +19,17 @@
 #if defined(_WIN32)
 #include <windows.h>
 
-void* cpdlopen(const char* nix, const char* mac, const char* win) {
+void* _vVopendl(const char* nix, const char* mac, const char* win) {
 	HMODULE* lib = malloc(sizeof(HMODULE));
 	*lib = LoadLibrary(win);
 	return lib;
 }
 
-void* cpdlsym(void* handle, const char* sym) {
+void* _vVsymdl(void* handle, const char* sym) {
 	return GetProcAddress(*(HMODULE*)handle, sym);
 }
 
-void cpdlclose(void* handle) {
+void _vVclosedl(void* handle) {
 	FreeLibrary(*(HMODULE*)handle);
 	free(handle);
 }
@@ -37,7 +37,7 @@ void cpdlclose(void* handle) {
 #else
 #include <dlfcn.h>
 
-void* cpdlopen(const char* nix, const char* mac, const char* win) {
+void* _vVopendl(const char* nix, const char* mac, const char* win) {
 #if defined(__APPLE__)
 	return dlopen(mac, RTLD_LAZY | RTLD_LOCAL);
 #else
@@ -45,11 +45,11 @@ void* cpdlopen(const char* nix, const char* mac, const char* win) {
 #endif
 }
 
-void* cpdlsym(void* handle, const char* sym) {
+void* _vVsymdl(void* handle, const char* sym) {
 	return dlsym(handle, sym);
 }
 
-void cpdlclose(void* handle) {
+void _vVclosedl(void* handle) {
 	dlclose(handle);
 }
 

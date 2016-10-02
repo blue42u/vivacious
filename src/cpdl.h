@@ -22,12 +22,12 @@
 
 // Open a dynamic library. The three different strings are the different names
 // for the library by platform. Returns a handle.
-void* cpdlopen(const char* nix, const char* mac, const char* win);
+void* _vVopendl(const char* nix, const char* mac, const char* win);
 
 // Obtain a function from the library given.
-void* cpdlsym(void* handle, const char* sym);
+void* _vVsymdl(void* handle, const char* sym);
 
 // Close a library.
-void cpdlclose(void* handle);
+void _vVclosedl(void* handle);
 
 #endif // H_cpdl

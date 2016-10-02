@@ -14,16 +14,17 @@
    limitations under the License.
 ***************************************************************************/
 
-#ifndef H_core
-#define H_core
+#ifndef H_internal
+#define H_internal
 
 #if defined(__clang__) && __has_attribute(visibility)
-#	define VvAPI __attribute__((visibility("default")))
+	#define VvAPI __attribute__((visibility("default")))
 #elif defined(__GNUC__) && __GNUC__ >= 4
-#	define VvAPI __attribute__((visibility("default")))
+	#define VvAPI __attribute__((visibility("default")))
+#elif defined(_WIN32)
+	#define VvAPI __declspec(dllexport)
 #else
-#	warning "No visibility attribute availible!"
-#	define VvAPI
+	#error "No visibility control mechanism!"
 #endif
 
 #endif // H_core
