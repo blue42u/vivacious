@@ -1,6 +1,7 @@
 set(GENS
 )
 set(CPS
+	core.h
 )
 
 if(VULKAN_ENABLE)

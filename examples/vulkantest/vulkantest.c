@@ -14,8 +14,17 @@
    limitations under the License.
 ***************************************************************************/
 
-#include "vivacious/vulkan.h"
+#include <vivacious/vulkan.h>
 #include <stdio.h>
+#include <stdarg.h>
+
+int error(const char* format, ...) {
+	va_list list;
+	va_start(list, format);
+	vfprintf(stderr, format, list);
+	va_end(list);
+	return 1;
+}
 
 VkBool32 debugFunc(
 	VkDebugReportFlagsEXT flag,
@@ -74,16 +83,13 @@ VkBool32 debugFunc(
 }
 
 int main() {
-	const VvVulkanAPI* vkapi = vVloadVulkan();
-	if(!vkapi) {
-		printf("Error loading VvVulkan!\n");
-		return 1;
-	}
+	VvConfig vkfig;
+	const VvVulkanAPI* vkapi = vVloadVulkan_dl(&vkfig);
+	if(!vkapi) return error("Error loading VvVulkan!\n");
 
-	VvVulkan vVvk = vkapi->Create();
-	const VvVulkan_1_0* vk = vVgetVulkan_1_0(vVvk);
+	const VvVulkan_1_0* vk = vkapi->core->vk_1_0(vkfig);
 	const VvVulkan_EXT_debug_report* vkdr
-		= vVgetVulkan_EXT_debug_report(vVvk);
+		= vkapi->ext->EXT_debug_report(vkfig);
 
 	VkInstance inst;
 	const char* exts[] = { "VK_EXT_debug_report" };
@@ -96,8 +102,8 @@ int main() {
 		1, exts
 	};
 	VkResult r = vk->CreateInstance(&ico, NULL, &inst);
-	vkapi->LoadInstance(vVvk, inst, VK_FALSE);
-	printf("Creating instance: %d!\n", r);
+	vkapi->LoadInstance(vkfig, inst, VK_FALSE);
+	if(r<0) error("Error creating instance: %d!\n", r);
 
 	VkDebugReportCallbackCreateInfoEXT drcci = {
 		VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT,
@@ -116,7 +122,7 @@ int main() {
 	uint32_t cnt = 1;
 	VkPhysicalDevice pdev;
 	r = vk->EnumeratePhysicalDevices(inst, &cnt, &pdev);
-	printf("Enum'ing PDevs: %d!\n", r);
+	if(r<0) error("Error enum'ing PDevs: %d!\n", r);
 
 	VkPhysicalDeviceProperties pdp;
 	vk->GetPhysicalDeviceProperties(pdev, &pdp);
@@ -141,13 +147,13 @@ int main() {
 	};
 	VkDevice dev;
 	r = vk->CreateDevice(pdev, &dci, NULL, &dev);
-	vkapi->LoadDevice(vVvk, dev, VK_TRUE);
-	printf("Creating device: %d!\n", r);
+	vkapi->LoadDevice(vkfig, dev, VK_TRUE);
+	if(r<0) error("Error creating device: %d!\n", r);
 
 	vk->DestroyDevice(dev, NULL);
 	vkdr->DestroyDebugReportCallbackEXT(inst, drc, NULL);
 	vk->DestroyInstance(inst, NULL);
-	vkapi->Destroy(vVvk);
+	vkapi->cleanup(vkfig);
 
 	return 0;
 }

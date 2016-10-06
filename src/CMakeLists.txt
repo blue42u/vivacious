@@ -31,7 +31,7 @@ foreach(L ${LUA})
 	set(FULLSRC ${FULLSRC} ${CMAKE_CURRENT_BINARY_DIR}/${O})
 endforeach()
 
-include_directories(${CMAKE_CURRENT_BINARY_DIR})
+include_directories(${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_library(vivacious SHARED ${FULLSRC})
 add_library(vivacious-static STATIC EXCLUDE_FROM_ALL ${FULLSRC})

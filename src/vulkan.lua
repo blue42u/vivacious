@@ -34,11 +34,12 @@ local repl = {}
 	out(s)
 end
 
-local ids = {}
+local ids,coreord,extord = {},{},{}
 local cmdids = {}
 for _,t in cpairs(dom.root, {name='feature'}) do
 	local id = 'vk'..string.gsub(t.attr.number, '%.', '_')
 	ids[t.attr.name] = id
+	table.insert(coreord, {t.attr.number, t.attr.name})
 	cmdids[id] = {}
 	for _,t in cpairs(t, {name='require'}) do
 		for _,t in cpairs(t, {name='command'}) do
@@ -46,10 +47,10 @@ for _,t in cpairs(dom.root, {name='feature'}) do
 		end
 	end
 end
-for _,t in cpairs(first(dom.root, {name='extensions'}), {name='extension',
-	attr={supported='vulkan'}}) do
+for _,t in cpairs(first(dom.root, {name='extensions'}), {name='extension'}) do
 	local id = string.match(t.attr.name, 'VK_(.*)')
 	ids[t.attr.name] = id
+	table.insert(extord, {tonumber(t.attr.number), t.attr.name})
 	cmdids[id] = {}
 	for _,t in cpairs(t, {name='require'}) do
 		for _,t in cpairs(t, {name='command'}) do
@@ -57,6 +58,11 @@ for _,t in cpairs(first(dom.root, {name='extensions'}), {name='extension',
 		end
 	end
 end
+
+table.sort(coreord, function(a,b) return a[1] < b[1] end)
+for i,v in ipairs(coreord) do coreord[i] = v[2] end
+table.sort(extord, function(a,b) return a[1] < b[1] end)
+for i,v in ipairs(extord) do extord[i] = v[2] end
 
 local cmdtypes = {}
 for _,t in cpairs(first(dom.root, {name='commands'}), {name='command'}) do
@@ -159,7 +165,7 @@ end
 out([[
 } VvVulkanReal;
 
-static VvVulkan Create() {
+static VvConfig create() {
 	void* libvk = _vVopendl("libvulkan.so", "libvulkan.dynlib",
 		"vulkan-1.dll");
 	if(!libvk) return NULL;
@@ -178,37 +184,36 @@ static VvVulkan Create() {
 rep(0, '(PFN_vk`)gipa(NULL, "vk`")', false)
 out([[
 
-	return vk;
+	return (VvConfig) vk;
 }
 
-static void Destroy(VvVulkan vkh) {
-	VvVulkanReal* vk = (VvVulkanReal*)vkh;
+static void cleanup(VvConfig fig) {
+	VvVulkanReal* vk = (VvVulkanReal*)fig;
 	_vVclosedl(vk->libvk);
 	free(vk);
 }
 
-static void LoadInstance(VvVulkan vkh, VkInstance inst, VkBool32 all) {
-	VvVulkanReal* vk = (VvVulkanReal*)vkh;
+static void LoadInstance(VvConfig fig, VkInstance inst,
+	VkBool32 all) {
+	VvVulkanReal* vk = (VvVulkanReal*)fig;
 ]])
 rep(1, '(PFN_vk`)vk->gipa(inst, "vk`")')
 out([[
 }
 
-static void LoadDevice(VvVulkan vkh, VkDevice dev, VkBool32 all) {
-	VvVulkanReal* vk = (VvVulkanReal*)vkh;
+static void LoadDevice(VvConfig fig, VkDevice dev,
+	VkBool32 all) {
+	VvVulkanReal* vk = (VvVulkanReal*)fig;
 ]])
 rep(2, '(PFN_vk`)vk->vk1_0.GetDeviceProcAddr(dev, "vk`")')
 out([[
 }
 
-static const VvVulkanAPI api = {
-	Create, Destroy, LoadInstance, LoadDevice
-};
-
-VvAPI const VvVulkanAPI* _vVloadVulkan(int ver) {
-	return ver == H_vivacious_vulkan ? &api : NULL;
+static const void* getNull(const VvConfig dummy) {
+	return NULL;
 }
 ]])
+
 for const,id in pairs(ids) do
 	local n = id
 	if string.sub(n,1,2) == 'vk' then
@@ -216,45 +221,52 @@ for const,id in pairs(ids) do
 	end
 	fout([[
 #ifdef `const`
-VvAPI const VvVulkan_`n`* vVgetVulkan_`n`(const VvVulkan vkh) {
+static const VvVulkan_`n`* getVulkan_`n`(const VvConfig vkh) {
 	return &((VvVulkanReal*)vkh)->`id`;
 }
+#else
+#define getVulkan_`n` getNull
 #endif
 ]], {n=n, id=id, const=const})
 end
 
---[==[
-VvAPI int vVloadVulkan(VvVulkan* vk, VkBool32 all, VkInstance inst,
-	VkDevice dev) {
-
-	if(!(inst || dev)) {
-		void* libvk = _vVopendl("libvulkan.so", "libvulkan.dynlib",
-			"vulkan-1.dll");
-		if(!libvk) return 1;
-		vk->GetInstanceProcAddr = _vVsymdl(libvk,
-			"vkGetInstanceProcAddr");
-		if(!vk->GetInstanceProcAddr) return 1;
-		vk->internalData = libvk;
-		vk->unload = unload;
+out([[
+static const VvVulkanCore vkcore = {]])
+for _,const in ipairs(coreord) do
+	local n = ids[const]
+	if string.sub(n,1,2) == 'vk' then
+		n = string.sub(n, 3)
+		out('\tgetVulkan_'..n..',')
+	end
+end
+out([[
+};
 ]])
-rep(0, function(n)
-	return '(PFN_vk'..n..')vk->GetInstanceProcAddr(NULL, "vk'..n..'")' end,
-	function(n) return '_vVsymdl(libvk, "vk'..n..'")' end)
-out([[
-	} else if(inst && !dev) {]])
-rep(1, function(n)
-	return '(PFN_vk'..n..')vk->GetInstanceProcAddr(inst, "vk'..n..'")' end)
-out([[
-	} else if(inst && dev) {]])
-rep(2, function(n)
-	return '(PFN_vk'..n..')vk->GetDeviceProcAddr(dev, "vk'..n..'")' end)
-out([[
-	} else return 1;
 
-	return 0;
+out([[
+static const VvVulkanExt vkext = {]])
+for _,const in ipairs(extord) do
+	local n = ids[const]
+	if string.sub(n,1,2) ~= 'vk' then
+		out('\tgetVulkan_'..n..',')
+	end
+end
+out([[
+};
+]])
+
+out([[
+static const VvVulkanAPI api = {
+	cleanup,
+	LoadInstance, LoadDevice,
+	&vkcore, &vkext
+};
+
+VvAPI const VvVulkanAPI* _vVloadVulkan_dl(int ver, VvConfig* fig) {
+	*fig = create();
+	if(!*fig) return NULL;
+	return ver == H_vivacious_vulkan ? &api : NULL;
 }
-
-#endif // vV_ENABLE_VULKAN
 ]])
---]==]
+
 out('#endif // vV_ENABLE_VULKAN')

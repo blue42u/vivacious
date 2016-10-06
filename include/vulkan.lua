@@ -40,35 +40,36 @@ out([[
 
 #define VK_NO_PROTOTYPES
 #include <vulkan/vulkan.h>
+#include <vivacious/core.h>
 
 #ifndef H_vivacious_vulkan
-#define H_vivacious_vulkan 1	// Acts as the "major" version of this header
+#define H_vivacious_vulkan 2	// Acts as the "major" version of this header
 
-typedef void* VvVulkan;
-
+typedef struct VvVulkanCore VvVulkanCore;
+typedef struct VvVulkanExt VvVulkanExt;
 typedef struct VvVulkanAPI {
-	// Create the opaque structure responsible for obtaining the pieces of
-	// Vulkan. PFNs will be available after the first call to Refresh with
-	// a non-NULL <inst>.
-	VvVulkan (*Create)();
-
-	// Destroy the structure. Do not use the PFNs obtained from <vk> after
-	// calling this.
-	void (*Destroy)(VvVulkan vk);
+	// Cleanup the Config
+	void (*cleanup)(VvConfig);
 
 	// Load the PFNs which directly require an instance before use. If
 	// <all> is true, this will also load those which indirectly require
 	// an instance. After this, all PFNs are limited to <inst>.
-	void (*LoadInstance)(VvVulkan vk, VkInstance inst, VkBool32 all);
+	void (*LoadInstance)(VvConfig, VkInstance inst, VkBool32 all);
 
 	// Load the PFNs which directly require a device before use. If
 	// <all> is true, this will also load those which indirectly require
 	// a device. After this, all PFNs are limited to <dev>.
-	void (*LoadDevice)(VvVulkan vk, VkDevice dev, VkBool32 all);
+	void (*LoadDevice)(VvConfig, VkDevice dev, VkBool32 all);
+
+	// This has the versioned getters for the core Vulkan PFNs.
+	const VvVulkanCore* core;
+
+	// This has the getters for the extension Vulkan PFNs.
+	const VvVulkanExt* ext;
 } VvVulkanAPI;
 
-const VvVulkanAPI* _vVloadVulkan(int version);
-#define vVloadVulkan() _vVloadVulkan(H_vivacious_vulkan)
+const VvVulkanAPI* _vVloadVulkan_dl(int version, VvConfig*);
+#define vVloadVulkan_dl(C) _vVloadVulkan_dl(H_vivacious_vulkan, (C))
 ]])
 
 for _,t in cpairs(dom.root, {name='feature',attr={api='vulkan'}}) do
@@ -91,7 +92,6 @@ typedef struct VvVulkan_`ver` {]], {const=const, ver=ver})
 
 	fout([[
 } VvVulkan_`ver`;
-const VvVulkan_`ver`* vVgetVulkan_`ver`(const VvVulkan);
 #endif // `const`
 ]], {const=const, ver=ver})
 end
@@ -116,11 +116,55 @@ typedef struct VvVulkan_`name` {]], {const=const, name=name})
 
 	fout([[
 } VvVulkan_`name`;
-const VvVulkan_`name`* vVgetVulkan_`name`(const VvVulkan);
 #endif // `const`
 ]], {const=const, name=name})
 end
 
 out([[
+struct VvVulkanCore {]])
+local pieces = {}
+for _,t in cpairs(dom.root, {name='feature',attr={api='vulkan'}}) do
+	local const = t.attr.name
+	local maj,min = string.match(t.attr.number, '(%d+)%.(%d+)')
+	local ver = maj..'_'..min
+	table.insert(pieces, {ver, string.gsub([[
+#ifdef `const`
+	const VvVulkan_`ver`* (*vk_`ver`)(VvConfig);
+#else
+	const void* (*vk_`ver`)(VvConfig);
+#endif
+]], '`(%w*)`', {const=const, ver=ver})})
+end
+table.sort(pieces, function(a,b) return a[1] < b[1] end)
+for i,v in ipairs(pieces) do pieces[i] = v[2] end
+out(table.concat(pieces)..[[
+};
+]])
+
+out([[
+struct VvVulkanExt {]])
+local pieces = {}
+for _,t in cpairs(first(dom.root, {name='extensions'}), {name='extension'}) do
+	local const = t.attr.name
+	local name = string.match(const, 'VK_(.*)')
+	if t.attr.supported == 'disabled' then
+		table.insert(pieces, {tonumber(t.attr.number), string.gsub([[
+	const void* (*`name`)(VvConfig);
+]], '`(%w*)`', {const=const, name=name, numb=t.attr.number})})
+	else
+		table.insert(pieces, {tonumber(t.attr.number), string.gsub([[
+#ifdef `const`	// `numb`
+	const VvVulkan_`name`* (*`name`)(VvConfig);
+#else
+	const void* (*`name`)(VvConfig);
+#endif
+]], '`(%w*)`', {const=const, name=name, numb=t.attr.number})})
+	end
+end
+table.sort(pieces, function(a,b) return a[1] < b[1] end)
+for i,v in ipairs(pieces) do pieces[i] = v[2] end
+out(table.concat(pieces)..[[
+};
+
 #endif // H_vivacious_vulkan
 ]])
