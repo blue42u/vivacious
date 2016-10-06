@@ -13,14 +13,17 @@ constant used should be `H_vivacious_<name>`, and have a small integer
 value. This value should act like the major version in semver for the 
 header, and checked by macro upon loading of the implementation.
 
-Every function pointer in an API should have `const VvConfig` as the 
-first argument to the function. The type is declared in core.h as 
-`typedef void* VvConfig`.
+Every function pointer in an API should have `VvState` as the first
+argument to the function. If the `const` attribute is added, the
+function can be considered thread-safe and re-entrant with respect to
+the `VvState`.
 
-Since `VvConfig` is an opaque handle, every API should have a 
-member/function with the signature `void (*cleanup)(VvConfig)`. After 
-calling this, the given `VvConfig` should be considered invalid, and can 
-be removed.
+`VvState` is typedef'd as an opaque handle, so every API should have a
+member/function with the signature `void (*cleanup)(VvState)`. After
+calling this, the given `VvState` should be considered invalid, and can
+be removed. There also should be a member/function with the signature
+`VvState (*clone)(const VvState)`, which returns a valid `VvState` based
+on data from the given `VvState`.
 
 When updating an API, new elements should be placed at the bottom of the 
 structure, to allow minorly old versions of headers to work with new 
@@ -32,11 +35,12 @@ API, and is is named `_vVload<name>_<imp>`, where `<imp>` is an
 identifier to distinguish between implementations of the same API. The 
 full signature of this for an API named `Cool` and an implementation 
 identified as `Fast` would be
-`const VvCoolAPI* _vVloadCool_Fast(int version, VvConfig*, ...)`.
+`const VvCoolAPI* _vVloadCool_Fast(int version, VvState*, ...)`.
 
-The `...` in the implmentation signature should be replaced with none or 
-multiple `const Vv*API *` arguments, which will fill the VvConfig opaque
-handle with the dependancy APIs needed for this implementation.
+The `...` in the implmentation signature should be replaced with
+implementation-specific arguments. After calling an implementation, the
+`VvState` referenced should be considered valid for this and only this
+implementation, and should be `cleanup`'d when done.
 
 Every implementation declared in a header should have a macro that 
 should be used to call the function, which fills in the `version` 

@@ -83,13 +83,13 @@ VkBool32 debugFunc(
 }
 
 int main() {
-	VvConfig vkfig;
-	const VvVulkanAPI* vkapi = vVloadVulkan_dl(&vkfig);
+	VvState vVvk;
+	const VvVulkanAPI* vkapi = vVloadVulkan_dl(&vVvk);
 	if(!vkapi) return error("Error loading VvVulkan!\n");
 
-	const VvVulkan_1_0* vk = vkapi->core->vk_1_0(vkfig);
+	const VvVulkan_1_0* vk = vkapi->core->vk_1_0(vVvk);
 	const VvVulkan_EXT_debug_report* vkdr
-		= vkapi->ext->EXT_debug_report(vkfig);
+		= vkapi->ext->EXT_debug_report(vVvk);
 
 	VkInstance inst;
 	const char* exts[] = { "VK_EXT_debug_report" };
@@ -102,7 +102,7 @@ int main() {
 		1, exts
 	};
 	VkResult r = vk->CreateInstance(&ico, NULL, &inst);
-	vkapi->LoadInstance(vkfig, inst, VK_FALSE);
+	vkapi->LoadInstance(vVvk, inst, VK_FALSE);
 	if(r<0) error("Error creating instance: %d!\n", r);
 
 	VkDebugReportCallbackCreateInfoEXT drcci = {
@@ -147,13 +147,13 @@ int main() {
 	};
 	VkDevice dev;
 	r = vk->CreateDevice(pdev, &dci, NULL, &dev);
-	vkapi->LoadDevice(vkfig, dev, VK_TRUE);
+	vkapi->LoadDevice(vVvk, dev, VK_TRUE);
 	if(r<0) error("Error creating device: %d!\n", r);
 
 	vk->DestroyDevice(dev, NULL);
 	vkdr->DestroyDebugReportCallbackEXT(inst, drc, NULL);
 	vk->DestroyInstance(inst, NULL);
-	vkapi->cleanup(vkfig);
+	vkapi->cleanup(vVvk);
 
 	return 0;
 }

@@ -22,6 +22,6 @@
 
 // This is a kind of handle many APIs use. Unified to allow for app-side
 // managment.
-Vv_DEFINE_HANDLE(VvConfig)
+Vv_DEFINE_HANDLE(VvState)
 
 #endif // H_vivacious_core

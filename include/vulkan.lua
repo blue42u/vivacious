@@ -48,27 +48,30 @@ out([[
 typedef struct VvVulkanCore VvVulkanCore;
 typedef struct VvVulkanExt VvVulkanExt;
 typedef struct VvVulkanAPI {
-	// Cleanup the Config
-	void (*cleanup)(VvConfig);
+	// Cleanup the State
+	void (*cleanup)(VvState);
 
 	// Load the PFNs which directly require an instance before use. If
 	// <all> is true, this will also load those which indirectly require
 	// an instance. After this, all PFNs are limited to <inst>.
-	void (*LoadInstance)(VvConfig, VkInstance inst, VkBool32 all);
+	void (*LoadInstance)(VvState, VkInstance inst, VkBool32 all);
 
 	// Load the PFNs which directly require a device before use. If
 	// <all> is true, this will also load those which indirectly require
 	// a device. After this, all PFNs are limited to <dev>.
-	void (*LoadDevice)(VvConfig, VkDevice dev, VkBool32 all);
+	void (*LoadDevice)(VvState, VkDevice dev, VkBool32 all);
 
 	// This has the versioned getters for the core Vulkan PFNs.
 	const VvVulkanCore* core;
 
 	// This has the getters for the extension Vulkan PFNs.
 	const VvVulkanExt* ext;
+
+	// Clone the State
+	VvState (*clone)(const VvState);
 } VvVulkanAPI;
 
-const VvVulkanAPI* _vVloadVulkan_dl(int version, VvConfig*);
+const VvVulkanAPI* _vVloadVulkan_dl(int version, VvState*);
 #define vVloadVulkan_dl(C) _vVloadVulkan_dl(H_vivacious_vulkan, (C))
 ]])
 
@@ -129,9 +132,9 @@ for _,t in cpairs(dom.root, {name='feature',attr={api='vulkan'}}) do
 	local ver = maj..'_'..min
 	table.insert(pieces, {ver, string.gsub([[
 #ifdef `const`
-	const VvVulkan_`ver`* (*vk_`ver`)(VvConfig);
+	const VvVulkan_`ver`* (*vk_`ver`)(const VvState);
 #else
-	const void* (*vk_`ver`)(VvConfig);
+	const void* (*vk_`ver`)(const VvState);
 #endif
 ]], '`(%w*)`', {const=const, ver=ver})})
 end
@@ -149,14 +152,14 @@ for _,t in cpairs(first(dom.root, {name='extensions'}), {name='extension'}) do
 	local name = string.match(const, 'VK_(.*)')
 	if t.attr.supported == 'disabled' then
 		table.insert(pieces, {tonumber(t.attr.number), string.gsub([[
-	const void* (*`name`)(VvConfig);
+	const void* (*`name`)(const VvState);
 ]], '`(%w*)`', {const=const, name=name, numb=t.attr.number})})
 	else
 		table.insert(pieces, {tonumber(t.attr.number), string.gsub([[
 #ifdef `const`	// `numb`
-	const VvVulkan_`name`* (*`name`)(VvConfig);
+	const VvVulkan_`name`* (*`name`)(const VvState);
 #else
-	const void* (*`name`)(VvConfig);
+	const void* (*`name`)(const VvState);
 #endif
 ]], '`(%w*)`', {const=const, name=name, numb=t.attr.number})})
 	end

@@ -143,6 +143,7 @@ out([[
 #include "internal.h"
 #include "cpdl.h"
 #include <stdlib.h>
+#include <string.h>
 
 typedef struct {
 	void* libvk;
@@ -165,7 +166,7 @@ end
 out([[
 } VvVulkanReal;
 
-static VvConfig create() {
+static VvState create() {
 	void* libvk = _vVopendl("libvulkan.so", "libvulkan.dynlib",
 		"vulkan-1.dll");
 	if(!libvk) return NULL;
@@ -184,16 +185,25 @@ static VvConfig create() {
 rep(0, '(PFN_vk`)gipa(NULL, "vk`")', false)
 out([[
 
-	return (VvConfig) vk;
+	return (VvState) vk;
 }
 
-static void cleanup(VvConfig fig) {
+static void cleanup(VvState fig) {
 	VvVulkanReal* vk = (VvVulkanReal*)fig;
 	_vVclosedl(vk->libvk);
 	free(vk);
 }
 
-static void LoadInstance(VvConfig fig, VkInstance inst,
+static VvState clone(VvState stat) {
+	VvVulkanReal* src = (VvVulkanReal*)stat;
+	VvVulkanReal* dest = malloc(sizeof(VvVulkanReal));
+	memcpy(dest, src, sizeof(VvVulkanReal));
+	dest->libvk = _vVopendl("libvulkan.so", "libvulkan.dynlib",
+		"vulkan-1.dll");
+	return (VvState)dest;
+}
+
+static void LoadInstance(VvState fig, VkInstance inst,
 	VkBool32 all) {
 	VvVulkanReal* vk = (VvVulkanReal*)fig;
 ]])
@@ -201,7 +211,7 @@ rep(1, '(PFN_vk`)vk->gipa(inst, "vk`")')
 out([[
 }
 
-static void LoadDevice(VvConfig fig, VkDevice dev,
+static void LoadDevice(VvState fig, VkDevice dev,
 	VkBool32 all) {
 	VvVulkanReal* vk = (VvVulkanReal*)fig;
 ]])
@@ -209,7 +219,7 @@ rep(2, '(PFN_vk`)vk->vk1_0.GetDeviceProcAddr(dev, "vk`")')
 out([[
 }
 
-static const void* getNull(const VvConfig dummy) {
+static const void* getNull(const VvState dummy) {
 	return NULL;
 }
 ]])
@@ -221,7 +231,7 @@ for const,id in pairs(ids) do
 	end
 	fout([[
 #ifdef `const`
-static const VvVulkan_`n`* getVulkan_`n`(const VvConfig vkh) {
+static const VvVulkan_`n`* getVulkan_`n`(const VvState vkh) {
 	return &((VvVulkanReal*)vkh)->`id`;
 }
 #else
@@ -259,10 +269,11 @@ out([[
 static const VvVulkanAPI api = {
 	cleanup,
 	LoadInstance, LoadDevice,
-	&vkcore, &vkext
+	&vkcore, &vkext,
+	clone,
 };
 
-VvAPI const VvVulkanAPI* _vVloadVulkan_dl(int ver, VvConfig* fig) {
+VvAPI const VvVulkanAPI* _vVloadVulkan_dl(int ver, VvState* fig) {
 	*fig = create();
 	if(!*fig) return NULL;
 	return ver == H_vivacious_vulkan ? &api : NULL;
