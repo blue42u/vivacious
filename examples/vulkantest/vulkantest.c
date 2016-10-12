@@ -15,6 +15,7 @@
 ***************************************************************************/
 
 #include <vivacious/vulkan.h>
+#include <vivacious/window.h>
 #include <stdio.h>
 #include <stdarg.h>
 
@@ -150,6 +151,11 @@ int main() {
 	vkapi->LoadDevice(vVvk, dev, VK_TRUE);
 	if(r<0) error("Error creating device: %d!\n", r);
 
+	VvWindow win = winapi->CreateWindow(vVwin, -1, -1, 0);
+	winapi->SetTitle(vVwin, win, "Example Vulkan Thing!");
+	winapi->ShowWindow(vVwin, win);
+
+	winapi->DestroyWindow(vVwin, win);
 	vk->DestroyDevice(dev, NULL);
 	vkdr->DestroyDebugReportCallbackEXT(inst, drc, NULL);
 	vk->DestroyInstance(inst, NULL);

@@ -2,6 +2,7 @@ set(GENS
 )
 set(CPS
 	core.h
+	window.h
 )
 
 if(VULKAN_ENABLE)

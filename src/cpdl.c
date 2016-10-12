@@ -15,11 +15,13 @@
 ***************************************************************************/
 
 #include "cpdl.h"
+#include <stdlib.h>
 
 #if defined(_WIN32)
 #include <windows.h>
 
 void* _vVopendl(const char* nix, const char* mac, const char* win) {
+	if(!win) return NULL;
 	HMODULE* lib = malloc(sizeof(HMODULE));
 	*lib = LoadLibrary(win);
 	return lib;
@@ -39,8 +41,10 @@ void _vVclosedl(void* handle) {
 
 void* _vVopendl(const char* nix, const char* mac, const char* win) {
 #if defined(__APPLE__)
+	if(!mac) return NULL;
 	return dlopen(mac, RTLD_LAZY | RTLD_LOCAL);
 #else
+	if(!nix) return NULL;
 	return dlopen(nix, RTLD_LAZY | RTLD_LOCAL);
 #endif
 }
