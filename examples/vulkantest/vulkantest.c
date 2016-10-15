@@ -19,6 +19,9 @@
 #include <stdio.h>
 #include <stdarg.h>
 
+// TMP
+#include <unistd.h>
+
 int error(const char* format, ...) {
 	va_list list;
 	va_start(list, format);
@@ -84,13 +87,12 @@ VkBool32 debugFunc(
 }
 
 int main() {
-	VvState vVvk;
-	const VvVulkanAPI* vkapi = vVloadVulkan_dl(&vVvk);
+	const VvVulkan* vkapi = vVloadVulkan_lib();
 	if(!vkapi) return error("Error loading VvVulkan!\n");
-
-	const VvVulkan_1_0* vk = vkapi->core->vk_1_0(vVvk);
+	VvVulkanBinding* vkb = vkapi->Create();
+	const VvVulkan_1_0* vk = vkapi->core->vk_1_0(vkb);
 	const VvVulkan_EXT_debug_report* vkdr
-		= vkapi->ext->EXT_debug_report(vVvk);
+		= vkapi->ext->EXT_debug_report(vkb);
 
 	VkInstance inst;
 	const char* exts[] = { "VK_EXT_debug_report" };
@@ -103,7 +105,7 @@ int main() {
 		1, exts
 	};
 	VkResult r = vk->CreateInstance(&ico, NULL, &inst);
-	vkapi->LoadInstance(vVvk, inst, VK_FALSE);
+	vkapi->LoadInstance(vkb, inst, VK_FALSE);
 	if(r<0) error("Error creating instance: %d!\n", r);
 
 	VkDebugReportCallbackCreateInfoEXT drcci = {
@@ -148,18 +150,22 @@ int main() {
 	};
 	VkDevice dev;
 	r = vk->CreateDevice(pdev, &dci, NULL, &dev);
-	vkapi->LoadDevice(vVvk, dev, VK_TRUE);
+	vkapi->LoadDevice(vkb, dev, VK_TRUE);
 	if(r<0) error("Error creating device: %d!\n", r);
 
-	VvWindow win = winapi->CreateWindow(vVwin, -1, -1, 0);
-	winapi->SetTitle(vVwin, win, "Example Vulkan Thing!");
-	winapi->ShowWindow(vVwin, win);
+	const VvWindow* winapi = vVloadWindow_X();
+	VvWiConnection* conn = winapi->Connect();
+	VvWiWindow* win = winapi->CreateWindow(conn, -1, -1, 0);
+	winapi->SetTitle(conn, win, "Example Vulkan Thing!");
+	winapi->ShowWindow(conn, win);
 
-	winapi->DestroyWindow(vVwin, win);
+	sleep(3);
+
+	winapi->DestroyWindow(conn, win);
 	vk->DestroyDevice(dev, NULL);
 	vkdr->DestroyDebugReportCallbackEXT(inst, drc, NULL);
 	vk->DestroyInstance(inst, NULL);
-	vkapi->cleanup(vVvk);
+	vkapi->Destroy(vkb);
 
 	return 0;
 }

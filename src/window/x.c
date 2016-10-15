@@ -27,114 +27,104 @@
 
 #include "xcb.h"
 
-_Vv_INTERN(VvState) {			// For us, VvStates have our data!
+struct VvWiConnection {			// For us, VvStates have our data!
 	xcb_connection_t* conn;		// Connection to the X server
 	xcb_screen_t* screen;		// Preferred Screen
 	Xcb xcb;			// libxcb data, with commands
 	// NOTE: When GL support is added, this needs to become hybrid Xlib/XCB
-	VvVulkanAPI_c vkapi;
-	VvState vkst;
+#ifdef Vv_ENABLE_VULKAN
+	const VvVulkan* vkapi;
+	const VvVulkanBinding* vkb;
+	const VvVulkan_1_0* vk;
+#endif
 };
 
-_Vv_INTERN(VvWindow) {
-	xcb_window_t window;	// A window ('s id)
+struct VvWiWindow {
+	xcb_window_t id;	// The window's id
 };
 
-static VvState init() {
-	VvState st = malloc(sizeof(VvState_t));
+static VvWiConnection* Connect() {
+	VvWiConnection* wc = malloc(sizeof(VvWiConnection));
 
-	if(_vVlibxcb(&st->xcb)) {
-		free(st);
+	if(_vVlibxcb(&wc->xcb)) {
+		free(wc);
 		return NULL;
 	}
 
 	int screen;
-	st->conn = st->xcb.connect(NULL, &screen);
-	if(!st->conn) {
-		free(st);
+	wc->conn = wc->xcb.connect(NULL, &screen);
+	if(!wc->conn) {
+		free(wc);
 		return NULL;
 	}
 
-	xcb_screen_iterator_t sit = st->xcb.setup_roots_iterator(
-		st->xcb.get_setup(st->conn));
-	for(int i=0; i<screen; i++) st->xcb.screen_next(&sit);
-	st->screen = sit.data;
+	xcb_screen_iterator_t sit = wc->xcb.setup_roots_iterator(
+		wc->xcb.get_setup(wc->conn));
+	for(int i=0; i<screen; i++) wc->xcb.screen_next(&sit);
+	wc->screen = sit.data;
 	// This one always works.
 
-	return st;
+	return wc;
 }
 
-static void cleanup(VvState st) {
-	st->xcb.disconnect(st->conn);
-	_vVfreexcb(&st->xcb);
-	free(st);
+static void Disconnect(VvWiConnection* wc) {
+	wc->xcb.disconnect(wc->conn);
+	_vVfreexcb(&wc->xcb);
+	free(wc);
 }
 
-static VvState clone(const VvState st) {
-	VvState res = malloc(sizeof(VvState_t));
-	res->vkapi = st->vkapi;
-	res->vkst = st->vkst;
-	_vVlibxcb(&res->xcb);
-	int screen;
-	res->conn = res->xcb.connect(NULL, &screen);
-	xcb_screen_iterator_t sit = res->xcb.setup_roots_iterator(
-		res->xcb.get_setup(res->conn));
-	for(int i=0; i<screen; i++) res->xcb.screen_next(&sit);
-	res->screen = sit.data;
-	return res;
-}
-
-static VvWindow CreateWindow(const VvState st, int width, int height,
-	VvWindowEventMask mask) {
-	VvWindow r = malloc(sizeof(VvWindow_t));
-	r->window = st->xcb.generate_id(st->conn);
-	st->xcb.create_window(st->conn, XCB_COPY_FROM_PARENT, r->window,
-		st->screen->root, XCB_NONE, XCB_NONE,
+static VvWiWindow* CreateWindow(VvWiConnection* wc, int width, int height,
+	VvWiEventMask mask) {
+	VvWiWindow* r = malloc(sizeof(VvWiWindow));
+	r->id = wc->xcb.generate_id(wc->conn);
+	wc->xcb.create_window(wc->conn, XCB_COPY_FROM_PARENT, r->id,
+		wc->screen->root, XCB_NONE, XCB_NONE,
 		width ? width : XCB_NONE, height ? height : XCB_NONE,
 		XCB_NONE, XCB_WINDOW_CLASS_INPUT_OUTPUT,
-		st->screen->root_visual,
+		wc->screen->root_visual,
 		0, NULL);
-	st->xcb.flush(st->conn);
+	wc->xcb.flush(wc->conn);
 	return r;
 }
 
-static void DestroyWindow(const VvState st, VvWindow wind) {
-	st->xcb.destroy_window(st->conn, wind->window);
+static void DestroyWindow(VvWiConnection* wc, VvWiWindow* wind) {
+	wc->xcb.destroy_window(wc->conn, wind->id);
 }
 
-static void ShowWindow(const VvState st, VvWindow wind) {
+static void ShowWindow(VvWiConnection* wc, VvWiWindow* wind) {
 	fprintf(stderr, "STUB: VvWindowAPI_X ShowWindow!\n");
 }
 
-static void SetTitle(const VvState st, VvWindow wind, const char* name) {
+static void SetTitle(VvWiConnection* wc, VvWiWindow* wind, const char* name) {
 	fprintf(stderr, "STUB: VvWindowAPI_X SetTitle!\n");
 }
 
-static void* CreateVkSurface(const VvState st, VvWindow wind) {
+#ifdef Vv_ENABLE_VULKAN
+static void AddVulkan(VvWiConnection* wc, const VvVulkan* vkapi,
+	const VvVulkanBinding* vkb, void* inst) {
+	fprintf(stderr, "STUB: VvWindowAPI_X AddVulkan!\n");
+}
+
+static void* CreateVkSurface(VvWiConnection* wc, VvWiWindow* wind) {
 	fprintf(stderr, "STUB: VvWindowAPI_X CreateVkSurface!\n");
 	return NULL;
 }
-
-static void SetGLContext(const VvState st, VvWindow wind) {
-	fprintf(stderr, "STUB: VvWindowAPI_X SetGLContext!\n");
+#else
+static void AddVulkan(VvWiConnection* wc, const struct VvVulkan* vkapi,
+	const struct VvVulkanBinding* vkb, void* inst) {
 }
+static void* CreateVkSurface(VvWiConnection* wc, VvWiWindow* wind) {
+	return NULL;
+}
+#endif
 
-static const VvWindowAPI_t api = {
-	cleanup, clone,
+static const VvWindow api = {
+	Connect, Disconnect,
 	CreateWindow, DestroyWindow,
 	ShowWindow, SetTitle,
-	CreateVkSurface, SetGLContext,
+	AddVulkan, CreateVkSurface,
 };
 
-VvAPI const VvWindowAPI_c _vVloadWindow_X(int ver, VvState* st,
-	const VvVulkanAPI_c vkapi, VvState vkst,
-	const VvOpenGLAPI_c glapi, VvState glst) {
-	if(ver != H_vivacious_window) return NULL;
-	*st = init();
-	if(!*st) return NULL;
-	*st->vkapi = vkapi;
-	*st->vkst = vkst;
-	return &api;
-}
+VvAPI const VvWindow* vVloadWindow_X() { return &api; }
 
 #endif // Vv_ENABLE_X

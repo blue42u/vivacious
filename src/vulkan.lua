@@ -106,7 +106,7 @@ local function rep(cat, f, fall, id, const)
 		if cmdcats[c] == cat then
 			local n = string.sub(c,3)
 			out([[
-		vk->]]..id..[[.]]..n..[[ = ]]..
+		vkb->]]..id..[[.]]..n..[[ = ]]..
 			string.gsub(f, '`', n)..[[;]])
 		end
 	end
@@ -116,7 +116,7 @@ local function rep(cat, f, fall, id, const)
 			if cmdcats[c] > cat then
 				local n = string.sub(c,3)
 				out([[
-				vk->]]..id..[[.]]..n..[[ = ]]..
+				vkb->]]..id..[[.]]..n..[[ = ]]..
 					string.gsub(fall, '`', n)..[[;]])
 			end
 		end
@@ -126,7 +126,7 @@ local function rep(cat, f, fall, id, const)
 			if cmdcats[c] > cat then
 				local n = string.sub(c,3)
 				out([[
-			vk->]]..id..[[.]]..n..[[ = NULL;]])
+			vkb->]]..id..[[.]]..n..[[ = NULL;]])
 			end
 		end
 	end
@@ -145,7 +145,7 @@ out([[
 #include <stdlib.h>
 #include <string.h>
 
-typedef struct {
+struct VvVulkanBinding {
 	void* libvk;
 	PFN_vkGetInstanceProcAddr gipa;]])
 for _,t in cpairs(dom.root, {name='feature'}) do
@@ -164,9 +164,9 @@ for _,t in cpairs(first(dom.root, {name='extensions'}), {name='extension',
 #endif]], {name=name, const=t.attr.name})
 end
 out([[
-} VvVulkanReal;
+};
 
-static VvState create() {
+static VvVulkanBinding* Create() {
 	void* libvk = _vVopendl("libvulkan.so", "libvulkan.dynlib",
 		"vulkan-1.dll");
 	if(!libvk) return NULL;
@@ -178,48 +178,33 @@ static VvState create() {
 		return NULL;
 	}
 
-	VvVulkanReal* vk = malloc(sizeof(VvVulkanReal));
-	vk->libvk = libvk;
-	vk->gipa = gipa;
+	VvVulkanBinding* vkb = malloc(sizeof(VvVulkanBinding));
+	vkb->libvk = libvk;
+	vkb->gipa = gipa;
 ]])
 rep(0, '(PFN_vk`)gipa(NULL, "vk`")', false)
 out([[
-
-	return (VvState) vk;
+	return vkb;
 }
 
-static void cleanup(VvState fig) {
-	VvVulkanReal* vk = (VvVulkanReal*)fig;
-	_vVclosedl(vk->libvk);
-	free(vk);
+static void Destroy(VvVulkanBinding* vkb) {
+	_vVclosedl(vkb->libvk);
+	free(vkb);
 }
 
-static VvState clone(VvState stat) {
-	VvVulkanReal* src = (VvVulkanReal*)stat;
-	VvVulkanReal* dest = malloc(sizeof(VvVulkanReal));
-	memcpy(dest, src, sizeof(VvVulkanReal));
-	dest->libvk = _vVopendl("libvulkan.so", "libvulkan.dynlib",
-		"vulkan-1.dll");
-	return (VvState)dest;
-}
-
-static void LoadInstance(VvState fig, VkInstance inst,
-	VkBool32 all) {
-	VvVulkanReal* vk = (VvVulkanReal*)fig;
+static void LoadInstance(VvVulkanBinding* vkb, VkInstance inst, VkBool32 all) {
 ]])
-rep(1, '(PFN_vk`)vk->gipa(inst, "vk`")')
+rep(1, '(PFN_vk`)vkb->gipa(inst, "vk`")')
 out([[
 }
 
-static void LoadDevice(VvState fig, VkDevice dev,
-	VkBool32 all) {
-	VvVulkanReal* vk = (VvVulkanReal*)fig;
+static void LoadDevice(VvVulkanBinding* vkb, VkDevice dev, VkBool32 all) {
 ]])
-rep(2, '(PFN_vk`)vk->vk1_0.GetDeviceProcAddr(dev, "vk`")')
+rep(2, '(PFN_vk`)vkb->vk1_0.GetDeviceProcAddr(dev, "vk`")')
 out([[
 }
 
-static const void* getNull(const VvState dummy) {
+static const void* getNull(const VvVulkanBinding* dummy) {
 	return NULL;
 }
 ]])
@@ -231,8 +216,8 @@ for const,id in pairs(ids) do
 	end
 	fout([[
 #ifdef `const`
-static const VvVulkan_`n`* getVulkan_`n`(const VvState vkh) {
-	return &((VvVulkanReal*)vkh)->`id`;
+static const VvVulkan_`n`* getVulkan_`n`(const VvVulkanBinding* vkb) {
+	return &vkb->`id`;
 }
 #else
 #define getVulkan_`n` getNull
@@ -266,17 +251,14 @@ out([[
 ]])
 
 out([[
-static const VvVulkanAPI api = {
-	cleanup,
+static const VvVulkan api = {
+	Create, Destroy,
 	LoadInstance, LoadDevice,
 	&vkcore, &vkext,
-	clone,
 };
 
-VvAPI const VvVulkanAPI* _vVloadVulkan_dl(int ver, VvState* fig) {
-	*fig = create();
-	if(!*fig) return NULL;
-	return ver == H_vivacious_vulkan ? &api : NULL;
+VvAPI const VvVulkan* vVloadVulkan_lib() {
+	return &api;
 }
 ]])
 

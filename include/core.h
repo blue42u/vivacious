@@ -17,11 +17,26 @@
 #ifndef H_vivacious_core
 #define H_vivacious_core
 
-// This macro will create a typedef that acts as an opaque handle.
-#define Vv_DEFINE_HANDLE(name) typedef struct _##name##_dummyT* name;
+// Convience macro for typedefing structures. Because repeatition is bad.
+// Use with a semicolon.
+#define _Vv_TYPEDEF(name) typedef struct name name
 
-// This is a kind of handle many APIs use. Unified to allow for app-side
-// managment.
-Vv_DEFINE_HANDLE(VvState)
+// Convience macro for defining structure-based API types. Saves some typing.
+// To be used as:
+// _Vv_STRUCT(MyAwesomeStructure) {
+//	int mySuperAwesomeMember;
+// };
+#define _Vv_STRUCT(name) \
+_Vv_TYPEDEF(name); \
+struct name
+
+// Convience macro for defining enum-based API types. Saves some typing.
+// To be used as:
+// _Vv_ENUM(MyAwesomeEnum) {
+//	MyAwesomeConstant, MyOtherAwesomeConstant,
+// };
+#define _Vv_ENUM(name) \
+typedef enum name name; \
+enum name
 
 #endif // H_vivacious_core

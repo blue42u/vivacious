@@ -15,69 +15,63 @@
 ***************************************************************************/
 
 #ifndef H_vivacious_window
-#define H_vivacious_window 0	// Acts as the 'major' version of the header.
+#define H_vivacious_window
 
 #include <vivacious/core.h>
 
-// First off, the types needed to use this API
-typedef enum {
-	VvWINDOW_EVENT_MOUSE_PRESS,
-	VvWINDOW_EVENT_MOUSE_RELEASE,
-	VvWINDOW_EVENT_MOUSE_MOVED,
-	VvWINDOW_EVENT_KEY_PRESS,
-	VvWINDOW_EVENT_KEY_RELEASE,
-} VvWindowEventMask;
-_Vv_HANDLE(VvWindow)
+// This enum acts as a bitmask for event types later
+_Vv_ENUM(VvWiEventMask) {
+	VvWI_EVENT_NONE = 0,
+	VvWI_EVENT_MOUSE_PRESS = 1,
+	VvWI_EVENT_MOUSE_RELEASE = 2,
+	VvWI_EVENT_MOUSE_MOVED = 4,
+	VvWI_EVENT_KEY_PRESS = 8,
+	VvWI_EVENT_KEY_RELEASE = 16,
+};
 
-// Now, the API itself
-_Vv_API(VvWindowAPI) {
-	// Cleanup and clone the State
-	void (*cleanup)(VvState);
-	VvState (*clone)(const VvState);
+// A Connection is a connection to the window manager.
+_Vv_TYPEDEF(VvWiConnection);
+
+// A Window is the opaque handle for a window on a screen, somewhere...
+// ...Hopefully. Maybe our implementation is tricking us. Or maybe not.
+_Vv_TYPEDEF(VvWiWindow);
+
+// Dependancy structs. Referenced here to avoid -Wvisibility warnings.
+struct VvVulkan;
+struct VvVulkanBinding;
+
+_Vv_STRUCT(VvWindow) {
+	// Connect to the system's window manager.
+	VvWiConnection* (*Connect)();
+
+	// Disconnect. Also can clean stuff up. Consider the connection
+	// invalid after this.
+	void (*Disconnect)(VvWiConnection*);
 
 	// Create a new window for the screen. May or may not be visible
-	// immediately after creation.
-	VvWindow (*CreateWindow)(const VvState, int width, int height,
-		VvWindowEventMask events);
+	// immediately after creation, use ShowWindow to be sure.
+	VvWiWindow* (*CreateWindow)(VvWiConnection*, int width, int height,
+		VvWiEventMask events);
 
 	// Close/Destroy a window. After this, the window is invalid.
-	void (*DestroyWindow)(const VvState, VvWindow);
+	void (*DestroyWindow)(VvWiConnection*, VvWiWindow*);
 
-	// Show a window on the screen. Should be called after all
-	// setup is done on the window.
-	void (*ShowWindow)(const VvState, VvWindow);
+	// Show a window on the screen, if its not shown already.
+	void (*ShowWindow)(VvWiConnection*, VvWiWindow*);
 
 	// Set the window's title. <name> is assumed to be a null-terminated
 	// character array, as is convention with C strings.
-	void (*SetTitle)(const VvState, VvWindow, const char* name);
+	void (*SetTitle)(VvWiConnection*, VvWiWindow*, const char* name);
 
-	// Create a VkSurface based on a Window. May return NULL on error.
-	void* (*CreateVkSurface)(const VvState, VvWindow);
+	// Add Vulkan support to a connection. Allows CreateVkSurface to work.
+	// <inst> should be a VkInstance.
+	void (*AddVulkan)(VvWiConnection*, const struct VvVulkan*,
+		const struct VvVulkanBinding*, void* inst);
 
-	// Set a Window as the current GL context.
-	void (*SetGLContext)(const VvState, VvWindow);
+	// Create a VkSurface based on a Window. May return NULL.
+	void* (*CreateVkSurface)(VvWiConnection*, VvWiWindow*);
 };
-#ifndef _VvWindowAPI_def
-#define _VvWindowAPI_def	// To prevent double-define
-_Vv_HANDLE(VvWindowAPI)
-#endif
 
-// And other APIs that the implementations need
-#ifndef _VvVulkanAPI_def
-#define _VvVulkanAPI_def
-_Vv_HANDLE(VvVulkanAPI)
-#endif
-
-#ifndef _VvOpenGLAPI_def
-#define _VvOpenGLAPI_def
-_Vv_HANDLE(VvOpenGLAPI)
-#endif
-
-const VvWindowAPI_c _vVloadWindow_X(int, VvState*,
-	const VvVulkanAPI_c, VvState,
-	const VvOpenGLAPI_c, VvState);
-#define vVloadWindow_X(S, V, VS, G, GS) _vVloadWindow_X(H_vivacious_window, \
-	(S), (V), (VS), (G), (GS))
-#define vVloadWindow_X_Vulkan(S, V, VS) vVloadWindow_X(S, V, VS, NULL, NULL)
+const VvWindow* vVloadWindow_X();
 
 #endif // H_vivacious_window
