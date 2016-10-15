@@ -20,6 +20,7 @@
 #include "internal.h"
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 #ifdef Vv_ENABLE_VULKAN
 #include <vivacious/vulkan.h>
@@ -79,8 +80,8 @@ static VvWiWindow* CreateWindow(VvWiConnection* wc, int width, int height,
 	r->id = wc->xcb.generate_id(wc->conn);
 	wc->xcb.create_window(wc->conn, XCB_COPY_FROM_PARENT, r->id,
 		wc->screen->root, XCB_NONE, XCB_NONE,
-		width ? width : XCB_NONE, height ? height : XCB_NONE,
-		XCB_NONE, XCB_WINDOW_CLASS_INPUT_OUTPUT,
+		width, height,
+		10, XCB_WINDOW_CLASS_INPUT_OUTPUT,
 		wc->screen->root_visual,
 		0, NULL);
 	wc->xcb.flush(wc->conn);
@@ -92,11 +93,14 @@ static void DestroyWindow(VvWiConnection* wc, VvWiWindow* wind) {
 }
 
 static void ShowWindow(VvWiConnection* wc, VvWiWindow* wind) {
-	fprintf(stderr, "STUB: VvWindowAPI_X ShowWindow!\n");
+	wc->xcb.map_window(wc->conn, wind->id);
+	wc->xcb.flush(wc->conn);
 }
 
 static void SetTitle(VvWiConnection* wc, VvWiWindow* wind, const char* name) {
-	fprintf(stderr, "STUB: VvWindowAPI_X SetTitle!\n");
+	wc->xcb.change_property(wc->conn, XCB_PROP_MODE_REPLACE, wind->id,
+		XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8,
+		strlen(name), name);
 }
 
 #ifdef Vv_ENABLE_VULKAN

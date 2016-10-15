@@ -36,6 +36,8 @@ int _vVlibxcb(Xcb* xcb) {
 	xcb->create_window = _vVsymdl(xcb->libxcb, "xcb_create_window");
 	xcb->flush = _vVsymdl(xcb->libxcb, "xcb_flush");
 	xcb->destroy_window = _vVsymdl(xcb->libxcb, "xcb_destroy_window");
+	xcb->map_window = _vVsymdl(xcb->libxcb, "xcb_map_window");
+	xcb->change_property = _vVsymdl(xcb->libxcb, "xcb_change_property");
 
 	return 0;
 }

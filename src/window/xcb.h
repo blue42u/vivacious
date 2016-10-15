@@ -32,6 +32,10 @@ typedef struct {
 		xcb_visualid_t, uint32_t, const uint32_t*);
 	int (*flush)(xcb_connection_t*);
 	xcb_void_cookie_t (*destroy_window)(xcb_connection_t*, xcb_window_t);
+	xcb_void_cookie_t (*map_window)(xcb_connection_t*, xcb_window_t);
+	xcb_void_cookie_t (*change_property)(xcb_connection_t*, uint8_t,
+		xcb_window_t, xcb_atom_t, xcb_atom_t, uint8_t,
+		uint32_t, const void*);
 } Xcb;
 
 int _vVlibxcb(Xcb*);
