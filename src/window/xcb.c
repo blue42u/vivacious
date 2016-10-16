@@ -39,6 +39,8 @@ int _vVlibxcb(Xcb* xcb) {
 	xcb->destroy_window = _vVsymdl(xcb->libxcb, "xcb_destroy_window");
 	xcb->map_window = _vVsymdl(xcb->libxcb, "xcb_map_window");
 	xcb->change_property = _vVsymdl(xcb->libxcb, "xcb_change_property");
+	xcb->get_geometry = _vVsymdl(xcb->libxcb, "xcb_get_geometry");
+	xcb->get_geometry_reply = _vVsymdl(xcb->libxcb, "xcb_get_geometry_reply");
 	xcb->ewmh_init_atoms = _vVsymdl(xcb->libewmh, "xcb_ewmh_init_atoms");
 	xcb->ewmh_init_atoms_replies = _vVsymdl(xcb->libewmh, "xcb_ewmh_init_atoms_replies");
 

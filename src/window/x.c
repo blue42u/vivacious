@@ -147,12 +147,48 @@ static void SetFullscreen(VvWiConnection* wc, VvWiWindow* wind, int en) {
 	} else fprintf(stderr, "Fullscreen without EWMH!\n");
 }
 
+static void SetWindowSize(VvWiConnection* wc, VvWiWindow* wind,
+	const int ext[2]) {
+	uint32_t values[] = { ext[0], ext[1] };
+	wc->xcb.configure_window(wc->conn, wind->id,
+		XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT,
+		values);
+	wc->xcb.flush(wc->conn);
+}
+
+static void GetWindowSize(VvWiConnection* wc, VvWiWindow* wind,
+	int ext[2]) {
+	xcb_get_geometry_cookie_t cookie = wc->xcb.get_geometry(wc->conn,
+		wind->id);
+	xcb_get_geometry_reply_t* geom = wc->xcb.get_geometry_reply(wc->conn,
+		cookie, NULL);
+	if(geom) {
+		ext[0] = geom->width;
+		ext[1] = geom->height;
+		free(geom);
+	}
+}
+
+static void GetScreenSize(VvWiConnection* wc, int ext[2]) {
+	xcb_get_geometry_cookie_t cookie = wc->xcb.get_geometry(wc->conn,
+		wc->screen->root);
+	xcb_get_geometry_reply_t* geom = wc->xcb.get_geometry_reply(wc->conn,
+		cookie, NULL);
+	if(geom) {
+		ext[0] = geom->width;
+		ext[1] = geom->height;
+		free(geom);
+	}
+}
+
 static const VvWindow api = {
 	Connect, Disconnect,
 	CreateWindow, DestroyWindow,
 	ShowWindow, SetTitle,
 	AddVulkan, CreateVkSurface,
 	SetFullscreen,
+	SetWindowSize, GetWindowSize,
+	GetScreenSize,
 };
 
 VvAPI const VvWindow* vVloadWindow_X() { return &api; }

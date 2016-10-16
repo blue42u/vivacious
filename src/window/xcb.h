@@ -39,6 +39,13 @@ typedef struct {
 	xcb_void_cookie_t (*change_property)(xcb_connection_t*, uint8_t,
 		xcb_window_t, xcb_atom_t, xcb_atom_t, uint8_t,
 		uint32_t, const void*);
+	xcb_void_cookie_t (*configure_window)(xcb_connection_t*, xcb_window_t,
+		uint16_t, const uint32_t*);
+	xcb_get_geometry_cookie_t (*get_geometry)(xcb_connection_t*,
+		xcb_drawable_t);
+	xcb_get_geometry_reply_t* (*get_geometry_reply)(xcb_connection_t*,
+		xcb_get_geometry_cookie_t, xcb_generic_error_t**);
+
 	xcb_intern_atom_cookie_t* (*ewmh_init_atoms)(xcb_connection_t*,
 		xcb_ewmh_connection_t*);
 	uint8_t (*ewmh_init_atoms_replies)(xcb_ewmh_connection_t*,

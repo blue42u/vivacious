@@ -74,6 +74,16 @@ _Vv_STRUCT(VvWindow) {
 	// Make a window fullscreen if <enable> is a true value, otherwise
 	// make the window windowed.
 	void (*SetFullscreen)(VvWiConnection*, VvWiWindow*, int enable);
+
+	// Set the size of a window.
+	void (*SetWindowSize)(VvWiConnection*, VvWiWindow*, const int[2]);
+
+	// Get the size of a window. Useful for getting a good window size
+	// before showing the window for the first time.
+	void (*GetWindowSize)(VvWiConnection*, VvWiWindow*, int[2]);
+
+	// Get the size of the screen.
+	void (*GetScreenSize)(VvWiConnection*, int[2]);
 };
 
 const VvWindow* vVloadWindow_X();

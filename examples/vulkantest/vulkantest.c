@@ -155,9 +155,13 @@ int main() {
 
 	const VvWindow* winapi = vVloadWindow_X();
 	VvWiConnection* conn = winapi->Connect();
-	VvWiWindow* win = winapi->CreateWindow(conn, 10000, 10000, 0);
+
+	int ext[2] = {0,0};
+	winapi->GetScreenSize(conn, ext);
+	printf("Screen size?: %d,%d\n", ext[0], ext[1]);
+
+	VvWiWindow* win = winapi->CreateWindow(conn, ext[0], ext[1], 0);
 	winapi->SetTitle(conn, win, "Example Vulkan Thing!");
-	winapi->SetFullscreen(conn, win, 1);
 	winapi->ShowWindow(conn, win);
 
 	winapi->AddVulkan(conn, vkapi, vkb, inst);
