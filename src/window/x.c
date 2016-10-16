@@ -23,6 +23,8 @@
 #include <string.h>
 
 #ifdef Vv_ENABLE_VULKAN
+#define VK_USE_PLATFORM_XCB_KHR
+#define VK_USE_PLATFORM_XLIB_KHR
 #include <vivacious/vulkan.h>
 #endif
 
@@ -34,10 +36,9 @@ struct VvWiConnection {			// For us, VvStates have our data!
 	xcb_ewmh_connection_t ewmh;	// Extended Window Manager Hints
 	Xcb xcb;			// libxcb data, with commands
 	// NOTE: When GL support is added, this needs to become hybrid Xlib/XCB
-#ifdef Vv_ENABLE_VULKAN
-	const VvVulkan* vkapi;
-	const VvVulkanBinding* vkb;
-	const VvVulkan_1_0* vk;
+#if defined(Vv_ENABLE_VULKAN) && defined(VK_KHR_xcb_surface)
+	const VvVulkan_KHR_xcb_surface* vk;
+	VkInstance inst;
 #endif
 };
 
@@ -116,22 +117,28 @@ static void SetTitle(VvWiConnection* wc, VvWiWindow* wind, const char* name) {
 	wc->xcb.flush(wc->conn);
 }
 
-#ifdef Vv_ENABLE_VULKAN
+#if defined(Vv_ENABLE_VULKAN) && defined(VK_KHR_xcb_surface)
 static void AddVulkan(VvWiConnection* wc, const VvVulkan* vkapi,
 	const VvVulkanBinding* vkb, void* inst) {
-	fprintf(stderr, "STUB: VvWindow_X AddVulkan!\n");
+	wc->vk = vkapi->ext->KHR_xcb_surface(vkb);
+	wc->inst = (VkInstance)inst;
 }
 
-static void* CreateVkSurface(VvWiConnection* wc, VvWiWindow* wind) {
-	fprintf(stderr, "STUB: VvWindow_X CreateVkSurface!\n");
-	return NULL;
+static int CreateVkSurface(VvWiConnection* wc, VvWiWindow* wind, void* psurf) {
+	if(!wc->vk || !wc->vk->CreateXcbSurfaceKHR)
+		return VK_ERROR_EXTENSION_NOT_PRESENT;
+	VkXcbSurfaceCreateInfoKHR xsci = {
+		VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR, NULL,
+		0, wc->conn, wind->id,
+	};
+	return wc->vk->CreateXcbSurfaceKHR(wc->inst, &xsci, NULL, psurf);
 }
 #else
 static void AddVulkan(VvWiConnection* wc, const struct VvVulkan* vkapi,
 	const struct VvVulkanBinding* vkb, void* inst) {
 }
-static void* CreateVkSurface(VvWiConnection* wc, VvWiWindow* wind) {
-	return NULL;
+static int CreateVkSurface(VvWiConnection* wc, VvWiWindow* wind, void* psurf) {
+	return -7;	// VK_ERROR_EXTENSION_NOT_PRESENT
 }
 #endif
 

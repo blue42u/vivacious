@@ -68,8 +68,9 @@ _Vv_STRUCT(VvWindow) {
 	void (*AddVulkan)(VvWiConnection*, const struct VvVulkan*,
 		const struct VvVulkanBinding*, void* inst);
 
-	// Create a VkSurface based on a Window. May return NULL.
-	void* (*CreateVkSurface)(VvWiConnection*, VvWiWindow*);
+	// Create a VkSurface based on a Window. Returns a VkResult, and
+	// <psurf> is a VkSurface*.
+	int (*CreateVkSurface)(VvWiConnection*, VvWiWindow*, void* psurf);
 
 	// Make a window fullscreen if <enable> is a true value, otherwise
 	// make the window windowed.

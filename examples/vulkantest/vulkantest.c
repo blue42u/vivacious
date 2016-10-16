@@ -93,16 +93,18 @@ int main() {
 	const VvVulkan_1_0* vk = vkapi->core->vk_1_0(vkb);
 	const VvVulkan_EXT_debug_report* vkdr
 		= vkapi->ext->EXT_debug_report(vkb);
+	const VvVulkan_KHR_surface* vks = vkapi->ext->KHR_surface(vkb);
 
 	VkInstance inst;
-	const char* exts[] = { "VK_EXT_debug_report" };
+	const char* exts[] = { "VK_EXT_debug_report",
+		"VK_KHR_surface", "VK_KHR_xcb_surface", };
 	const char* lays[] = { "VK_LAYER_LUNARG_standard_validation" };
 	VkInstanceCreateInfo ico = {
 		VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
 		NULL, 0,
 		NULL,
-		1, lays,
-		1, exts
+		sizeof(lays)/sizeof(char*), lays,
+		sizeof(exts)/sizeof(char*), exts
 	};
 	VkResult r = vk->CreateInstance(&ico, NULL, &inst);
 	vkapi->LoadInstance(vkb, inst, VK_FALSE);
@@ -165,10 +167,13 @@ int main() {
 	winapi->ShowWindow(conn, win);
 
 	winapi->AddVulkan(conn, vkapi, vkb, inst);
-	VkSurfaceKHR surf = winapi->CreateVkSurface(conn, win);
+	VkSurfaceKHR surf;
+	r = winapi->CreateVkSurface(conn, win, &surf);
+	if(r<0) error("Error creating surface: %d!\n", r);
 
 	sleep(2);
 
+	vks->DestroySurfaceKHR(inst, surf, NULL);
 	winapi->DestroyWindow(conn, win);
 	vk->DestroyDevice(dev, NULL);
 	vkdr->DestroyDebugReportCallbackEXT(inst, drc, NULL);

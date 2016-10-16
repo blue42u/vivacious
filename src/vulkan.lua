@@ -138,6 +138,20 @@ out([[
 
 #ifdef Vv_ENABLE_VULKAN
 
+#ifdef Vv_ENABLE_X
+#define VK_USE_PLATFORM_XLIB_KHR
+#define VK_USE_PLATFORM_XCB_KHR
+#endif
+#ifdef Vv_ENABLE_WAYLAND
+#define VK_USE_PLATFORM_WAYLAND_KHR
+#endif
+#ifdef Vv_ENABLE_MIR
+#define VK_USE_PLATFORM_MIR_KHR
+#endif
+#ifdef Vv_ENABLE_WIN32
+#define VK_USE_PLATFORM_WIN32_KHR
+#endif
+
 #include "vivacious/vulkan.h"
 
 #include "internal.h"
