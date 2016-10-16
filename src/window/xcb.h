@@ -17,9 +17,12 @@
 #ifdef Vv_ENABLE_X
 
 #include <xcb/xcb.h>
+#include <xcb/xcb_ewmh.h>
 
 typedef struct {
 	void* libxcb;	// Lib handle
+	void* libewmh;	// Xcb EWMH support
+
 	xcb_connection_t* (*connect)(const char*, int*);
 	void (*disconnect)(xcb_connection_t*);
 	void (*screen_next)(xcb_screen_iterator_t*);
@@ -36,6 +39,10 @@ typedef struct {
 	xcb_void_cookie_t (*change_property)(xcb_connection_t*, uint8_t,
 		xcb_window_t, xcb_atom_t, xcb_atom_t, uint8_t,
 		uint32_t, const void*);
+	xcb_intern_atom_cookie_t* (*ewmh_init_atoms)(xcb_connection_t*,
+		xcb_ewmh_connection_t*);
+	uint8_t (*ewmh_init_atoms_replies)(xcb_ewmh_connection_t*,
+		xcb_intern_atom_cookie_t*, xcb_generic_error_t**);
 } Xcb;
 
 int _vVlibxcb(Xcb*);

@@ -26,6 +26,7 @@ void _vVfreexcb(Xcb* xcb) {
 int _vVlibxcb(Xcb* xcb) {
 	xcb->libxcb = _vVopendl("libxcb.so", "libxcb.dynlib", NULL);
 	if(!xcb->libxcb) return 1;
+	xcb->libewmh = _vVopendl("libxcb-ewmh.so", "libxcb-ewmh.dynlib", NULL);
 
 	xcb->connect = _vVsymdl(xcb->libxcb, "xcb_connect");
 	xcb->disconnect = _vVsymdl(xcb->libxcb, "xcb_disconnect");
@@ -38,6 +39,8 @@ int _vVlibxcb(Xcb* xcb) {
 	xcb->destroy_window = _vVsymdl(xcb->libxcb, "xcb_destroy_window");
 	xcb->map_window = _vVsymdl(xcb->libxcb, "xcb_map_window");
 	xcb->change_property = _vVsymdl(xcb->libxcb, "xcb_change_property");
+	xcb->ewmh_init_atoms = _vVsymdl(xcb->libewmh, "xcb_ewmh_init_atoms");
+	xcb->ewmh_init_atoms_replies = _vVsymdl(xcb->libewmh, "xcb_ewmh_init_atoms_replies");
 
 	return 0;
 }

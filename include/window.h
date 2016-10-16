@@ -70,6 +70,10 @@ _Vv_STRUCT(VvWindow) {
 
 	// Create a VkSurface based on a Window. May return NULL.
 	void* (*CreateVkSurface)(VvWiConnection*, VvWiWindow*);
+
+	// Make a window fullscreen if <enable> is a true value, otherwise
+	// make the window windowed.
+	void (*SetFullscreen)(VvWiConnection*, VvWiWindow*, int enable);
 };
 
 const VvWindow* vVloadWindow_X();

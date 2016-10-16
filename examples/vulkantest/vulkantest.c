@@ -157,11 +157,13 @@ int main() {
 	VvWiConnection* conn = winapi->Connect();
 	VvWiWindow* win = winapi->CreateWindow(conn, 10000, 10000, 0);
 	winapi->SetTitle(conn, win, "Example Vulkan Thing!");
+	winapi->SetFullscreen(conn, win, 1);
 	winapi->ShowWindow(conn, win);
+
 	winapi->AddVulkan(conn, vkapi, vkb, inst);
 	VkSurfaceKHR surf = winapi->CreateVkSurface(conn, win);
 
-	sleep(3);
+	sleep(2);
 
 	winapi->DestroyWindow(conn, win);
 	vk->DestroyDevice(dev, NULL);

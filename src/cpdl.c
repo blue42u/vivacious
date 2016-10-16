@@ -24,10 +24,12 @@ void* _vVopendl(const char* nix, const char* mac, const char* win) {
 	if(!win) return NULL;
 	HMODULE* lib = malloc(sizeof(HMODULE));
 	*lib = LoadLibrary(win);
+	if(!*lib) return NULL;
 	return lib;
 }
 
 void* _vVsymdl(void* handle, const char* sym) {
+	if(!handle) return NULL;
 	return GetProcAddress(*(HMODULE*)handle, sym);
 }
 
@@ -50,6 +52,7 @@ void* _vVopendl(const char* nix, const char* mac, const char* win) {
 }
 
 void* _vVsymdl(void* handle, const char* sym) {
+	if(!handle) return NULL;
 	return dlsym(handle, sym);
 }
 

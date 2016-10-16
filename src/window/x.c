@@ -31,6 +31,7 @@
 struct VvWiConnection {			// For us, VvStates have our data!
 	xcb_connection_t* conn;		// Connection to the X server
 	xcb_screen_t* screen;		// Preferred Screen
+	xcb_ewmh_connection_t ewmh;	// Extended Window Manager Hints
 	Xcb xcb;			// libxcb data, with commands
 	// NOTE: When GL support is added, this needs to become hybrid Xlib/XCB
 #ifdef Vv_ENABLE_VULKAN
@@ -65,6 +66,16 @@ static VvWiConnection* Connect() {
 	wc->screen = sit.data;
 	// This one always works.
 
+	if(wc->xcb.ewmh_init_atoms) {	// If we have EWMH support
+		xcb_intern_atom_cookie_t* cookie
+			= wc->xcb.ewmh_init_atoms(wc->conn, &wc->ewmh);
+		if(!wc->xcb.ewmh_init_atoms_replies(&wc->ewmh, cookie, NULL)) {
+			wc->xcb.disconnect(wc->conn);
+			free(wc);
+			return NULL;
+		}
+	}
+
 	return wc;
 }
 
@@ -90,6 +101,7 @@ static VvWiWindow* CreateWindow(VvWiConnection* wc, int width, int height,
 
 static void DestroyWindow(VvWiConnection* wc, VvWiWindow* wind) {
 	wc->xcb.destroy_window(wc->conn, wind->id);
+	wc->xcb.flush(wc->conn);
 }
 
 static void ShowWindow(VvWiConnection* wc, VvWiWindow* wind) {
@@ -101,16 +113,17 @@ static void SetTitle(VvWiConnection* wc, VvWiWindow* wind, const char* name) {
 	wc->xcb.change_property(wc->conn, XCB_PROP_MODE_REPLACE, wind->id,
 		XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8,
 		strlen(name), name);
+	wc->xcb.flush(wc->conn);
 }
 
 #ifdef Vv_ENABLE_VULKAN
 static void AddVulkan(VvWiConnection* wc, const VvVulkan* vkapi,
 	const VvVulkanBinding* vkb, void* inst) {
-	fprintf(stderr, "STUB: VvWindowAPI_X AddVulkan!\n");
+	fprintf(stderr, "STUB: VvWindow_X AddVulkan!\n");
 }
 
 static void* CreateVkSurface(VvWiConnection* wc, VvWiWindow* wind) {
-	fprintf(stderr, "STUB: VvWindowAPI_X CreateVkSurface!\n");
+	fprintf(stderr, "STUB: VvWindow_X CreateVkSurface!\n");
 	return NULL;
 }
 #else
@@ -122,11 +135,24 @@ static void* CreateVkSurface(VvWiConnection* wc, VvWiWindow* wind) {
 }
 #endif
 
+static void SetFullscreen(VvWiConnection* wc, VvWiWindow* wind, int en) {
+	if(wc->xcb.ewmh_init_atoms && wc->ewmh._NET_WM_STATE_FULLSCREEN) {
+		xcb_atom_t at = 0;
+		if(en) at |= wc->ewmh._NET_WM_STATE_FULLSCREEN;
+		wc->xcb.change_property(
+			wc->conn, XCB_PROP_MODE_REPLACE, wind->id,
+			wc->ewmh._NET_WM_STATE, XCB_ATOM_ATOM, 32,
+			1, &at);
+		wc->xcb.flush(wc->conn);
+	} else fprintf(stderr, "Fullscreen without EWMH!\n");
+}
+
 static const VvWindow api = {
 	Connect, Disconnect,
 	CreateWindow, DestroyWindow,
 	ShowWindow, SetTitle,
 	AddVulkan, CreateVkSurface,
+	SetFullscreen,
 };
 
 VvAPI const VvWindow* vVloadWindow_X() { return &api; }
