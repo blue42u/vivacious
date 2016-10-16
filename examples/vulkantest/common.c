@@ -15,23 +15,32 @@
 ***************************************************************************/
 
 #include "common.h"
+#include <stdarg.h>
 
-// TMP
-#include <unistd.h>
+void error(const char* format, ...) {
+	va_list list;
+	va_start(list, format);
+	vfprintf(stderr, format, list);
+	va_end(list);
+	exit(1);
+}
 
-int main() {
-	loadVulkan();
-	createInst();
-	startDebug();
-	createDev();
-	createWindow();
+const VvVulkan_1_0* vk;
+const VvVulkan_KHR_surface* vks;
+const VvVulkan* vkapi;
+VvVulkanBinding* vkb;
 
-	sleep(2);
+struct Common com;
 
-	destroyWindow();
-	destroyDev();
-	endDebug();
-	destroyInst();
-	unloadVulkan();
-	return 0;
+void loadVulkan() {
+	vkapi = vVloadVulkan_lib();
+	if(!vkapi) error("Error loading VvVulkan!\n");
+
+	vkb = vkapi->Create();
+	vk = vkapi->core->vk_1_0(vkb);
+	vks = vkapi->ext->KHR_surface(vkb);
+}
+
+void unloadVulkan() {
+	vkapi->Destroy(vkb);
 }

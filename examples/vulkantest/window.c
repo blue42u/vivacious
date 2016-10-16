@@ -15,23 +15,30 @@
 ***************************************************************************/
 
 #include "common.h"
+#include <vivacious/window.h>
 
-// TMP
-#include <unistd.h>
+static const VvWindow* winapi;
+static VvWiConnection* conn;
+static VvWiWindow* win;
 
-int main() {
-	loadVulkan();
-	createInst();
-	startDebug();
-	createDev();
-	createWindow();
+void createWindow() {
+	winapi = vVloadWindow_X();
+	conn = winapi->Connect();
 
-	sleep(2);
+	int ext[2] = {0,0};
+	winapi->GetScreenSize(conn, ext);
 
-	destroyWindow();
-	destroyDev();
-	endDebug();
-	destroyInst();
-	unloadVulkan();
-	return 0;
+	win = winapi->CreateWindow(conn, ext[0], ext[1], 0);
+	winapi->SetTitle(conn, win, "Example Vulkan Thing!");
+	winapi->ShowWindow(conn, win);
+
+	winapi->AddVulkan(conn, vkapi, vkb, com.inst);
+	VkResult r = winapi->CreateVkSurface(conn, win, &com.surf);
+	if(r<0) error("Error creating surface: %d!\n", r);
+}
+
+void destroyWindow() {
+	vks->DestroySurfaceKHR(com.inst, com.surf, NULL);
+	winapi->DestroyWindow(conn, win);
+	winapi->Disconnect(conn);
 }
