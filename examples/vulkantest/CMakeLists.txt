@@ -4,5 +4,6 @@ add_executable(vulkantest
 	window.c
 	instdev.c
 	debug.c
+	swapchain.c
 )
 target_link_libraries(vulkantest vivacious)

@@ -23,13 +23,15 @@ int main() {
 	loadVulkan();
 	createInst();
 	startDebug();
-	createDev();
 	createWindow();
+	createDev();
+	createSChain();
 
 	sleep(2);
 
-	destroyWindow();
+	destroySChain();
 	destroyDev();
+	destroyWindow();
 	endDebug();
 	destroyInst();
 	unloadVulkan();

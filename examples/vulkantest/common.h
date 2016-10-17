@@ -28,6 +28,7 @@ void error(const char*, ...);
 // The pieces of Vulkan this test uses commonly.
 extern const VvVulkan_1_0* vk;
 extern const VvVulkan_KHR_surface* vks;
+extern const VvVulkan_KHR_swapchain* vkc;
 
 // The actual Vulkan binding, for those extra bits.
 extern const VvVulkan* vkapi;
@@ -37,8 +38,10 @@ extern VvVulkanBinding* vkb;
 struct Common {
 	VkInstance inst;
 	VkPhysicalDevice pdev;
+	uint32_t qfam;
 	VkDevice dev;
 	VkSurfaceKHR surf;
+	VkSwapchainKHR schain;
 };
 extern struct Common com;
 
@@ -53,5 +56,7 @@ void createWindow();
 void destroyWindow();
 void startDebug();
 void endDebug();
+void createSChain();
+void destroySChain();
 
 #endif // H_common

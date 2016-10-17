@@ -21,6 +21,9 @@ static const char* exts[] = {
 	"VK_KHR_surface",
 	"VK_KHR_xcb_surface",
 };
+static const char* dexts[] = {
+	"VK_KHR_swapchain",
+};
 static const char* lays[] = {
 	"VK_LAYER_LUNARG_standard_validation",
 };
@@ -39,9 +42,40 @@ void createInst() {
 }
 
 void createDev() {
-	uint32_t cnt = 1;
-	VkResult r = vk->EnumeratePhysicalDevices(com.inst, &cnt, &com.pdev);
+	uint32_t cnt = 0;
+	VkResult r = vk->EnumeratePhysicalDevices(com.inst, &cnt, NULL);
 	if(r<0) error("Error enum'ing PDevs: %d!\n", r);
+	VkPhysicalDevice* pdevs = malloc(cnt*sizeof(VkPhysicalDevice));
+	r = vk->EnumeratePhysicalDevices(com.inst, &cnt, pdevs);
+	if(r<0) error("Error enum'ing PDevs: %d!\n", r);
+
+	for(int i=0; i<cnt; i++) {
+		uint32_t qcnt = 0;
+		vk->GetPhysicalDeviceQueueFamilyProperties(pdevs[i],
+			&qcnt, NULL);
+		VkQueueFamilyProperties* qfps = malloc(qcnt*sizeof(VkQueueFamilyProperties));
+		vk->GetPhysicalDeviceQueueFamilyProperties(pdevs[i],
+			&qcnt, qfps);
+
+		uint32_t qfam = -1;
+		for(int i=0; i<cnt; i++) {
+			if(qfps[i].queueFlags && VK_QUEUE_GRAPHICS_BIT) {
+				qfam = i;
+				break;
+			}
+		}
+		free(qfps);
+		if(qfam == -1) continue;
+
+		VkBool32 supported;
+		vks->GetPhysicalDeviceSurfaceSupportKHR(pdevs[i],
+			0, com.surf, &supported);
+		if(!supported) continue;
+
+		com.pdev = pdevs[i];
+		com.qfam = qfam;
+	}
+	free(pdevs);
 
 	VkPhysicalDeviceProperties pdp;
 	vk->GetPhysicalDeviceProperties(com.pdev, &pdp);
@@ -52,16 +86,14 @@ void createDev() {
 
 	const float pris[] = { 0 };
 	VkDeviceQueueCreateInfo dqci = {
-		VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-		NULL, 0,
-		0, 1, pris
+		VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO, NULL, 0,
+		com.qfam, 1, pris
 	};
 	VkDeviceCreateInfo dci = {
-		VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-		NULL, 0,
+		VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO, NULL, 0,
 		1, &dqci,
-		1, lays,
-		0, NULL,
+		sizeof(lays)/sizeof(char*), lays,
+		sizeof(dexts)/sizeof(char*), dexts,
 		NULL
 	};
 	r = vk->CreateDevice(com.pdev, &dci, NULL, &com.dev);

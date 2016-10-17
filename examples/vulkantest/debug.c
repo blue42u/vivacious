@@ -28,9 +28,13 @@ VkBool32 debugFunc(
 
 	printf("\e[");
 	switch(flag) {
+	// Normal green
 	case VK_DEBUG_REPORT_INFORMATION_BIT_EXT: printf("32"); break;
+	// Bold magenta
 	case VK_DEBUG_REPORT_WARNING_BIT_EXT: printf("1;35"); break;
+	// Normal magenta
 	case VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT: printf("35"); break;
+	// Bold red
 	case VK_DEBUG_REPORT_ERROR_BIT_EXT: printf("1;31"); break;
 	default: printf("");
 	}

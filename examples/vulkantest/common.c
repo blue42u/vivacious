@@ -27,6 +27,7 @@ void error(const char* format, ...) {
 
 const VvVulkan_1_0* vk;
 const VvVulkan_KHR_surface* vks;
+const VvVulkan_KHR_swapchain* vkc;
 const VvVulkan* vkapi;
 VvVulkanBinding* vkb;
 
@@ -39,6 +40,7 @@ void loadVulkan() {
 	vkb = vkapi->Create();
 	vk = vkapi->core->vk_1_0(vkb);
 	vks = vkapi->ext->KHR_surface(vkb);
+	vkc = vkapi->ext->KHR_swapchain(vkb);
 }
 
 void unloadVulkan() {
