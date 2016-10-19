@@ -99,6 +99,8 @@ void createDev() {
 	r = vk->CreateDevice(com.pdev, &dci, NULL, &com.dev);
 	if(r<0) error("Error creating device: %d!\n", r);
 	vkapi->LoadDevice(vkb, com.dev, VK_TRUE);
+
+	vk->GetDeviceQueue(com.dev, com.qfam, 0, &com.queue);
 }
 
 void destroyDev() {

@@ -58,8 +58,17 @@ void createSChain() {
 	};
 	r = vkc->CreateSwapchainKHR(com.dev, &sci, NULL, &com.schain);
 	if(r<0) error("Error creating swapchain: %d!\n", r);
+
+	r = vkc->GetSwapchainImagesKHR(com.dev, com.schain,
+		&com.simagecnt, NULL);
+	if(r<0) error("Error getting swapchain images: %d!\n", r);
+	com.simages = malloc(com.simagecnt*sizeof(VkImage));
+	r = vkc->GetSwapchainImagesKHR(com.dev, com.schain,
+		&com.simagecnt, com.simages);
+	if(r<0) error("Error getting swapchain images: %d!\n", r);
 }
 
 void destroySChain() {
+	free(com.simages);
 	vkc->DestroySwapchainKHR(com.dev, com.schain, NULL);
 }

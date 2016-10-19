@@ -35,6 +35,12 @@ extern const VvVulkan* vkapi;
 extern VvVulkanBinding* vkb;
 
 // Standard common pieces.
+struct CBuffs {
+	VkCommandBuffer readyRend;
+	VkCommandBuffer readyPres;
+	VkCommandBuffer blue;
+	VkCommandBuffer red;
+};
 struct Common {
 	VkInstance inst;
 	VkPhysicalDevice pdev;
@@ -42,6 +48,13 @@ struct Common {
 	VkDevice dev;
 	VkSurfaceKHR surf;
 	VkSwapchainKHR schain;
+	uint32_t simagecnt;
+	VkImage* simages;
+	VkQueue queue;
+	union {
+		struct CBuffs* cb;
+		VkCommandBuffer* cbuffs;
+	};
 };
 extern struct Common com;
 
@@ -58,5 +71,8 @@ void startDebug();
 void endDebug();
 void createSChain();
 void destroySChain();
+void createCBuffs();
+void destroyCBuffs();
+void loadCBuffs();
 
 #endif // H_common
