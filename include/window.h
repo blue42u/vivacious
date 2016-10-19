@@ -54,34 +54,29 @@ _Vv_STRUCT(VvWindow) {
 		VvWiEventMask events);
 
 	// Close/Destroy a window. After this, the window is invalid.
-	void (*DestroyWindow)(VvWiConnection*, VvWiWindow*);
+	void (*DestroyWindow)(VvWiWindow*);
 
 	// Show a window on the screen, if its not shown already.
-	void (*ShowWindow)(VvWiConnection*, VvWiWindow*);
+	void (*ShowWindow)(VvWiWindow*);
 
 	// Set the window's title. <name> is assumed to be a null-terminated
 	// character array, as is convention with C strings.
-	void (*SetTitle)(VvWiConnection*, VvWiWindow*, const char* name);
-
-	// Add Vulkan support to a connection. Allows CreateVkSurface to work.
-	// <inst> should be a VkInstance.
-	void (*AddVulkan)(VvWiConnection*, const struct VvVulkan*,
-		const struct VvVulkanBinding*, void* inst);
+	void (*SetTitle)(VvWiWindow*, const char* name);
 
 	// Create a VkSurface based on a Window. Returns a VkResult, and
 	// <psurf> is a VkSurface*.
-	int (*CreateVkSurface)(VvWiConnection*, VvWiWindow*, void* psurf);
+	int (*CreateVkSurface)(VvWiWindow*, void* inst, void* psurf,
+		const struct VvVulkan*, const struct VvVulkanBinding*);
 
 	// Make a window fullscreen if <enable> is a true value, otherwise
 	// make the window windowed.
-	void (*SetFullscreen)(VvWiConnection*, VvWiWindow*, int enable);
+	void (*SetFullscreen)(VvWiWindow*, int enable);
 
 	// Set the size of a window.
-	void (*SetWindowSize)(VvWiConnection*, VvWiWindow*, const int[2]);
+	void (*SetWindowSize)(VvWiWindow*, const int[2]);
 
-	// Get the size of a window. Useful for getting a good window size
-	// before showing the window for the first time.
-	void (*GetWindowSize)(VvWiConnection*, VvWiWindow*, int[2]);
+	// Get the size of a window.
+	void (*GetWindowSize)(VvWiWindow*, int[2]);
 
 	// Get the size of the screen.
 	void (*GetScreenSize)(VvWiConnection*, int[2]);

@@ -29,16 +29,16 @@ void createWindow() {
 	winapi->GetScreenSize(conn, ext);
 
 	win = winapi->CreateWindow(conn, ext[0], ext[1], 0);
-	winapi->SetTitle(conn, win, "Example Vulkan Thing!");
-	winapi->ShowWindow(conn, win);
+	winapi->SetTitle(win, "Example Vulkan Thing!");
+	winapi->ShowWindow(win);
 
-	winapi->AddVulkan(conn, vkapi, vkb, com.inst);
-	VkResult r = winapi->CreateVkSurface(conn, win, &com.surf);
+	VkResult r = winapi->CreateVkSurface(win, com.inst, &com.surf,
+		vkapi, vkb);
 	if(r<0) error("Error creating surface: %d!\n", r);
 }
 
 void destroyWindow() {
 	vks->DestroySurfaceKHR(com.inst, com.surf, NULL);
-	winapi->DestroyWindow(conn, win);
+	winapi->DestroyWindow(win);
 	winapi->Disconnect(conn);
 }

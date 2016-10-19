@@ -36,13 +36,10 @@ struct VvWiConnection {			// For us, VvStates have our data!
 	xcb_ewmh_connection_t ewmh;	// Extended Window Manager Hints
 	Xcb xcb;			// libxcb data, with commands
 	// NOTE: When GL support is added, this needs to become hybrid Xlib/XCB
-#if defined(Vv_ENABLE_VULKAN) && defined(VK_KHR_xcb_surface)
-	const VvVulkan_KHR_xcb_surface* vk;
-	VkInstance inst;
-#endif
 };
 
 struct VvWiWindow {
+	VvWiConnection* c;
 	xcb_window_t id;	// The window's id
 };
 
@@ -89,6 +86,7 @@ static void Disconnect(VvWiConnection* wc) {
 static VvWiWindow* CreateWindow(VvWiConnection* wc, int width, int height,
 	VvWiEventMask mask) {
 	VvWiWindow* r = malloc(sizeof(VvWiWindow));
+	r->c = wc;
 	r->id = wc->xcb.generate_id(wc->conn);
 	wc->xcb.create_window(wc->conn, XCB_COPY_FROM_PARENT, r->id,
 		wc->screen->root, XCB_NONE, XCB_NONE,
@@ -100,75 +98,67 @@ static VvWiWindow* CreateWindow(VvWiConnection* wc, int width, int height,
 	return r;
 }
 
-static void DestroyWindow(VvWiConnection* wc, VvWiWindow* wind) {
-	wc->xcb.destroy_window(wc->conn, wind->id);
-	wc->xcb.flush(wc->conn);
+static void DestroyWindow(VvWiWindow* w) {
+	w->c->xcb.destroy_window(w->c->conn, w->id);
+	w->c->xcb.flush(w->c->conn);
 }
 
-static void ShowWindow(VvWiConnection* wc, VvWiWindow* wind) {
-	wc->xcb.map_window(wc->conn, wind->id);
-	wc->xcb.flush(wc->conn);
+static void ShowWindow(VvWiWindow* w) {
+	w->c->xcb.map_window(w->c->conn, w->id);
+	w->c->xcb.flush(w->c->conn);
 }
 
-static void SetTitle(VvWiConnection* wc, VvWiWindow* wind, const char* name) {
-	wc->xcb.change_property(wc->conn, XCB_PROP_MODE_REPLACE, wind->id,
+static void SetTitle(VvWiWindow* w, const char* name) {
+	w->c->xcb.change_property(w->c->conn, XCB_PROP_MODE_REPLACE, w->id,
 		XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8,
 		strlen(name), name);
-	wc->xcb.flush(wc->conn);
+	w->c->xcb.flush(w->c->conn);
 }
 
 #if defined(Vv_ENABLE_VULKAN) && defined(VK_KHR_xcb_surface)
-static void AddVulkan(VvWiConnection* wc, const VvVulkan* vkapi,
-	const VvVulkanBinding* vkb, void* inst) {
-	wc->vk = vkapi->ext->KHR_xcb_surface(vkb);
-	wc->inst = (VkInstance)inst;
-}
-
-static int CreateVkSurface(VvWiConnection* wc, VvWiWindow* wind, void* psurf) {
-	if(!wc->vk || !wc->vk->CreateXcbSurfaceKHR)
+static int CreateVkSurface(VvWiWindow* w, void* inst, void* psurf,
+	const VvVulkan* vkapi, const VvVulkanBinding* vkb) {
+	const VvVulkan_KHR_xcb_surface* vk = vkapi->ext->KHR_xcb_surface(vkb);
+	if(!vk || !vk->CreateXcbSurfaceKHR)
 		return VK_ERROR_EXTENSION_NOT_PRESENT;
 	VkXcbSurfaceCreateInfoKHR xsci = {
 		VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR, NULL,
-		0, wc->conn, wind->id,
+		0, w->c->conn, w->id,
 	};
-	return wc->vk->CreateXcbSurfaceKHR(wc->inst, &xsci, NULL, psurf);
+	return vk->CreateXcbSurfaceKHR(inst, &xsci, NULL, psurf);
 }
 #else
-static void AddVulkan(VvWiConnection* wc, const struct VvVulkan* vkapi,
-	const struct VvVulkanBinding* vkb, void* inst) {
-}
-static int CreateVkSurface(VvWiConnection* wc, VvWiWindow* wind, void* psurf) {
+static int CreateVkSurface(VvWiWindow* w, void* inst, void* psurf,
+	const VvVulkan* vkapi, const VvVulkanBinding* vkb) {
 	return -7;	// VK_ERROR_EXTENSION_NOT_PRESENT
 }
 #endif
 
-static void SetFullscreen(VvWiConnection* wc, VvWiWindow* wind, int en) {
-	if(wc->xcb.ewmh_init_atoms && wc->ewmh._NET_WM_STATE_FULLSCREEN) {
+static void SetFullscreen(VvWiWindow* w, int en) {
+	if(w->c->xcb.ewmh_init_atoms && w->c->ewmh._NET_WM_STATE_FULLSCREEN) {
 		xcb_atom_t at = 0;
-		if(en) at |= wc->ewmh._NET_WM_STATE_FULLSCREEN;
-		wc->xcb.change_property(
-			wc->conn, XCB_PROP_MODE_REPLACE, wind->id,
-			wc->ewmh._NET_WM_STATE, XCB_ATOM_ATOM, 32,
+		if(en) at |= w->c->ewmh._NET_WM_STATE_FULLSCREEN;
+		w->c->xcb.change_property(
+			w->c->conn, XCB_PROP_MODE_REPLACE, w->id,
+			w->c->ewmh._NET_WM_STATE, XCB_ATOM_ATOM, 32,
 			1, &at);
-		wc->xcb.flush(wc->conn);
-	} else fprintf(stderr, "Fullscreen without EWMH!\n");
+		w->c->xcb.flush(w->c->conn);
+	} else fprintf(stderr, "Attempted fullscreen without EWMH!\n");
 }
 
-static void SetWindowSize(VvWiConnection* wc, VvWiWindow* wind,
-	const int ext[2]) {
+static void SetWindowSize(VvWiWindow* w, const int ext[2]) {
 	uint32_t values[] = { ext[0], ext[1] };
-	wc->xcb.configure_window(wc->conn, wind->id,
+	w->c->xcb.configure_window(w->c->conn, w->id,
 		XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT,
 		values);
-	wc->xcb.flush(wc->conn);
+	w->c->xcb.flush(w->c->conn);
 }
 
-static void GetWindowSize(VvWiConnection* wc, VvWiWindow* wind,
-	int ext[2]) {
-	xcb_get_geometry_cookie_t cookie = wc->xcb.get_geometry(wc->conn,
-		wind->id);
-	xcb_get_geometry_reply_t* geom = wc->xcb.get_geometry_reply(wc->conn,
-		cookie, NULL);
+static void GetWindowSize(VvWiWindow* w, int ext[2]) {
+	xcb_get_geometry_cookie_t cookie = w->c->xcb.get_geometry(
+		w->c->conn, w->id);
+	xcb_get_geometry_reply_t* geom = w->c->xcb.get_geometry_reply(
+		w->c->conn, cookie, NULL);
 	if(geom) {
 		ext[0] = geom->width;
 		ext[1] = geom->height;
@@ -177,10 +167,10 @@ static void GetWindowSize(VvWiConnection* wc, VvWiWindow* wind,
 }
 
 static void GetScreenSize(VvWiConnection* wc, int ext[2]) {
-	xcb_get_geometry_cookie_t cookie = wc->xcb.get_geometry(wc->conn,
-		wc->screen->root);
-	xcb_get_geometry_reply_t* geom = wc->xcb.get_geometry_reply(wc->conn,
-		cookie, NULL);
+	xcb_get_geometry_cookie_t cookie = wc->xcb.get_geometry(
+		wc->conn, wc->screen->root);
+	xcb_get_geometry_reply_t* geom = wc->xcb.get_geometry_reply(
+		wc->conn, cookie, NULL);
 	if(geom) {
 		ext[0] = geom->width;
 		ext[1] = geom->height;
@@ -192,7 +182,7 @@ static const VvWindow api = {
 	Connect, Disconnect,
 	CreateWindow, DestroyWindow,
 	ShowWindow, SetTitle,
-	AddVulkan, CreateVkSurface,
+	CreateVkSurface,
 	SetFullscreen,
 	SetWindowSize, GetWindowSize,
 	GetScreenSize,
