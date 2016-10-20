@@ -98,6 +98,7 @@ int main() {
 		vkc->QueuePresentKHR(com.queue, &pi);
 	}
 
+	vk->QueueWaitIdle(com.queue);
 	vk->DestroySemaphore(com.dev, donePres, NULL);
 	vk->DestroySemaphore(com.dev, doneRend, NULL);
 

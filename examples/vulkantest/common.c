@@ -28,21 +28,17 @@ void error(const char* format, ...) {
 const VvVk_1_0* vk;
 const VvVk_KHR_surface* vks;
 const VvVk_KHR_swapchain* vkc;
-const Vv_Vulkan* vkapi;
 VvVk_Binding* vkb;
 
 struct Common com;
 
 void loadVulkan() {
-	vkapi = vVvk_lib();
-	if(!vkapi) error("Error loading VvVulkan!\n");
-
-	vkb = vkapi->Create();
-	vk = vkapi->core->vk_1_0(vkb);
-	vks = vkapi->ext->KHR_surface(vkb);
-	vkc = vkapi->ext->KHR_swapchain(vkb);
+	vkb = vkapi.Create();
+	vk = vkapi.core->vk_1_0(vkb);
+	vks = vkapi.ext->KHR_surface(vkb);
+	vkc = vkapi.ext->KHR_swapchain(vkb);
 }
 
 void unloadVulkan() {
-	vkapi->Destroy(vkb);
+	vkapi.Destroy(vkb);
 }

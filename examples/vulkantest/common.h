@@ -22,6 +22,8 @@
 #include <stdio.h>	// Since this is a test, after all.
 #include <stdlib.h>
 
+#define vkapi vVvk_lib	// Define a nice constant for the implementation.
+
 // A wrapper for vfprintf to print to stderr, then exit's with 1.
 void error(const char*, ...);
 
@@ -31,7 +33,6 @@ extern const VvVk_KHR_surface* vks;
 extern const VvVk_KHR_swapchain* vkc;
 
 // The actual Vulkan binding, for those extra bits.
-extern const Vv_Vulkan* vkapi;
 extern VvVk_Binding* vkb;
 
 // Standard common pieces.

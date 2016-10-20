@@ -178,7 +178,7 @@ static void GetScreenSize(VvWi_Connection* wc, int ext[2]) {
 	}
 }
 
-static const Vv_Window api = {
+VvAPI const Vv_Window vVwi_X = {
 	Connect, Disconnect,
 	CreateWindow, DestroyWindow,
 	ShowWindow, SetTitle,
@@ -187,7 +187,5 @@ static const Vv_Window api = {
 	SetWindowSize, GetWindowSize,
 	GetScreenSize,
 };
-
-VvAPI const Vv_Window* vVwi_X() { return &api; }
 
 #endif // Vv_ENABLE_X

@@ -82,6 +82,6 @@ _Vv_STRUCT(Vv_Window) {
 	void (*GetScreenSize)(VvWi_Connection*, int[2]);
 };
 
-const Vv_Window* vVwi_X();
+extern const Vv_Window vVwi_X;
 
 #endif // H_vivacious_window

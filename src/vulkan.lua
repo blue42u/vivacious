@@ -265,15 +265,11 @@ out([[
 ]])
 
 out([[
-static const Vv_Vulkan api = {
+VvAPI const Vv_Vulkan vVvk_lib = {
 	Create, Destroy,
 	LoadInstance, LoadDevice,
 	&vkcore, &vkext,
 };
-
-VvAPI const Vv_Vulkan* vVvk_lib() {
-	return &api;
-}
 ]])
 
 out('#endif // vV_ENABLE_VULKAN')

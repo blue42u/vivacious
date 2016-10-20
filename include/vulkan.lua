@@ -168,7 +168,7 @@ _Vv_STRUCT(Vv_Vulkan) {
 	// This has the getters for the extension Vulkan PFNs.
 	const VvVk_Ext* ext;
 };
-const Vv_Vulkan* vVvk_lib();
+extern const Vv_Vulkan vVvk_lib;
 
 #endif // H_vivacious_vulkan
 ]])

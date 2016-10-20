@@ -3,18 +3,11 @@
 The vV API is broken up into many smaller pieces, which can (and often
 do) build on each other. Each of these pieces is called simply an *API*,
 which consists of the functions defined by the API (called *commands*)
-along with the opaque and *transparent* types used by the commands.
+along with the opaque and transparent types used by the commands.
 
-No API will define any symbols in the symbol table for vV. Instead, each
-API can have multiple *implementations*, which are functions that allow
-applications access to the commands defined by the API. Implementations
-may depend on other APIs, which are in turn obtained by calling
-implementations, and so on and so forth.
-
-This API-implementation distinction allows the application to choose how
-what would be considered internal pieces of vV work, to the point of
-allowing external re-implementation of core pieces. This is intended to
-allow for another level of customization to the engine.
+The commands in an API are not part of the symbol table for a vV library.
+Instead, each API defines one or more *implementations*, which are filled
+const globals of the main API structure (rationale 4).
 
 ## Naming scheme
 
@@ -54,7 +47,7 @@ Any opaque types that are defined by an API should be handled similarly,
 i.e. a handle type will be "created" by `typedef struct <name> <name>;`.
 
 Sometimes APIs will have *integrations* with one another, which are
-commands which operate on types the API has not defined. A API which
+commands that operate on types another API has defined. A API which
 requires types from a second API is said to *depend* on that API. If the
 dependant requires transparent types, then the dependant's header should
 additionally include the dependee's header. If the dependant only requires
@@ -62,7 +55,7 @@ opaque types, then the integrations should simply include the struct
 identifier with the type in question.
 
 Every integration needs to have a way to access the dependee API. This can
-be done with a "setter" on an opaque type, or with a `struct Vv<api>*`
+be done with a "setter" on an opaque type, or with a `const struct Vv_<api>*`
 parameter on the command itself.
 
 Examples:
@@ -83,11 +76,9 @@ would mean heavy use of `void*`.
 
 ## Implementations
 
-The header defining an API also should define prototypes for the
-implementations of the API. These functions should be named following the
-convention `vVload<api>_<imp>`, where `<imp>` is a unique identifier for
-the implementation. The arguments to this function are dependant on the
-implementation, but the function should return a `const Vv<api>*`.
+The header which defines an API should also define the globals that form the
+vV implementations of the API. These statements will thus be of the form
+`extern const Vv_<api> vV<sh>_<imp>;`.
 
 ## Maintenance
 
@@ -101,11 +92,10 @@ addition of a new include, it should be added. If the update removes a
 dependancy, or the need for an include, it should not be removed
 (rationale 2).
 
-Updates to an implementation can be done in two ways. One way is a new
-implementation is added, and the older one can be depreciated, which
-requires a minor version increment for vV. The other way is to change
-the signature of the implementation, which requires a major version
-increment. Which is chosen will most likely be based on other developments.
+There might be cases where a new implementation for an API is added. As
+required by Semver, these should incur minor version updates for vV. There
+should be little reason to remove an implementation, but should the need
+arise, the operation will require a major version update.
 
 ### Rationale
 
@@ -132,3 +122,7 @@ increment. Which is chosen will most likely be based on other developments.
    ```
    which still provides all the information and uniqueness needed, without the
    extra bulk.
+
+4. Earlier versions of this document defined implementations to be functions
+   that return const pointers to filled API structures. This was changed to
+   provide the same functionality, while removing a pointer dereference.
