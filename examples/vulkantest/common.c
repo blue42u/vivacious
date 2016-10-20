@@ -25,16 +25,16 @@ void error(const char* format, ...) {
 	exit(1);
 }
 
-const VvVulkan_1_0* vk;
-const VvVulkan_KHR_surface* vks;
-const VvVulkan_KHR_swapchain* vkc;
-const VvVulkan* vkapi;
-VvVulkanBinding* vkb;
+const VvVk_1_0* vk;
+const VvVk_KHR_surface* vks;
+const VvVk_KHR_swapchain* vkc;
+const Vv_Vulkan* vkapi;
+VvVk_Binding* vkb;
 
 struct Common com;
 
 void loadVulkan() {
-	vkapi = vVloadVulkan_lib();
+	vkapi = vVvk_lib();
 	if(!vkapi) error("Error loading VvVulkan!\n");
 
 	vkb = vkapi->Create();

@@ -17,12 +17,12 @@
 #include "common.h"
 #include <vivacious/window.h>
 
-static const VvWindow* winapi;
-static VvWiConnection* conn;
-static VvWiWindow* win;
+static const Vv_Window* winapi;
+static VvWi_Connection* conn;
+static VvWi_Window* win;
 
 void createWindow() {
-	winapi = vVloadWindow_X();
+	winapi = vVwi_X();
 	conn = winapi->Connect();
 
 	int ext[2] = {0,0};

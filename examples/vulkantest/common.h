@@ -26,13 +26,13 @@
 void error(const char*, ...);
 
 // The pieces of Vulkan this test uses commonly.
-extern const VvVulkan_1_0* vk;
-extern const VvVulkan_KHR_surface* vks;
-extern const VvVulkan_KHR_swapchain* vkc;
+extern const VvVk_1_0* vk;
+extern const VvVk_KHR_surface* vks;
+extern const VvVk_KHR_swapchain* vkc;
 
 // The actual Vulkan binding, for those extra bits.
-extern const VvVulkan* vkapi;
-extern VvVulkanBinding* vkb;
+extern const Vv_Vulkan* vkapi;
+extern VvVk_Binding* vkb;
 
 // Standard common pieces.
 struct CBuffs {

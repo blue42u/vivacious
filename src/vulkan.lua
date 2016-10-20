@@ -159,14 +159,14 @@ out([[
 #include <stdlib.h>
 #include <string.h>
 
-struct VvVulkanBinding {
+struct VvVk_Binding {
 	void* libvk;
 	PFN_vkGetInstanceProcAddr gipa;]])
 for _,t in cpairs(dom.root, {name='feature'}) do
 	local ver = string.gsub(t.attr.number, '%.', '_')
 	fout([[
 #ifdef `const`
-	VvVulkan_`ver` vk`ver`;
+	VvVk_`ver` vk`ver`;
 #endif]], {ver=ver, const=t.attr.name})
 end
 for _,t in cpairs(first(dom.root, {name='extensions'}), {name='extension',
@@ -174,13 +174,13 @@ for _,t in cpairs(first(dom.root, {name='extensions'}), {name='extension',
 	local name = string.match(t.attr.name, 'VK_(.*)')
 	fout([[
 #ifdef `const`
-	VvVulkan_`name` `name`;
+	VvVk_`name` `name`;
 #endif]], {name=name, const=t.attr.name})
 end
 out([[
 };
 
-static VvVulkanBinding* Create() {
+static VvVk_Binding* Create() {
 	void* libvk = _vVopendl("libvulkan.so", "libvulkan.dynlib",
 		"vulkan-1.dll");
 	if(!libvk) return NULL;
@@ -192,7 +192,7 @@ static VvVulkanBinding* Create() {
 		return NULL;
 	}
 
-	VvVulkanBinding* vkb = malloc(sizeof(VvVulkanBinding));
+	VvVk_Binding* vkb = malloc(sizeof(VvVk_Binding));
 	vkb->libvk = libvk;
 	vkb->gipa = gipa;
 ]])
@@ -201,24 +201,24 @@ out([[
 	return vkb;
 }
 
-static void Destroy(VvVulkanBinding* vkb) {
+static void Destroy(VvVk_Binding* vkb) {
 	_vVclosedl(vkb->libvk);
 	free(vkb);
 }
 
-static void LoadInstance(VvVulkanBinding* vkb, VkInstance inst, VkBool32 all) {
+static void LoadInstance(VvVk_Binding* vkb, VkInstance inst, VkBool32 all) {
 ]])
 rep(1, '(PFN_vk`)vkb->gipa(inst, "vk`")')
 out([[
 }
 
-static void LoadDevice(VvVulkanBinding* vkb, VkDevice dev, VkBool32 all) {
+static void LoadDevice(VvVk_Binding* vkb, VkDevice dev, VkBool32 all) {
 ]])
 rep(2, '(PFN_vk`)vkb->vk1_0.GetDeviceProcAddr(dev, "vk`")')
 out([[
 }
 
-static const void* getNull(const VvVulkanBinding* dummy) {
+static const void* getNull(const VvVk_Binding* dummy) {
 	return NULL;
 }
 ]])
@@ -230,7 +230,7 @@ for const,id in pairs(ids) do
 	end
 	fout([[
 #ifdef `const`
-static const VvVulkan_`n`* getVulkan_`n`(const VvVulkanBinding* vkb) {
+static const VvVk_`n`* getVulkan_`n`(const VvVk_Binding* vkb) {
 	return &vkb->`id`;
 }
 #else
@@ -240,7 +240,7 @@ static const VvVulkan_`n`* getVulkan_`n`(const VvVulkanBinding* vkb) {
 end
 
 out([[
-static const VvVulkanCore vkcore = {]])
+static const VvVk_Core vkcore = {]])
 for _,const in ipairs(coreord) do
 	local n = ids[const]
 	if string.sub(n,1,2) == 'vk' then
@@ -253,7 +253,7 @@ out([[
 ]])
 
 out([[
-static const VvVulkanExt vkext = {]])
+static const VvVk_Ext vkext = {]])
 for _,const in ipairs(extord) do
 	local n = ids[const]
 	if string.sub(n,1,2) ~= 'vk' then
@@ -265,13 +265,13 @@ out([[
 ]])
 
 out([[
-static const VvVulkan api = {
+static const Vv_Vulkan api = {
 	Create, Destroy,
 	LoadInstance, LoadDevice,
 	&vkcore, &vkext,
 };
 
-VvAPI const VvVulkan* vVloadVulkan_lib() {
+VvAPI const Vv_Vulkan* vVvk_lib() {
 	return &api;
 }
 ]])

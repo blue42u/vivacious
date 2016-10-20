@@ -16,6 +16,21 @@ what would be considered internal pieces of vV work, to the point of
 allowing external re-implementation of core pieces. This is intended to
 allow for another level of customization to the engine.
 
+## Naming scheme
+
+Every symbol in vV must begin with a prefix classifying it uniquely into
+the specific API from which it comes. Every API should thus have a
+shortened form of the name for the prefix. This is the *shorthand* name
+for the API, and should have two forms. The first follows CamelCase rules,
+and starts with a capital, we call this `<Sh>`. The second is all lowercase,
+we call this `<sh>`. This is to prevent capitalization conflicts with the
+vV (or Vv) part of the prefix.
+
+Every type should have the prefix `Vv<Sh>_`, with the exception being
+the API structure itself, which should have the form `Vv_<api>`. Every
+implementation of the API should have the form `vV<sh>_<imp>` (rationale 3),
+where `<imp>` is a unique identifier for the implemention, as seen below.
+
 ## Header Conventions
 
 Every API should be defined in a single header in this directory or a
@@ -28,7 +43,7 @@ E.g. The header `foo/bar/test.h` would use `H_vivacious_foo_bar_test`.
 
 ## Guidelines for API structure.
 
-Every API in vV has a single `Vv<api>` structure type that acts as the
+Every API in vV has a single `Vv_<api>` structure type that acts as the
 interface that applications use. This structure should only contain
 function pointers (commands) and const pointers to other structures with
 identical restrictions.
@@ -104,3 +119,16 @@ increment. Which is chosen will most likely be based on other developments.
    for applications not anticipating these issues. To aid in ease of use on
    that front, includes are not allowed to be removed. Thus, choose wisely
    when adding integrations to an API.
+
+3. The reason to use the shorthand in the implementation name is to allow the
+   implementation call to rest comfertably on the same line as the return
+   variable. For instance, a line of code like
+   ```C
+   const Vv_MyCoolFish* mcfapi = vV_loadMyCoolFish_EvenCooler();
+   ```
+   is lengthy and redundant, compared to the very similar
+   ```C
+   const Vv_MyCoolFish* mcfapi = vVmcf_EvenCooler();
+   ```
+   which still provides all the information and uniqueness needed, without the
+   extra bulk.

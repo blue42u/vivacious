@@ -76,7 +76,7 @@ VkBool32 debugFunc(
 	return VK_FALSE;
 }
 
-static const VvVulkan_EXT_debug_report* vkdr;
+static const VvVk_EXT_debug_report* vkdr;
 static VkDebugReportCallbackEXT drc;
 
 void startDebug() {

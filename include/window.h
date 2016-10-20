@@ -20,7 +20,7 @@
 #include <vivacious/core.h>
 
 // This enum acts as a bitmask for event types later
-_Vv_ENUM(VvWiEventMask) {
+_Vv_ENUM(VvWi_EventMask) {
 	VvWI_EVENT_NONE = 0,
 	VvWI_EVENT_MOUSE_PRESS = 1,
 	VvWI_EVENT_MOUSE_RELEASE = 2,
@@ -30,58 +30,58 @@ _Vv_ENUM(VvWiEventMask) {
 };
 
 // A Connection is a connection to the window manager.
-_Vv_TYPEDEF(VvWiConnection);
+_Vv_TYPEDEF(VvWi_Connection);
 
 // A Window is the opaque handle for a window on a screen, somewhere...
 // ...Hopefully. Maybe our implementation is tricking us. Or maybe not.
-_Vv_TYPEDEF(VvWiWindow);
+_Vv_TYPEDEF(VvWi_Window);
 
 // Dependancy structs. Referenced here to avoid -Wvisibility warnings.
-struct VvVulkan;
-struct VvVulkanBinding;
+struct Vv_Vulkan;
+struct VvVk_Binding;
 
-_Vv_STRUCT(VvWindow) {
+_Vv_STRUCT(Vv_Window) {
 	// Connect to the system's window manager.
-	VvWiConnection* (*Connect)();
+	VvWi_Connection* (*Connect)();
 
 	// Disconnect. Also can clean stuff up. Consider the connection
 	// invalid after this.
-	void (*Disconnect)(VvWiConnection*);
+	void (*Disconnect)(VvWi_Connection*);
 
 	// Create a new window for the screen. May or may not be visible
 	// immediately after creation, use ShowWindow to be sure.
-	VvWiWindow* (*CreateWindow)(VvWiConnection*, int width, int height,
-		VvWiEventMask events);
+	VvWi_Window* (*CreateWindow)(VvWi_Connection*, int width, int height,
+		VvWi_EventMask events);
 
 	// Close/Destroy a window. After this, the window is invalid.
-	void (*DestroyWindow)(VvWiWindow*);
+	void (*DestroyWindow)(VvWi_Window*);
 
 	// Show a window on the screen, if its not shown already.
-	void (*ShowWindow)(VvWiWindow*);
+	void (*ShowWindow)(VvWi_Window*);
 
 	// Set the window's title. <name> is assumed to be a null-terminated
 	// character array, as is convention with C strings.
-	void (*SetTitle)(VvWiWindow*, const char* name);
+	void (*SetTitle)(VvWi_Window*, const char* name);
 
 	// Create a VkSurface based on a Window. Returns a VkResult, and
 	// <psurf> is a VkSurface*.
-	int (*CreateVkSurface)(VvWiWindow*, void* inst, void* psurf,
-		const struct VvVulkan*, const struct VvVulkanBinding*);
+	int (*CreateVkSurface)(VvWi_Window*, void* inst, void* psurf,
+		const struct Vv_Vulkan*, const struct VvVk_Binding*);
 
 	// Make a window fullscreen if <enable> is a true value, otherwise
 	// make the window windowed.
-	void (*SetFullscreen)(VvWiWindow*, int enable);
+	void (*SetFullscreen)(VvWi_Window*, int enable);
 
 	// Set the size of a window.
-	void (*SetWindowSize)(VvWiWindow*, const int[2]);
+	void (*SetWindowSize)(VvWi_Window*, const int[2]);
 
 	// Get the size of a window.
-	void (*GetWindowSize)(VvWiWindow*, int[2]);
+	void (*GetWindowSize)(VvWi_Window*, int[2]);
 
 	// Get the size of the screen.
-	void (*GetScreenSize)(VvWiConnection*, int[2]);
+	void (*GetScreenSize)(VvWi_Connection*, int[2]);
 };
 
-const VvWindow* vVloadWindow_X();
+const Vv_Window* vVwi_X();
 
 #endif // H_vivacious_window

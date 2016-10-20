@@ -17,7 +17,7 @@
 #ifndef H_vivacious_core
 #define H_vivacious_core
 
-// Convience macro for typedefing structures. Because repeatition is bad.
+// Convience macro for typedefing structures. Because repeatition is often bad.
 // Use with a semicolon.
 #define _Vv_TYPEDEF(name) typedef struct name name
 
