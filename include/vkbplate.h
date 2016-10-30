@@ -21,44 +21,54 @@
 #include <vivacious/vulkan.h>
 #include <vivacious/window.h>
 
-// The Rules holds all the requests and requirements on the initial Vulkan
-// system. Currently that includes from the Instance to the Device and Queues.
+// The Rules collects rules, and is capible of resolving them as well.
 _Vv_TYPEDEF(VvVkBp_Rules);
 
 // About rule ids (rids): valid rids are positive and non-zero.
 
-// Commands in this API which add rules should return an int, which is either
-// the rid of the new rule, or 0 if the rule would never be satified (if the
-// implementation supports such early checking).
+// Commands in this API which add rules return an int, which is either the rid
+// of the new rule, or 0 if the rule would conflict with another rule. If an
+// equivalent rule already exists, then the rid of the other rule can be used.
+// Those commands also take a float argument, which is the priority of the rule,
+// which if positive is used to determine between choices in an implementation
+// -specific manner, or if 0 indicates absolute requirement.
 
 _Vv_STRUCT(Vv_VulkanBoilerplate) {
-	// Create a Rules, which have a connection to Vk constantly.
-	VvVkBp_Rules* (*Create)(const Vv_Vulkan*, const VvVk_Binding*);
+	// The life(time) of a Rules.
+	VvVkBp_Rules* (*create)(const Vv_Vulkan*, const VvVk_Binding*);
+	void (*destroy)(VvVkBp_Rules*);
 
-	// Destroy a Rules. Does not clean up the created Vulkan types.
-	void (*Destroy)(VvVkBp_Rules*);
+	// Attempt to build all the Vulkan handles requested.
+	// Returns 0 on success.
+	int (*resolve)(VvVkBp_Rules*);
 
-	// Remove a rule from a Rules, to save repetition.
-	void (*Remove)(VvVkBp_Rules*, int rid);
+	// Checks if a rule was satified by the results from .resolve.
+	// Should return 0 if resolve has not been called yet.
+	// Should also accept valid nonexistant rules, and return a true value.
+	int (*satisfied)(const VvVkBp_Rules*, int rid);
 
-	// Add a rule limiting the version of Vulkan required.
-	int (*Version)(VvVkBp_Rules*, uint32_t version);
+	// Remove a rule from a Rules. Should allow valid but nonexistant rids.
+	void (*remove)(VvVkBp_Rules*, int rid);
 
-	// Add a rule which requests a layer for the instance.
-	int (*Layer)(VvVkBp_Rules*, const char* layer);
+	// Add a rule limiting the min version of Vulkan needed.
+	int (*addVersion)(VvVkBp_Rules*, float, uint32_t version);
 
-	// Add an extension for the instance.
-	int (*InstanceExtension)(VvVkBp_Rules*, const char* ext);
+	// Add a rule which adds a layer to the Instance (and Device).
+	int (*addLayer)(VvVkBp_Rules*, float, const char* layer);
 
-	// Not really a rule, but set the applicationName and Version in AppInfo
-	void (*ApplicationInfo)(VvVkBp_Rules*, const char* name, uint32_t ver);
+	// Add a rule which adds an extension for the Instance.
+	int (*addInstExt)(VvVkBp_Rules*, float, const char* ext);
 
-	// Resolve the Instance from the rules, if possible.
-	// Returns 0 on success, or a valid rid on error, or <0 on fatal error.
-	int (*ResolveInstance)(VvVkBp_Rules*, VkInstance*);
+	// Add a rule which sets the AppInfo for Instance creation.
+	int (*addAppInfo)(VvVkBp_Rules*, float,
+		const char* name, uint32_t ver);
+
+	// Set the place to place the Instance after creation.
+	void (*setInstance)(VvVkBp_Rules*, VkInstance*);
 };
 
-// This implementation just selects the first one that works. Very crude.
-extern const Vv_VulkanBoilerplate vVvkbp_first;
+// This implementation chooses between options based on the sum of the pris
+// of the rules that would be satisified.
+extern const Vv_VulkanBoilerplate vVvkbp_sum;
 
 #endif // H_vivacious_vkbplate

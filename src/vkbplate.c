@@ -31,6 +31,8 @@ _Vv_STRUCT(Rule) {
 	int id;
 	Rule* next;
 	RuleType type;
+	float pri;
+	int satisfied;
 	union {
 		uint32_t version;	// RULE_VERSION
 		const char* layer;	// RULE_LAYER
@@ -41,25 +43,34 @@ _Vv_STRUCT(Rule) {
 struct VvVkBp_Rules {
 	Rule* headRule;	// This imp uses a linked-list approach for rules.
 	Rule* tailRule;
+
+	int appRule;
 	const char* appName;
 	uint32_t appVer;
 
 	const Vv_Vulkan* vkapi;
 	const VvVk_Binding* vkb;
+
+	VkInstance* inst;
 };
 
-static VvVkBp_Rules* Create(const Vv_Vulkan* vkapi, const VvVk_Binding* vkb) {
+static VvVkBp_Rules* create(const Vv_Vulkan* vkapi, const VvVk_Binding* vkb) {
 	VvVkBp_Rules* r = malloc(sizeof(VvVkBp_Rules));
 	r->headRule = NULL;
 	r->tailRule = NULL;
-	r->appName = "He didn't tell me :'(";
+
+	r->appRule = 0;
+	r->appName = "They said they would tell me :'(";
 	r->appVer = VK_MAKE_VERSION(0,0,0);
+
 	r->vkapi = vkapi;
 	r->vkb = vkb;
+
+	r->inst = NULL;
 	return r;
 }
 
-static void Destroy(VvVkBp_Rules* r) {
+static void destroy(VvVkBp_Rules* r) {
 	Rule* rule = r->headRule;
 	while(rule) {
 		Rule* next = rule->next;
@@ -69,7 +80,27 @@ static void Destroy(VvVkBp_Rules* r) {
 	free(r);
 }
 
-static void Remove(VvVkBp_Rules* r, int id) {
+static int resolveInst(VvVkBp_Rules*);
+
+static int resolve(VvVkBp_Rules* r) {
+	int res;
+	if(r->inst) res = resolveInst(r);
+	if(res) return res;
+	return 0;
+}
+
+static int satisfied(const VvVkBp_Rules* r, int rid) {
+	Rule* last = NULL;
+	Rule* rl =  r->headRule;
+	while(rl && rl->id < rid) {
+		last = rl;
+		rl = rl->next;
+	}
+	if(!rl || rl->id > rid) return 1;
+	else return rl->satisfied;
+}
+
+static void remove(VvVkBp_Rules* r, int id) {
 	Rule* last = NULL;
 	Rule* rl =  r->headRule;
 	while(rl && rl->id < id) {
@@ -83,47 +114,57 @@ static void Remove(VvVkBp_Rules* r, int id) {
 }
 
 // Internal function
-static Rule* newRule(VvVkBp_Rules* r) {
+static Rule* newRule(VvVkBp_Rules* r, float p) {
 	Rule* res = malloc(sizeof(Rule));
 	res->next = NULL;
+	res->satisfied = 0;
+	res->pri = p;
 	if(r->tailRule) {
 		res->id = r->tailRule->id + 1;
 		r->tailRule->next = res;
 	} else {
-		res->id = 1;
+		res->id = 2;	// rid 1 is reserved for the AppInfo rule
 		r->headRule = res;
 	}
 	r->tailRule = res;
 	return res;
 }
 
-static int Version(VvVkBp_Rules* r, uint32_t ver) {
-	Rule* rl = newRule(r);
+static int addVersion(VvVkBp_Rules* r, float p, uint32_t ver) {
+	Rule* rl = newRule(r, p);
 	rl->type = RULE_VERSION;
 	rl->version = ver;
 	return rl->id;
 }
 
-static int Layer(VvVkBp_Rules* r, const char* lay) {
-	Rule* rl = newRule(r);
+static int addLayer(VvVkBp_Rules* r, float p, const char* lay) {
+	Rule* rl = newRule(r, p);
 	rl->type = RULE_LAYER;
 	rl->layer = lay;
 	return rl->id;
 }
 
-static int InstanceExtension(VvVkBp_Rules* r, const char* ext) {
-	Rule* rl = newRule(r);
+static int addInstExt(VvVkBp_Rules* r, float p, const char* ext) {
+	Rule* rl = newRule(r, p);
 	rl->type = RULE_INST_EXT;
 	rl->inst_ext = ext;
 	return rl->id;
 }
 
-static void ApplicationInfo(VvVkBp_Rules* r, const char* n, uint32_t v) {
+static int addAppInfo(VvVkBp_Rules* r, float p, const char* n, uint32_t v) {
+	if(r->appRule) return 0;
+	r->appRule = 1;
 	r->appName = n;
 	r->appVer = v;
+	return 1;
 }
 
-static int ResolveInstance(VvVkBp_Rules* r, VkInstance* pi) {
+static void setInstance(VvVkBp_Rules* r, VkInstance* pinst) {
+	r->inst = pinst;
+}
+
+// Internal Function
+static int resolveInst(VvVkBp_Rules* r) {
 	const VvVk_1_0* vk = r->vkapi->core->vk_1_0(r->vkb);
 
 	uint32_t lpc;
@@ -204,19 +245,27 @@ static int ResolveInstance(VvVkBp_Rules* r, VkInstance* pi) {
 
 	VkApplicationInfo ai = {
 		VK_STRUCTURE_TYPE_APPLICATION_INFO, NULL,
-		r->appName, r->appVersion,
-		"Vivacious", VK_MAKE_VERSION()
+		r->appName, r->appVer,
+		"Vivacious", VK_MAKE_VERSION(Vv_VERSION_MAJOR,
+					Vv_VERSION_MINOR, Vv_VERSION_PATCH),
+		apiver,
 	};
-
-	return -1;
+	VkInstanceCreateInfo ici = {
+		VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO, NULL, 0,
+		&ai,
+		layc, lays,
+		extc, exts,
+	};
+	VkResult rs = vk->CreateInstance(&ici, NULL, r->inst);
+	if(rs < 0) return rs;
+	else return 0;
 }
 
-VvAPI const Vv_VulkanBoilerplate vVvkbp_first = {
-	Create, Destroy,
-	Remove,
-	Version, Layer, InstanceExtension,
-	ApplicationInfo,
-	ResolveInstance,
+VvAPI const Vv_VulkanBoilerplate vVvkbp_sum = {
+	create, destroy,
+	resolve, satisfied,
+	remove,
+	addVersion, addLayer, addInstExt, addAppInfo, setInstance,
 };
 
 #endif // Vv_ENABLE_VULKAN

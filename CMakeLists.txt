@@ -35,6 +35,8 @@ endif(X_ENABLE)
 set(CMAKE_C_VISIBILITY_PRESET hidden)
 set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 
+add_definitions(-DVv_VERSION_MAJOR=0 -DVv_VERSION_MINOR=0 -DVv_VERSION_PATCH=0)
+
 add_subdirectory(include)
 add_subdirectory(src)
 add_subdirectory(examples)
