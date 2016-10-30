@@ -5,6 +5,7 @@ set(SRC
 	cpdl.c
 	window/x.c
 	window/xcb.c
+	vkbplate.c
 )
 set(LUA
 	vulkan.lua

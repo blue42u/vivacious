@@ -3,6 +3,7 @@ set(GENS
 set(CPS
 	core.h
 	window.h
+	vkbplate.h
 )
 
 if(VULKAN_ENABLE)
