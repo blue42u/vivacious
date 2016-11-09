@@ -1,2 +1,2 @@
 add_subdirectory(vulkantest)
-add_subdirectory(vkbptest)
+add_subdirectory(vkbtest)

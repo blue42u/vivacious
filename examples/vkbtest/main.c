@@ -16,43 +16,41 @@
 
 #include <vivacious/vkbplate.h>
 #include <stdio.h>
+#include <stdlib.h>
 
-#define vkbp vVvkbp_sum		// Choose our imp.
+#include <unistd.h>
+
+#define vkb vVvkb_test		// Choose our imp.
 #define vVvk vVvk_lib
+
+void error(const char* m, VkResult r) {
+	if(r != 0) fprintf(stderr, "Error: %s! (%d)\n", m, r);
+	else fprintf(stderr, "Error: %s!\n", m);
+	exit(1);
+}
 
 int main() {
 	VvVk_Binding* bind = vVvk.Create();
 	const VvVk_1_0* vk = vVvk.core->vk_1_0(bind);
-	VvVkBp_Rules* rules = vkbp.create(&vVvk, bind);
-
-	int verid = vkbp.addVersion(rules, 0, VK_MAKE_VERSION(1,1,0));
-	int layid = vkbp.addLayer(rules, 0,
-		"VK_LAYER_LUNARG_standard_validation");
-	int extid = vkbp.addInstExt(rules, 0, "VK_KHR_surface");
-	int apid =  vkbp.addAppInfo(rules, 0, "Boilerplate Test",
+	VvVkB_InstInfo* ii = vkb.createInstInfo("VkBoilerplate Test",
 		VK_MAKE_VERSION(1,0,0));
 
+	vkb.setVersion(ii, VK_MAKE_VERSION(1,0,0));
+	vkb.addLayers(ii, (const char*[]){
+		"VK_LAYER_LUNARG_standard_validation", NULL });
+	vkb.addInstExtensions(ii, (const char*[]){
+		"VK_KHR_surface", "VK_KHR_xcb_surface", NULL });
+
 	VkInstance inst;
-	vkbp.setInstance(rules, &inst);
-
-	int err;
-	if((err = vkbp.resolve(rules))) {
-		fprintf(stderr, "Error resolving! (");
-		if(err < 0) fprintf(stderr, "general %d", err);
-		else {
-			if(err == verid) fprintf(stderr, "version");
-			else if(err == layid) fprintf(stderr, "layer");
-			else if(err == extid) fprintf(stderr, "inst ext");
-			else if(err == apid) fprintf(stderr, "appinfo");
-		}
-		fprintf(stderr, ")\n");
-		return 1;
-	}
-
-	fprintf(stderr, "Success! Now to clean up this mess...\n");
+	VkResult r = vkb.createInstance(vk, ii, &inst);
+	if(r<0) error("Could not create instance", r);
 
 	vVvk.LoadInstance(bind, inst, VK_FALSE);
 	vk->DestroyInstance(inst, NULL);
+
+	vVvk.Destroy(bind);
+
+	sleep(1);
 
 	return 0;
 }
