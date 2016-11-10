@@ -29,8 +29,8 @@ struct VvVkB_InstInfo {
 	int laycnt;
 	const char** lays;
 
-	int iextcnt;
-	const char** iexts;
+	int extcnt;
+	const char** exts;
 };
 
 static VvVkB_InstInfo* createInstInfo(const char* name, uint32_t ver) {
@@ -38,13 +38,13 @@ static VvVkB_InstInfo* createInstInfo(const char* name, uint32_t ver) {
 	*ii = (VvVkB_InstInfo) {
 		.appName = name, .appVer = ver,
 		.apiVer = 0,	// No particular version required
-		.laycnt = 0, .iextcnt = 0,
-		.lays = NULL, .iexts = NULL,	// No layers or exts yet.
+		.laycnt = 0, .extcnt = 0,
+		.lays = NULL, .exts = NULL,	// No layers or exts yet.
 	};
 	return ii;
 }
 
-static void setVer(VvVkB_InstInfo* ii, uint32_t ver) {
+static void setIVer(VvVkB_InstInfo* ii, uint32_t ver) {
 	ii->apiVer = ver;
 }
 
@@ -61,11 +61,11 @@ static void addLays(VvVkB_InstInfo* ii, const char** names) {
 static void addIExts(VvVkB_InstInfo* ii, const char** names) {
 	int cnt;
 	for(cnt = 0; names[cnt] != NULL; cnt++);
-	if(ii->iextcnt == 0) ii->iexts = malloc(cnt*sizeof(char*));
-	else ii->iexts = realloc(ii->iexts, (cnt+ii->iextcnt)*sizeof(char*));
+	if(ii->extcnt == 0) ii->exts = malloc(cnt*sizeof(char*));
+	else ii->exts = realloc(ii->exts, (cnt+ii->extcnt)*sizeof(char*));
 	for(int i=0; i<cnt; i++)
-		ii->iexts[ii->iextcnt + i] = names[i];
-	ii->iextcnt += cnt;
+		ii->exts[ii->extcnt + i] = names[i];
+	ii->extcnt += cnt;
 }
 
 static VkResult createInst(const VvVk_1_0* vk, VvVkB_InstInfo* ii,
@@ -84,21 +84,96 @@ static VkResult createInst(const VvVk_1_0* vk, VvVkB_InstInfo* ii,
 		},
 		.enabledLayerCount = ii->laycnt,
 		.ppEnabledLayerNames = ii->lays,
-		.enabledExtensionCount = ii->iextcnt,
-		.ppEnabledExtensionNames = ii->iexts,
+		.enabledExtensionCount = ii->extcnt,
+		.ppEnabledExtensionNames = ii->exts,
 	}, NULL, inst);
 
-	free(ii->lays);	free(ii->iexts);
+	free(ii->lays);	free(ii->exts);
 	free(ii);
+	return r;
+}
+
+struct VvVkB_DevInfo {
+	uint32_t ver;
+
+	int extcnt;
+	const char** exts;
+};
+
+static VvVkB_DevInfo* createDevInfo(uint32_t ver) {
+	VvVkB_DevInfo* di = malloc(sizeof(VvVkB_DevInfo));
+	*di = (VvVkB_DevInfo){
+		.ver = ver,
+		.extcnt = 0, .exts = NULL,	// No extensions yet
+	};
+	return di;
+}
+
+static void addDExts(VvVkB_DevInfo* di, const char** names) {
+	int cnt;
+	for(cnt = 0; names[cnt] != NULL; cnt++);
+	if(di->extcnt == 0) di->exts = malloc(cnt*sizeof(char*));
+	else di->exts = realloc(di->exts, (cnt+di->extcnt)*sizeof(char*));
+	for(int i=0; i<cnt; i++)
+		di->exts[di->extcnt + i] = names[i];
+	di->extcnt += cnt;
+}
+
+static VkResult choosePDev(const VvVk_1_0* vk, VvVkB_DevInfo* di,
+	VkInstance inst, VkPhysicalDevice* pdev) {
+	VkResult r;
+
+	uint32_t pdevcnt;
+	r = vk->EnumeratePhysicalDevices(inst, &pdevcnt, NULL);
+	if(r<0) return r;
+	VkPhysicalDevice* pdevs = malloc(pdevcnt*sizeof(VkPhysicalDevice));
+	r = vk->EnumeratePhysicalDevices(inst, &pdevcnt, pdevs);
+	if(r<0) {
+		free(pdevs);
+		return r;
+	}
+
+	for(int i=0; i<pdevcnt; i++) {
+		VkPhysicalDeviceProperties pdp;
+		vk->GetPhysicalDeviceProperties(pdevs[i], &pdp);
+		if(pdp.apiVersion >= di->ver) {
+			*pdev = pdevs[i];
+			free(pdevs);
+			return VK_SUCCESS;
+		}
+	}
+
+	free(pdevs);
+	return VK_ERROR_INCOMPATIBLE_DRIVER;
+}
+
+static VkResult createDev(const VvVk_1_0* vk, VvVkB_DevInfo* di,
+	VkInstance inst, VkPhysicalDevice* pdev, VkDevice* dev) {
+
+	VkResult r = choosePDev(vk, di, inst, pdev);
+	if(r >= 0) {
+		r = vk->CreateDevice(*pdev, &(VkDeviceCreateInfo){
+			.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+			.enabledExtensionCount = di->extcnt,
+			.ppEnabledExtensionNames = di->exts,
+		}, NULL, dev);
+
+		free(di->exts);
+		free(di);
+	}
 	return r;
 }
 
 VvAPI const Vv_VulkanBoilerplate vVvkb_test = {
 	.createInstInfo = createInstInfo,
-	.setVersion = setVer,
+	.setInstVersion = setIVer,
 	.addLayers = addLays,
 	.addInstExtensions = addIExts,
 	.createInstance = createInst,
+
+	.createDevInfo = createDevInfo,
+	.addDevExtensions = addDExts,
+	.createDevice = createDev,
 };
 
 #endif // Vv_ENABLE_VULKAN
