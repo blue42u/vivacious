@@ -98,6 +98,12 @@ struct VvVkB_DevInfo {
 
 	int extcnt;
 	const char** exts;
+
+	void* validudata;
+	VkBool32 (*valid)(void*, VkPhysicalDevice);
+
+	void* compudata;
+	VkBool32 (*comp)(void*, VkPhysicalDevice, VkPhysicalDevice);
 };
 
 static VvVkB_DevInfo* createDevInfo(uint32_t ver) {
@@ -105,6 +111,7 @@ static VvVkB_DevInfo* createDevInfo(uint32_t ver) {
 	*di = (VvVkB_DevInfo){
 		.ver = ver,
 		.extcnt = 0, .exts = NULL,	// No extensions yet
+		.valid = NULL, .comp = NULL,	// No custom functions yet
 	};
 	return di;
 }
@@ -117,6 +124,39 @@ static void addDExts(VvVkB_DevInfo* di, const char** names) {
 	for(int i=0; i<cnt; i++)
 		di->exts[di->extcnt + i] = names[i];
 	di->extcnt += cnt;
+}
+
+static void setValid(VvVkB_DevInfo* di, VkBool32 (*f)(void*,
+	VkPhysicalDevice), void* udata) {
+
+	di->validudata = udata;
+	di->valid = f;
+}
+
+static void setComp(VvVkB_DevInfo* di, VkBool32 (*f)(void*,
+	VkPhysicalDevice, VkPhysicalDevice), void* udata) {
+
+	di->compudata = udata;
+	di->comp = f;
+}
+
+static VkBool32 checkPDev(const VvVk_1_0* vk, VvVkB_DevInfo* di,
+	VkInstance inst, VkPhysicalDevice pdev) {
+
+	VkPhysicalDeviceProperties pdp;
+	vk->GetPhysicalDeviceProperties(pdev, &pdp);
+	if(pdp.apiVersion < di->ver) return VK_FALSE;
+
+	// The custom check is last, of course.
+	if(di->valid) return di->valid(di->validudata, pdev);
+	else return VK_TRUE;
+}
+
+static VkBool32 compPDevs(const VvVk_1_0* vk, VvVkB_DevInfo* di,
+	VkInstance inst, VkPhysicalDevice a, VkPhysicalDevice b) {
+
+	if(di->comp) return di->comp(di->compudata, a, b);
+	else return VK_FALSE;
 }
 
 static VkResult choosePDev(const VvVk_1_0* vk, VvVkB_DevInfo* di,
@@ -133,18 +173,18 @@ static VkResult choosePDev(const VvVk_1_0* vk, VvVkB_DevInfo* di,
 		return r;
 	}
 
+	*pdev = NULL;
 	for(int i=0; i<pdevcnt; i++) {
-		VkPhysicalDeviceProperties pdp;
-		vk->GetPhysicalDeviceProperties(pdevs[i], &pdp);
-		if(pdp.apiVersion >= di->ver) {
-			*pdev = pdevs[i];
-			free(pdevs);
-			return VK_SUCCESS;
+		VkPhysicalDevice pd = pdevs[i];
+		if(checkPDev(vk, di, inst, pd)) {
+			if(*pdev == NULL || compPDevs(vk, di, inst, pd, *pdev))
+				*pdev = pd;
 		}
 	}
 
 	free(pdevs);
-	return VK_ERROR_INCOMPATIBLE_DRIVER;
+	if(*pdev == NULL) return VK_ERROR_INCOMPATIBLE_DRIVER;
+	else return VK_SUCCESS;
 }
 
 static VkResult createDev(const VvVk_1_0* vk, VvVkB_DevInfo* di,
@@ -173,6 +213,8 @@ VvAPI const Vv_VulkanBoilerplate vVvkb_test = {
 
 	.createDevInfo = createDevInfo,
 	.addDevExtensions = addDExts,
+	.setValidity = setValid,
+	.setComparison = setComp,
 	.createDevice = createDev,
 };
 

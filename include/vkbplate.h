@@ -33,7 +33,8 @@ _Vv_STRUCT(Vv_VulkanBoilerplate) {
 	// <ver> is the reported version.
 	VvVkB_InstInfo* (*createInstInfo)(const char* name, uint32_t ver);
 
-	// Set the version of Vulkan to request for the Instance
+	// Set the minimum version of Vulkan to request for the Instance.
+	// Defaults to 0.
 	void (*setInstVersion)(VvVkB_InstInfo*, uint32_t version);
 
 	// Add some layers to the Instance.
@@ -56,6 +57,22 @@ _Vv_STRUCT(Vv_VulkanBoilerplate) {
 	// Add some extensions to the Device.
 	// <names> is a pointer to an array of strings with a NULL sentinal.
 	void (*addDevExtensions)(VvVkB_DevInfo*, const char** names);
+
+	// Set the custom validity check for the DevInfo.
+	// Defaults to a function that always returns VK_TRUE.
+	// <func> should return VK_TRUE if the given PhysicalDevice is usable
+	// by the application, VK_FALSE otherwise. <udata> is passed as the
+	// first argument to <func>.
+	void (*setValidity)(VvVkB_DevInfo*, VkBool32 (*func)(
+		void*, VkPhysicalDevice), void* udata);
+
+	// Set the custom comparison for the DevInfo.
+	// Defaults to a function that always returns VK_FALSE.
+	// <udata> is passed as the first argument to <func>.
+	// <func> should return VK_TRUE if <a> is "better" than <b>,
+	// VK_FALSE otherwise.
+	void (*setComparison)(VvVkB_DevInfo*, VkBool32 (*func)(
+		void*, VkPhysicalDevice a, VkPhysicalDevice b), void* udata);
 
 	// Create the Device, freeing the DevInfo in the process.
 	// Returns the VkResult from vkCreateDevice.

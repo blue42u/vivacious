@@ -33,6 +33,14 @@ void error(const char* m, VkResult r) {
 	exit(1);
 }
 
+VkBool32 valid(void* udata, VkPhysicalDevice pdev) {
+	const VvVk_1_0* vk = (const VvVk_1_0*)udata;
+	VkPhysicalDeviceProperties pdp;
+	vk->GetPhysicalDeviceProperties(pdev, &pdp);
+	printf("Checking validity of '%s'!\n", pdp.deviceName);
+	return pdp.limits.maxImageArrayLayers >= 2;
+}
+
 int main() {
 	VvVk_Binding* bind = vVvk.Create();
 	const VvVk_1_0* vk = vVvk.core->vk_1_0(bind);
@@ -55,6 +63,7 @@ int main() {
 	VvVkB_DevInfo* di = vkb.createDevInfo(VK_MAKE_VERSION(1,0,0));
 	vkb.addDevExtensions(di, (const char*[]){
 		"VK_KHR_swapchain", NULL });
+	vkb.setValidity(di, valid, vk);
 
 	VkPhysicalDevice pdev;
 	VkDevice dev;
