@@ -27,11 +27,23 @@ _Vv_TYPEDEF(VvVkB_InstInfo);
 // A handle which collects info on the Device to be created.
 _Vv_TYPEDEF(VvVkB_DevInfo);
 
+// A structure used to return the final Task information.
+_Vv_STRUCT(VvVkB_TaskInfo) {
+	VkQueueFlags flags;
+	uint32_t family;
+	uint32_t index;
+};
+
 _Vv_STRUCT(Vv_VulkanBoilerplate) {
 	// Allocate some space for the InstInfo.
 	// <name> is the reported name of the application, and
 	// <ver> is the reported version.
 	VvVkB_InstInfo* (*createInstInfo)(const char* name, uint32_t ver);
+
+	// Create the Instance, freeing the InstInfo in the process.
+	// Returns the VkResult from vkCreateInstance.
+	VkResult (*createInstance)(const VvVk_1_0*, VvVkB_InstInfo*,
+		VkInstance*);
 
 	// Set the minimum version of Vulkan to request for the Instance.
 	// Defaults to 0.
@@ -45,14 +57,17 @@ _Vv_STRUCT(Vv_VulkanBoilerplate) {
 	// <names> is a pointer to an array of strings with a NULL sentinal.
 	void (*addInstExtensions)(VvVkB_InstInfo*, const char** names);
 
-	// Create the Instance, freeing the InstInfo in the process.
-	// Returns the VkResult from vkCreateInstance.
-	VkResult (*createInstance)(const VvVk_1_0*, VvVkB_InstInfo*,
-		VkInstance*);
-
 	// Allocate some space for a DevInfo.
 	// <ver> is the minimum allowed API version for the PhysicalDevice.
 	VvVkB_DevInfo* (*createDevInfo)(uint32_t ver);
+
+	// Create the Device, freeing the DevInfo in the process.
+	// Returns the VkResult from vkCreateDevice.
+	// <tasks> should point to an array of TaskInfo of a size greater than
+	// or equal to the count returned by getTaskCount.
+	VkResult (*createDevice)(const VvVk_1_0*, VvVkB_DevInfo*,
+		VkInstance, VkPhysicalDevice*, VkDevice*,
+		VvVkB_TaskInfo* tasks);
 
 	// Add some extensions to the Device.
 	// <names> is a pointer to an array of strings with a NULL sentinal.
@@ -63,7 +78,7 @@ _Vv_STRUCT(Vv_VulkanBoilerplate) {
 	// <func> should return VK_TRUE if the given PhysicalDevice is usable
 	// by the application, VK_FALSE otherwise. <udata> is passed as the
 	// first argument to <func>.
-	void (*setValidity)(VvVkB_DevInfo*, VkBool32 (*func)(
+	void (*setValidity)(VvVkB_DevInfo*, VkBool32 (*func)(const VvVk_1_0*,
 		void*, VkPhysicalDevice), void* udata);
 
 	// Set the custom comparison for the DevInfo.
@@ -71,13 +86,23 @@ _Vv_STRUCT(Vv_VulkanBoilerplate) {
 	// <udata> is passed as the first argument to <func>.
 	// <func> should return VK_TRUE if <a> is "better" than <b>,
 	// VK_FALSE otherwise.
-	void (*setComparison)(VvVkB_DevInfo*, VkBool32 (*func)(
+	void (*setComparison)(VvVkB_DevInfo*, VkBool32 (*func)(const VvVk_1_0*,
 		void*, VkPhysicalDevice a, VkPhysicalDevice b), void* udata);
 
-	// Create the Device, freeing the DevInfo in the process.
-	// Returns the VkResult from vkCreateDevice.
-	VkResult (*createDevice)(const VvVk_1_0*, VvVkB_DevInfo*,
-		VkInstance, VkPhysicalDevice*, VkDevice*);
+	// Add some tasks to the DevInfo.
+	// <tasks> is an array with a 0-filled sentinal.
+	// <indices> is an array of the same size, which will be filled with
+	// the final indices of the queues requested in <tasks>.
+	// The <tasks[i].index> member is ignored.
+	// The <tasks[i].family> member is an identifier which is the same
+	// between tasks which MUST share queue families.
+	// The <tasks[i].flags> member specifies the types of queue operations
+	// the queue MUST be able to do.
+	void (*addTasks)(VvVkB_DevInfo*, const VvVkB_TaskInfo* tasks,
+		uint32_t* indices);
+
+	// Get the number of tasks in the DevInfo (so far).
+	uint32_t (*getTaskCount)(VvVkB_DevInfo*);
 };
 
 // TEST test, test Test test.

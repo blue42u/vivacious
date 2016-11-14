@@ -33,8 +33,7 @@ void error(const char* m, VkResult r) {
 	exit(1);
 }
 
-VkBool32 valid(void* udata, VkPhysicalDevice pdev) {
-	const VvVk_1_0* vk = (const VvVk_1_0*)udata;
+VkBool32 valid(const VvVk_1_0* vk, void* udata, VkPhysicalDevice pdev) {
 	VkPhysicalDeviceProperties pdp;
 	vk->GetPhysicalDeviceProperties(pdev, &pdp);
 	printf("Checking validity of '%s'!\n", pdp.deviceName);
@@ -63,14 +62,26 @@ int main() {
 	VvVkB_DevInfo* di = vkb.createDevInfo(VK_MAKE_VERSION(1,0,0));
 	vkb.addDevExtensions(di, (const char*[]){
 		"VK_KHR_swapchain", NULL });
-	vkb.setValidity(di, valid, vk);
+	vkb.setValidity(di, valid, NULL);
+
+	uint32_t inds[2];
+	vkb.addTasks(di, (const VvVkB_TaskInfo[]){
+		{VK_QUEUE_GRAPHICS_BIT, 1},
+		{VK_QUEUE_TRANSFER_BIT, 2},
+		{}
+	}, inds);
 
 	VkPhysicalDevice pdev;
 	VkDevice dev;
-	r = vkb.createDevice(vk, di, inst, &pdev, &dev);
+	VvVkB_TaskInfo* tasks = malloc(vkb.getTaskCount(di)*sizeof(VvVkB_TaskInfo));
+	r = vkb.createDevice(vk, di, inst, &pdev, &dev, tasks);
 	if(r<0) error("Could not create device", r);
 	vVvk.LoadDevice(bind, dev, VK_TRUE);
 
+	printf("%d[%d] and %d[%d]\n", tasks[0].family, tasks[0].index,
+		tasks[1].family, tasks[1].index);
+
+	free(tasks);
 	endDebug(inst);
 	vk->DestroyDevice(dev, NULL);
 	vk->DestroyInstance(inst, NULL);
