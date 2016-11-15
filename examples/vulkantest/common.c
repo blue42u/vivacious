@@ -25,20 +25,20 @@ void error(const char* format, ...) {
 	exit(1);
 }
 
-const VvVk_1_0* vk;
-const VvVk_KHR_surface* vks;
-const VvVk_KHR_swapchain* vkc;
-VvVk_Binding* vkb;
+VvVk_1_0* vk;
+VvVk_KHR_surface* vks;
+VvVk_KHR_swapchain* vkc;
+VvVk_Binding vkb;
 
 struct Common com;
 
 void loadVulkan() {
-	vkb = vkapi.Create();
-	vk = vkapi.core->vk_1_0(vkb);
-	vks = vkapi.ext->KHR_surface(vkb);
-	vkc = vkapi.ext->KHR_swapchain(vkb);
+	vkapi.allocate(&vkb);
+	vk = vkb.core->vk_1_0;
+	vks = vkb.ext->KHR_surface;
+	vkc = vkb.ext->KHR_swapchain;
 }
 
 void unloadVulkan() {
-	vkapi.Destroy(vkb);
+	vkapi.free(&vkb);
 }

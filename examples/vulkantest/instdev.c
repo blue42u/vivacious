@@ -38,7 +38,7 @@ void createInst() {
 	};
 	VkResult r = vk->CreateInstance(&ico, NULL, &com.inst);
 	if(r<0) error("Error creating instance: %d!\n", r);
-	vkapi.LoadInstance(vkb, com.inst, VK_FALSE);
+	vkapi.loadInst(&vkb, com.inst, VK_FALSE);
 }
 
 void createDev() {
@@ -98,7 +98,7 @@ void createDev() {
 	};
 	r = vk->CreateDevice(com.pdev, &dci, NULL, &com.dev);
 	if(r<0) error("Error creating device: %d!\n", r);
-	vkapi.LoadDevice(vkb, com.dev, VK_TRUE);
+	vkapi.loadDev(&vkb, com.dev, VK_TRUE);
 
 	vk->GetDeviceQueue(com.dev, com.qfam, 0, &com.queue);
 }

@@ -24,7 +24,7 @@ local dom = require('slaxdom'):dom(xml, {stripWhitespace=true})
 io.output(arg[1])
 local function out(s) io.write(s..'\n') end
 local function fout(s, ...)
-local repl = {}
+	local repl = {}
 	for _,t in ipairs(table.pack(...)) do
 		for k,v in pairs(t) do
 			repl[k] = v
@@ -37,7 +37,7 @@ end
 local ids,coreord,extord = {},{},{}
 local cmdids = {}
 for _,t in cpairs(dom.root, {name='feature'}) do
-	local id = 'vk'..string.gsub(t.attr.number, '%.', '_')
+	local id = 'vk_'..string.gsub(t.attr.number, '%.', '_')
 	ids[t.attr.name] = id
 	table.insert(coreord, {t.attr.number, t.attr.name})
 	cmdids[id] = {}
@@ -93,11 +93,16 @@ for c,t in pairs(cmdtypes) do
 end
 
 local function rep(cat, f, fall, id, const)
+	local var
 	if not id then
 		for const,id in pairs(ids) do
 			rep(cat, f, fall, id, const)
 		end
 		return
+	elseif string.sub(id, 1,3) == 'vk_' then
+		var = 'core->'..id
+	else
+		var = 'ext->'..id
 	end
 
 	if fall == nil then fall = f end
@@ -106,7 +111,7 @@ local function rep(cat, f, fall, id, const)
 		if cmdcats[c] == cat then
 			local n = string.sub(c,3)
 			out([[
-		vkb->]]..id..[[.]]..n..[[ = ]]..
+		bind->]]..var..[[->]]..n..[[ = ]]..
 			string.gsub(f, '`', n)..[[;]])
 		end
 	end
@@ -116,7 +121,7 @@ local function rep(cat, f, fall, id, const)
 			if cmdcats[c] > cat then
 				local n = string.sub(c,3)
 				out([[
-				vkb->]]..id..[[.]]..n..[[ = ]]..
+				bind->]]..var..[[->]]..n..[[ = ]]..
 					string.gsub(fall, '`', n)..[[;]])
 			end
 		end
@@ -126,7 +131,7 @@ local function rep(cat, f, fall, id, const)
 			if cmdcats[c] > cat then
 				local n = string.sub(c,3)
 				out([[
-			vkb->]]..id..[[.]]..n..[[ = NULL;]])
+		bind->]]..var..[[->]]..n..[[ = NULL;]])
 			end
 		end
 	end
@@ -159,116 +164,77 @@ out([[
 #include <stdlib.h>
 #include <string.h>
 
-struct VvVk_Binding {
-	void* libvk;
-	PFN_vkGetInstanceProcAddr gipa;]])
-for _,t in cpairs(dom.root, {name='feature'}) do
-	local ver = string.gsub(t.attr.number, '%.', '_')
-	fout([[
-#ifdef `const`
-	VvVk_`ver` vk`ver`;
-#endif]], {ver=ver, const=t.attr.name})
-end
-for _,t in cpairs(first(dom.root, {name='extensions'}), {name='extension',
-	attr={supported='vulkan'}}) do
-	local name = string.match(t.attr.name, 'VK_(.*)')
-	fout([[
-#ifdef `const`
-	VvVk_`name` `name`;
-#endif]], {name=name, const=t.attr.name})
-end
-out([[
-};
-
-static VvVk_Binding* Create() {
+static void allocate(VvVk_Binding* bind) {
 	void* libvk = _vVopendl("libvulkan.so", "libvulkan.dynlib",
 		"vulkan-1.dll");
-	if(!libvk) return NULL;
+	if(!libvk) return;
 
 	PFN_vkGetInstanceProcAddr gipa = _vVsymdl(libvk,
 		"vkGetInstanceProcAddr");
 	if(!gipa) {
 		_vVclosedl(libvk);
-		return NULL;
+		return;
 	}
 
-	VvVk_Binding* vkb = malloc(sizeof(VvVk_Binding));
-	vkb->libvk = libvk;
-	vkb->gipa = gipa;
+	bind->internal = libvk;
+	bind->core = malloc(sizeof(VvVk_Core));
+	bind->ext = malloc(sizeof(VvVk_Ext));
 ]])
+for const,id in pairs(ids) do
+	if id:sub(1,3) == 'vk_' then
+		fout([[
+#ifdef `const`
+	bind->core->`id` = malloc(sizeof(`type`));
+	bind->core->`id`->GetInstanceProcAddr = gipa;
+#else
+	bind->core->`id` = NULL;
+#endif
+]], {const=const, id=id, type='VvVk_'..id:sub(4)})
+	else
+		fout([[
+#ifdef `const`
+	bind->ext->`id` = malloc(sizeof(`type`));
+#else
+	bind->ext->`id` = NULL;
+#endif
+]], {const=const, id=id, type='VvVk_'..id})
+	end
+end
 rep(0, '(PFN_vk`)gipa(NULL, "vk`")', false)
 out([[
-	return vkb;
 }
 
-static void Destroy(VvVk_Binding* vkb) {
-	_vVclosedl(vkb->libvk);
-	free(vkb);
-}
-
-static void LoadInstance(VvVk_Binding* vkb, VkInstance inst, VkBool32 all) {
-]])
-rep(1, '(PFN_vk`)vkb->gipa(inst, "vk`")')
-out([[
-}
-
-static void LoadDevice(VvVk_Binding* vkb, VkDevice dev, VkBool32 all) {
-]])
-rep(2, '(PFN_vk`)vkb->vk1_0.GetDeviceProcAddr(dev, "vk`")')
-out([[
-}
-
-static const void* getNull(const VvVk_Binding* dummy) {
-	return NULL;
-}
-]])
-
+static void freebind(VvVk_Binding* bind) {]])
 for const,id in pairs(ids) do
-	local n = id
-	if string.sub(n,1,2) == 'vk' then
-		n = string.sub(n, 3)
-	end
 	fout([[
-#ifdef `const`
-static const VvVk_`n`* getVulkan_`n`(const VvVk_Binding* vkb) {
-	return &vkb->`id`;
+	free(bind->`section`->`id`);
+]], {const=const, id=id, section=(id:sub(1,3) == 'vk_') and 'core' or 'ext'})
+end
+out([[
+	free(bind->core);
+	free(bind->ext);
+	_vVclosedl(bind->internal);
 }
-#else
-#define getVulkan_`n` getNull
-#endif
-]], {n=n, id=id, const=const})
-end
 
-out([[
-static const VvVk_Core vkcore = {]])
-for _,const in ipairs(coreord) do
-	local n = ids[const]
-	if string.sub(n,1,2) == 'vk' then
-		n = string.sub(n, 3)
-		out('\tgetVulkan_'..n..',')
-	end
-end
-out([[
-};
+static void loadI(VvVk_Binding* bind, VkInstance inst, VkBool32 all) {
+	PFN_vkGetInstanceProcAddr gipa = bind->core->vk_1_0->GetInstanceProcAddr;
 ]])
+rep(1, '(PFN_vk`)gipa(inst, "vk`")')
+out([[
+}
 
-out([[
-static const VvVk_Ext vkext = {]])
-for _,const in ipairs(extord) do
-	local n = ids[const]
-	if string.sub(n,1,2) ~= 'vk' then
-		out('\tgetVulkan_'..n..',')
-	end
-end
-out([[
-};
+static void loadD(VvVk_Binding* bind, VkDevice dev, VkBool32 all) {
+	PFN_vkGetDeviceProcAddr gdpa = bind->core->vk_1_0->GetDeviceProcAddr;
 ]])
-
+rep(2, '(PFN_vk`)gdpa(dev, "vk`")')
 out([[
+}
+
 VvAPI const Vv_Vulkan vVvk_lib = {
-	Create, Destroy,
-	LoadInstance, LoadDevice,
-	&vkcore, &vkext,
+	.allocate = allocate,
+	.free = freebind,
+	.loadInst = loadI,
+	.loadDev = loadD,
 };
 ]])
 

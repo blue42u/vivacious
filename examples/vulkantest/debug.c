@@ -80,7 +80,7 @@ static const VvVk_EXT_debug_report* vkdr;
 static VkDebugReportCallbackEXT drc;
 
 void startDebug() {
-	vkdr = vkapi.ext->EXT_debug_report(vkb);
+	vkdr = vkb.ext->EXT_debug_report;
 	VkDebugReportCallbackCreateInfoEXT drcci = {
 		VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT,
 		NULL,

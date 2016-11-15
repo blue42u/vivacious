@@ -33,7 +33,7 @@ void createWindow() {
 	winapi.ShowWindow(win);
 
 	VkResult r = winapi.CreateVkSurface(win, com.inst, &com.surf,
-		&vkapi, vkb);
+		&vkapi, &vkb);
 	if(r<0) error("Error creating surface: %d!\n", r);
 }
 

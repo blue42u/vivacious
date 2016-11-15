@@ -52,8 +52,9 @@ for _,t in cpairs(dom.root, {name='feature',attr={api='vulkan'}}) do
 	local ver = maj..'_'..min
 
 	fout([[
+_Vv_TYPEDEF(VvVk_`ver`);
 #ifdef `const`
-_Vv_STRUCT(VvVk_`ver`) {]], {const=const, ver=ver})
+struct VvVk_`ver` {]], {const=const, ver=ver})
 
 	for _,r in cpairs(t, {name='require'}) do
 		for _,c in cpairs(r, {name='command'}) do
@@ -70,14 +71,14 @@ _Vv_STRUCT(VvVk_`ver`) {]], {const=const, ver=ver})
 ]], {const=const, ver=ver})
 end
 
-for _,t in cpairs(first(dom.root, {name='extensions'}), {name='extension',
-	attr={supported='vulkan'}}) do
+for _,t in cpairs(first(dom.root, {name='extensions'}), {name='extension'}) do
 	local const = t.attr.name
 	local name = string.match(const, 'VK_(.*)')
 
 	fout([[
+_Vv_TYPEDEF(VvVk_`name`);
 #ifdef `const`
-_Vv_STRUCT(VvVk_`name`) {]], {const=const, name=name})
+struct VvVk_`name` {]], {const=const, name=name})
 
 	for _,r in cpairs(t, {name='require'}) do
 		for _,c in cpairs(r, {name='command'}) do
@@ -95,11 +96,6 @@ _Vv_STRUCT(VvVk_`name`) {]], {const=const, name=name})
 end
 
 out([[
-// A VulkanBinding is the opaque container for all the supported Vulkan
-// commands. The getters for this return references into its internal
-// structure, so updating the binding should update the references.
-_Vv_TYPEDEF(VvVk_Binding);
-
 _Vv_STRUCT(VvVk_Core) {]])
 local pieces = {}
 for _,t in cpairs(dom.root, {name='feature',attr={api='vulkan'}}) do
@@ -107,11 +103,7 @@ for _,t in cpairs(dom.root, {name='feature',attr={api='vulkan'}}) do
 	local maj,min = string.match(t.attr.number, '(%d+)%.(%d+)')
 	local ver = maj..'_'..min
 	table.insert(pieces, {ver, string.gsub([[
-#ifdef `const`
-	const VvVk_`ver`* (*vk_`ver`)(const VvVk_Binding*);
-#else
-	const void* (*vk_`ver`)(const VvVk_Binding*);
-#endif
+	VvVk_`ver`* vk_`ver`;
 ]], '`(%w*)`', {const=const, ver=ver})})
 end
 table.sort(pieces, function(a,b) return a[1] < b[1] end)
@@ -126,47 +118,38 @@ local pieces = {}
 for _,t in cpairs(first(dom.root, {name='extensions'}), {name='extension'}) do
 	local const = t.attr.name
 	local name = string.match(const, 'VK_(.*)')
-	if t.attr.supported == 'disabled' then
-		table.insert(pieces, {tonumber(t.attr.number), string.gsub([[
-	const void* (*`name`)(const VvVk_Binding*);
+	table.insert(pieces, {tonumber(t.attr.number), string.gsub([[
+	VvVk_`name`* `name`;
 ]], '`(%w*)`', {const=const, name=name, numb=t.attr.number})})
-	else
-		table.insert(pieces, {tonumber(t.attr.number), string.gsub([[
-#ifdef `const`	// `numb`
-	const VvVk_`name`* (*`name`)(const VvVk_Binding*);
-#else
-	const void* (*`name`)(const VvVk_Binding*);
-#endif
-]], '`(%w*)`', {const=const, name=name, numb=t.attr.number})})
-	end
 end
 table.sort(pieces, function(a,b) return a[1] < b[1] end)
 for i,v in ipairs(pieces) do pieces[i] = v[2] end
 out(table.concat(pieces)..[[
 };
 
-_Vv_STRUCT(Vv_Vulkan) {
-	// Create a new VulkanBinding.
-	VvVk_Binding* (*Create)();
+// Just to make things easier, one struct to rule them all.
+_Vv_STRUCT(VvVk_Binding) {
+	VvVk_Core* core;
+	VvVk_Ext* ext;
+	void* internal;		// To give the imp somewhere for its stuff
+};
 
-	// Destroy a VulkanBinding.
-	void (*Destroy)(VvVk_Binding*);
+_Vv_STRUCT(Vv_Vulkan) {
+	// Allocate space for the PFNs in a Binding.
+	void (*allocate)(VvVk_Binding*);
+
+	// Free the space for the PFNs in a Binding.
+	void (*free)(VvVk_Binding*);
 
 	// Load the commands which directly require an instance before use.
 	// If <all> is true, this will also load those which indirectly require
 	// an instance. After this, all command use is limited to <inst>.
-	void (*LoadInstance)(VvVk_Binding*, VkInstance inst, VkBool32 all);
+	void (*loadInst)(VvVk_Binding*, VkInstance inst, VkBool32 all);
 
 	// Load the commands which directly require a device before use.
 	// If <all> is true, this will also load those which indirectly require
 	// a device. After this, all command use is limited to <dev>.
-	void (*LoadDevice)(VvVk_Binding*, VkDevice dev, VkBool32 all);
-
-	// This has the versioned getters for the core Vulkan PFNs.
-	const VvVk_Core* core;
-
-	// This has the getters for the extension Vulkan PFNs.
-	const VvVk_Ext* ext;
+	void (*loadDev)(VvVk_Binding*, VkDevice dev, VkBool32 all);
 };
 extern const Vv_Vulkan vVvk_lib;
 
