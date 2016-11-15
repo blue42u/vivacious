@@ -78,7 +78,7 @@ _Vv_STRUCT(Vv_VulkanBoilerplate) {
 	// <func> should return VK_TRUE if the given PhysicalDevice is usable
 	// by the application, VK_FALSE otherwise. <udata> is passed as the
 	// first argument to <func>.
-	void (*setValidity)(VvVkB_DevInfo*, VkBool32 (*func)(const VvVk_1_0*,
+	void (*setValidity)(VvVkB_DevInfo*, VkBool32 (*func)(
 		void*, VkPhysicalDevice), void* udata);
 
 	// Set the custom comparison for the DevInfo.
@@ -86,7 +86,7 @@ _Vv_STRUCT(Vv_VulkanBoilerplate) {
 	// <udata> is passed as the first argument to <func>.
 	// <func> should return VK_TRUE if <a> is "better" than <b>,
 	// VK_FALSE otherwise.
-	void (*setComparison)(VvVkB_DevInfo*, VkBool32 (*func)(const VvVk_1_0*,
+	void (*setComparison)(VvVkB_DevInfo*, VkBool32 (*func)(
 		void*, VkPhysicalDevice a, VkPhysicalDevice b), void* udata);
 
 	// Add some tasks to the DevInfo.

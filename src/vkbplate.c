@@ -107,11 +107,10 @@ struct VvVkB_DevInfo {
 	const char** exts;
 
 	void* validudata;
-	VkBool32 (*valid)(const VvVk_1_0*, void*, VkPhysicalDevice);
+	VkBool32 (*valid)(void*, VkPhysicalDevice);
 
 	void* compudata;
-	VkBool32 (*comp)(const VvVk_1_0*, void*, VkPhysicalDevice,
-		VkPhysicalDevice);
+	VkBool32 (*comp)(void*, VkPhysicalDevice, VkPhysicalDevice);
 
 	uint32_t taskcnt;
 	uint32_t familycnt;
@@ -140,15 +139,15 @@ static void addDExts(VvVkB_DevInfo* di, const char** names) {
 	di->extcnt += cnt;
 }
 
-static void setValid(VvVkB_DevInfo* di, VkBool32 (*f)(const VvVk_1_0*, void*,
-	VkPhysicalDevice), void* udata) {
+static void setValid(VvVkB_DevInfo* di, VkBool32 (*f)(
+	void*, VkPhysicalDevice), void* udata) {
 
 	di->validudata = udata;
 	di->valid = f;
 }
 
-static void setComp(VvVkB_DevInfo* di, VkBool32 (*f)(const VvVk_1_0*, void*,
-	VkPhysicalDevice, VkPhysicalDevice), void* udata) {
+static void setComp(VvVkB_DevInfo* di, VkBool32 (*f)(
+	void*, VkPhysicalDevice, VkPhysicalDevice), void* udata) {
 
 	di->compudata = udata;
 	di->comp = f;
@@ -228,14 +227,14 @@ static VkBool32 checkPDev(const VvVk_1_0* vk, VvVkB_DevInfo* di,
 	free(qfp);
 
 	// The custom check is last, of course.
-	if(di->valid) return di->valid(vk, di->validudata, pdev);
+	if(di->valid) return di->valid(di->validudata, pdev);
 	else return VK_TRUE;
 }
 
 static VkBool32 compPDevs(const VvVk_1_0* vk, VvVkB_DevInfo* di,
 	VkInstance inst, VkPhysicalDevice a, VkPhysicalDevice b) {
 
-	if(di->comp) return di->comp(vk, di->compudata, a, b);
+	if(di->comp) return di->comp(di->compudata, a, b);
 	else return VK_FALSE;
 }
 

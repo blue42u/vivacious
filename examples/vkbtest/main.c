@@ -18,8 +18,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <unistd.h>
-
 #define vkb vVvkb_test		// Choose our imp.
 #define vVvk vVvk_lib
 
@@ -33,16 +31,29 @@ void error(const char* m, VkResult r) {
 	exit(1);
 }
 
-VkBool32 valid(const VvVk_1_0* vk, void* udata, VkPhysicalDevice pdev) {
+const VvVk_1_0* vk;
+
+VkBool32 valid(void* udata, VkPhysicalDevice pdev) {
 	VkPhysicalDeviceProperties pdp;
 	vk->GetPhysicalDeviceProperties(pdev, &pdp);
-	printf("Checking validity of '%s'!\n", pdp.deviceName);
 	return pdp.limits.maxImageArrayLayers >= 2;
 }
 
-int main() {
-	VvVk_Binding* bind = vVvk.Create();
-	const VvVk_1_0* vk = vVvk.core->vk_1_0(bind);
+VvVk_Binding* bind;
+VkInstance inst;
+VkPhysicalDevice pdev;
+VkDevice dev;
+
+const VvVkB_TaskInfo intasks[] = {
+	{VK_QUEUE_GRAPHICS_BIT, 1},
+	{VK_QUEUE_TRANSFER_BIT, 2},
+	{}
+};
+VkQueue qs[2];
+
+void setupVk() {
+	bind = vVvk.Create();
+	vk = vVvk.core->vk_1_0(bind);
 	VvVkB_InstInfo* ii = vkb.createInstInfo("VkBoilerplate Test",
 		VK_MAKE_VERSION(1,0,0));
 
@@ -53,7 +64,6 @@ int main() {
 		"VK_KHR_surface", "VK_KHR_xcb_surface",
 		"VK_EXT_debug_report", NULL });
 
-	VkInstance inst;
 	VkResult r = vkb.createInstance(vk, ii, &inst);
 	if(r<0) error("Could not create instance", r);
 	vVvk.LoadInstance(bind, inst, VK_FALSE);
@@ -64,30 +74,29 @@ int main() {
 		"VK_KHR_swapchain", NULL });
 	vkb.setValidity(di, valid, NULL);
 
-	uint32_t inds[2];
-	vkb.addTasks(di, (const VvVkB_TaskInfo[]){
-		{VK_QUEUE_GRAPHICS_BIT, 1},
-		{VK_QUEUE_TRANSFER_BIT, 2},
-		{}
-	}, inds);
+	uint32_t inds[(sizeof(intasks)/sizeof(VvVkB_TaskInfo)) - 1];
+	vkb.addTasks(di, intasks, inds);
 
-	VkPhysicalDevice pdev;
-	VkDevice dev;
 	VvVkB_TaskInfo* tasks = malloc(vkb.getTaskCount(di)*sizeof(VvVkB_TaskInfo));
 	r = vkb.createDevice(vk, di, inst, &pdev, &dev, tasks);
 	if(r<0) error("Could not create device", r);
 	vVvk.LoadDevice(bind, dev, VK_TRUE);
 
-	printf("%d[%d] and %d[%d]\n", tasks[0].family, tasks[0].index,
-		tasks[1].family, tasks[1].index);
-
+	vk->GetDeviceQueue(dev, tasks[0].family, tasks[0].index, &qs[0]);
+	vk->GetDeviceQueue(dev, tasks[1].family, tasks[1].index, &qs[1]);
 	free(tasks);
-	endDebug(inst);
+}
+
+void shutdownVk() {
 	vk->DestroyDevice(dev, NULL);
+	endDebug(inst);
 	vk->DestroyInstance(inst, NULL);
 	vVvk.Destroy(bind);
+}
 
-	sleep(1);
-
+int main() {
+	setupVk();
+	// Do stuff
+	shutdownVk();
 	return 0;
 }
