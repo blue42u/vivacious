@@ -117,19 +117,22 @@ static void SetTitle(VvWi_Window* w, const char* name) {
 
 #if defined(Vv_ENABLE_VULKAN) && defined(VK_KHR_xcb_surface)
 static int CreateVkSurface(VvWi_Window* w, void* inst, void* psurf,
-	const Vv_Vulkan* vkapi, const VvVk_Binding* vkb) {
-	const VvVk_KHR_xcb_surface* vk = vkapi->ext->KHR_xcb_surface(vkb);
-	if(!vk || !vk->CreateXcbSurfaceKHR)
+	const VvVk_Binding* vkb) {
+
+	if(!vkb->ext->KHR_xcb_surface ||
+		!vkb->ext->KHR_xcb_surface->CreateXcbSurfaceKHR)
 		return VK_ERROR_EXTENSION_NOT_PRESENT;
 	VkXcbSurfaceCreateInfoKHR xsci = {
 		VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR, NULL,
 		0, w->c->conn, w->id,
 	};
-	return vk->CreateXcbSurfaceKHR(inst, &xsci, NULL, psurf);
+	return vkb->ext->KHR_xcb_surface
+		->CreateXcbSurfaceKHR(inst, &xsci, NULL, psurf);
 }
 #else
 static int CreateVkSurface(VvWi_Window* w, void* inst, void* psurf,
-	const Vv_Vulkan* vkapi, const VvVk_Binding* vkb) {
+	const VvVk_Binding* vkb) {
+
 	return -7;	// VK_ERROR_EXTENSION_NOT_PRESENT
 }
 #endif

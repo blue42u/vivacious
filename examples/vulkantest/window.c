@@ -32,8 +32,7 @@ void createWindow() {
 	winapi.SetTitle(win, "Example Vulkan Thing!");
 	winapi.ShowWindow(win);
 
-	VkResult r = winapi.CreateVkSurface(win, com.inst, &com.surf,
-		&vkapi, &vkb);
+	VkResult r = winapi.CreateVkSurface(win, com.inst, &com.surf, &vkb);
 	if(r<0) error("Error creating surface: %d!\n", r);
 }
 
