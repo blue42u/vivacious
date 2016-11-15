@@ -22,7 +22,7 @@
 #define vVvk vVvk_lib
 
 // Stuff from debug.c
-void startDebug(const Vv_Vulkan*, const VvVk_Binding*, VkInstance);
+void startDebug(const VvVk_Binding*, VkInstance);
 void endDebug(VkInstance);
 
 void error(const char* m, VkResult r) {
@@ -31,7 +31,7 @@ void error(const char* m, VkResult r) {
 	exit(1);
 }
 
-const VvVk_1_0* vk;
+VvVk_1_0* vk;
 
 VkBool32 valid(void* udata, VkPhysicalDevice pdev) {
 	VkPhysicalDeviceProperties pdp;
@@ -39,7 +39,7 @@ VkBool32 valid(void* udata, VkPhysicalDevice pdev) {
 	return pdp.limits.maxImageArrayLayers >= 2;
 }
 
-VvVk_Binding* bind;
+VvVk_Binding bind;
 VkInstance inst;
 VkPhysicalDevice pdev;
 VkDevice dev;
@@ -52,8 +52,8 @@ const VvVkB_TaskInfo intasks[] = {
 VkQueue qs[2];
 
 void setupVk() {
-	bind = vVvk.Create();
-	vk = vVvk.core->vk_1_0(bind);
+	vVvk.allocate(&bind);
+	vk = bind.core->vk_1_0;
 	VvVkB_InstInfo* ii = vkb.createInstInfo("VkBoilerplate Test",
 		VK_MAKE_VERSION(1,0,0));
 
@@ -66,8 +66,8 @@ void setupVk() {
 
 	VkResult r = vkb.createInstance(vk, ii, &inst);
 	if(r<0) error("Could not create instance", r);
-	vVvk.LoadInstance(bind, inst, VK_FALSE);
-	startDebug(&vVvk, bind, inst);
+	vVvk.loadInst(&bind, inst, VK_FALSE);
+	startDebug(&bind, inst);
 
 	VvVkB_DevInfo* di = vkb.createDevInfo(VK_MAKE_VERSION(1,0,0));
 	vkb.addDevExtensions(di, (const char*[]){
@@ -80,7 +80,7 @@ void setupVk() {
 	VvVkB_TaskInfo* tasks = malloc(vkb.getTaskCount(di)*sizeof(VvVkB_TaskInfo));
 	r = vkb.createDevice(vk, di, inst, &pdev, &dev, tasks);
 	if(r<0) error("Could not create device", r);
-	vVvk.LoadDevice(bind, dev, VK_TRUE);
+	vVvk.loadDev(&bind, dev, VK_TRUE);
 
 	vk->GetDeviceQueue(dev, tasks[0].family, tasks[0].index, &qs[0]);
 	vk->GetDeviceQueue(dev, tasks[1].family, tasks[1].index, &qs[1]);
@@ -91,7 +91,7 @@ void shutdownVk() {
 	vk->DestroyDevice(dev, NULL);
 	endDebug(inst);
 	vk->DestroyInstance(inst, NULL);
-	vVvk.Destroy(bind);
+	vVvk.free(&bind);
 }
 
 int main() {

@@ -80,9 +80,8 @@ VkBool32 debugFunc(
 static const VvVk_EXT_debug_report* vkdr;
 static VkDebugReportCallbackEXT drc;
 
-void startDebug(const Vv_Vulkan* vkapi, const VvVk_Binding* vkb,
-	VkInstance inst) {
-	vkdr = vkapi->ext->EXT_debug_report(vkb);
+void startDebug(const VvVk_Binding* vkb, VkInstance inst) {
+	vkdr = vkb->ext->EXT_debug_report;
 	VkDebugReportCallbackCreateInfoEXT drcci = {
 		VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT,
 		NULL,
