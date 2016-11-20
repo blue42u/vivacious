@@ -1,6 +1,8 @@
 project(vivacious)
 cmake_minimum_required(VERSION 3.0)
 
+include(CTest)
+
 set(VULKAN_ENABLE ON CACHE BOOL "Enable Vulkan support")
 set(VULKAN_INCLUDE_DIR "" CACHE PATH "Vulkan include directory")
 
