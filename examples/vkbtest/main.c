@@ -44,12 +44,11 @@ VkInstance inst;
 VkPhysicalDevice pdev;
 VkDevice dev;
 
-const VvVkB_TaskInfo intasks[] = {
-	{VK_QUEUE_GRAPHICS_BIT, 1},
-	{VK_QUEUE_TRANSFER_BIT, 2},
-	{}
+const VvVkB_TaskSpec intasks[] = {
+	{.flags = VK_QUEUE_GRAPHICS_BIT, .fam = 1, .pri = 1.0},
+	{.flags = VK_QUEUE_TRANSFER_BIT, .fam = 2, .pri = 0.5}
 };
-VkQueue qs[2];
+VkQueue qs[sizeof(intasks)/sizeof(VvVkB_TaskSpec)];
 
 void setupVk() {
 	vVvk.allocate(&bind);
@@ -74,16 +73,15 @@ void setupVk() {
 		"VK_KHR_swapchain", NULL });
 	vkb.setValidity(di, valid, NULL);
 
-	uint32_t inds[(sizeof(intasks)/sizeof(VvVkB_TaskInfo)) - 1];
-	vkb.addTasks(di, intasks, inds);
+	Vv_VKB_ADDTASKS(vkb, di, intasks, inds)
 
 	VvVkB_TaskInfo* tasks = malloc(vkb.getTaskCount(di)*sizeof(VvVkB_TaskInfo));
 	r = vkb.createDevice(vk, di, inst, &pdev, &dev, tasks);
 	if(r<0) error("Could not create device", r);
 	vVvk.loadDev(&bind, dev, VK_TRUE);
 
-	vk->GetDeviceQueue(dev, tasks[0].family, tasks[0].index, &qs[0]);
-	vk->GetDeviceQueue(dev, tasks[1].family, tasks[1].index, &qs[1]);
+	vk->GetDeviceQueue(dev, tasks[inds[0]].family, tasks[inds[0]].index, &qs[0]);
+	vk->GetDeviceQueue(dev, tasks[inds[1]].family, tasks[inds[1]].index, &qs[1]);
 	free(tasks);
 }
 

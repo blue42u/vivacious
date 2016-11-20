@@ -29,7 +29,6 @@ _Vv_TYPEDEF(VvVkB_DevInfo);
 
 // A structure used to return the final Task information.
 _Vv_STRUCT(VvVkB_TaskInfo) {
-	VkQueueFlags flags;
 	uint32_t family;
 	uint32_t index;
 };
@@ -89,21 +88,44 @@ _Vv_STRUCT(Vv_VulkanBoilerplate) {
 	void (*setComparison)(VvVkB_DevInfo*, VkBool32 (*func)(
 		void*, VkPhysicalDevice a, VkPhysicalDevice b), void* udata);
 
-	// Add some tasks to the DevInfo.
-	// <tasks> is an array with a 0-filled sentinal.
-	// <indices> is an array of the same size, which will be filled with
-	// the final indices of the queues requested in <tasks>.
-	// The <tasks[i].index> member is ignored.
-	// The <tasks[i].family> member is an identifier which is the same
-	// between tasks which MUST share queue families.
-	// The <tasks[i].flags> member specifies the types of queue operations
-	// the queue MUST be able to do.
-	void (*addTasks)(VvVkB_DevInfo*, const VvVkB_TaskInfo* tasks,
-		uint32_t* indices);
-
 	// Get the number of tasks in the DevInfo (so far).
-	uint32_t (*getTaskCount)(VvVkB_DevInfo*);
+	int (*getTaskCount)(VvVkB_DevInfo*);
+
+	// Add a new task. Returns the final index for the task.
+	int (*addTask)(VvVkB_DevInfo*, VkQueueFlags flags, int familyid,
+		float priority);
 };
+
+// This is a structure to aid with management and adding of tasks.
+// Since only the macros use it, this structure can change freely. Mostly.
+_Vv_STRUCT(VvVkB_TaskSpec) {
+	VkQueueFlags flags;
+	int fam;
+	float pri;
+};
+
+// A helper macro to deal with tasks. Usage:
+// Vv_VKB_ADDTASK(<imp>, <devinfo*>, <taskspec or compound literal>);
+// <imp> and <devinfo*> may be evaluated multiple times.
+// The macro's "return value" is the index of the new task.
+#define Vv_VKB_ADDTASK(I, D, S) ({ \
+	VvVkB_TaskSpec ts = (S); \
+\
+	int t = (I).addTask((D), ts.flags, ts.fam, ts.pri); \
+	t; \
+})
+
+// A helper macro to add many tasks. Usage:
+// Vv_VKB_ADDTASKS(<imp>, <devinfo*>, <taskspecs[]>, <indices name[]>);
+// The arguments may be evaluated multiple times. In addition, <taskspecs>
+// must be the actual array, and not a pointer to it.
+// <indices name> must be an identifier not used in the context of the "call",
+// and will be defined to be an int[].
+// This macro is not an expression.
+#define Vv_VKB_ADDTASKS(I, D, T, N) \
+int N[sizeof(T)/sizeof(VvVkB_TaskSpec)]; \
+for(int i=0; i<sizeof(T)/sizeof(VvVkB_TaskSpec); i++) \
+	N[i] = Vv_VKB_ADDTASK(I, D, T[i]);
 
 // TEST test, test Test test.
 extern const Vv_VulkanBoilerplate vVvkb_test;

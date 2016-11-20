@@ -98,6 +98,7 @@ _Vv_STRUCT(FamilySpec) {
 	VkQueueFlags flags;
 	uint32_t cnt;
 	uint32_t* inds;
+	float* pris;
 };
 
 struct VvVkB_DevInfo {
@@ -153,45 +154,43 @@ static void setComp(VvVkB_DevInfo* di, VkBool32 (*f)(
 	di->comp = f;
 }
 
-static uint32_t getTCount(VvVkB_DevInfo* di) {
+static int getTCount(VvVkB_DevInfo* di) {
 	return di->taskcnt;
 }
 
-static void addTs(VvVkB_DevInfo* di, const VvVkB_TaskInfo* tasks,
-	uint32_t* indices) {
-
-	for(int i=0; tasks[i].flags != 0; i++) {
-		int found = 0;
-		for(int j=0; j < di->familycnt; j++) {
-			if(di->families[j].id == tasks[i].family) {
-				found = 1;
-				FamilySpec* f = &di->families[j];
-				f->flags |= tasks[i].flags;
-				f->cnt++;
-				f->inds = realloc(f->inds,
-					f->cnt*sizeof(uint32_t));
-				f->inds[f->cnt-1] = di->taskcnt;
-			}
+static int addT(VvVkB_DevInfo* di, VkQueueFlags flags, int fam, float pri) {
+	int found = 0;
+	for(int j=0; j < di->familycnt; j++) {
+		if(di->families[j].id == fam) {
+			found = 1;
+			FamilySpec* f = &di->families[j];
+			f->flags |= flags;
+			f->cnt++;
+			f->inds = realloc(f->inds, f->cnt*sizeof(uint32_t));
+			f->inds[f->cnt-1] = di->taskcnt;
+			f->pris = realloc(f->pris, f->cnt*sizeof(float));
+			f->pris[f->cnt-1] = pri;
 		}
-
-		if(!found) {
-			di->familycnt++;
-			di->families = realloc(di->families,
-				di->familycnt*sizeof(FamilySpec));
-
-			di->families[di->familycnt-1] = (FamilySpec){
-				.id = tasks[i].family,
-				.flags = tasks[i].flags,
-				.cnt = 1,
-				.inds = malloc(sizeof(uint32_t)),
-			};
-			di->families[di->familycnt-1].inds[0] = di->taskcnt;
-		}
-
-		indices[i] = di->taskcnt;
-		di->taskcnt++;
 	}
+
+	if(!found) {
+		di->familycnt++;
+		di->families = realloc(di->families,
+			di->familycnt*sizeof(FamilySpec));
+		di->families[di->familycnt-1] = (FamilySpec){
+			.id = fam,
+			.flags = flags,
+			.cnt = 1,
+			.inds = malloc(sizeof(uint32_t)),
+			.pris = malloc(sizeof(float)),
+		};
+		di->families[di->familycnt-1].inds[0] = di->taskcnt;
+		di->families[di->familycnt-1].pris[0] = pri;
+	}
+	di->taskcnt++;
+	return di->taskcnt-1;
 }
+
 
 static VkBool32 checkPDev(const VvVk_1_0* vk, VvVkB_DevInfo* di,
 	VkInstance inst, VkPhysicalDevice pdev) {
@@ -306,9 +305,8 @@ static VkResult createDev(const VvVk_1_0* vk, VvVkB_DevInfo* di,
 				priss[j] = realloc(priss[j], sizes[j]*sizeof(float));
 				dqci[j].pQueuePriorities = priss[j];
 				for(int k=0; k < f->cnt; k++) {
-					priss[qfam][offset+k] = 0;
+					priss[qfam][offset+k] = f->pris[k];
 					tasks[f->inds[k]] = (VvVkB_TaskInfo){
-						.flags = f->flags,
 						.family = qfam,
 						.index = dqci[j].queueCount+k,
 					};
@@ -334,9 +332,8 @@ static VkResult createDev(const VvVk_1_0* vk, VvVkB_DevInfo* di,
 			};
 
 			for(int k=0; k < f->cnt; k++) {
-				priss[dqcicnt-1][k] = 0;
+				priss[dqcicnt-1][k] = f->pris[k];
 				tasks[f->inds[k]] = (VvVkB_TaskInfo){
-					.flags = f->flags,
 					.family = qfam,
 					.index = k,
 				};
@@ -377,7 +374,7 @@ VvAPI const Vv_VulkanBoilerplate vVvkb_test = {
 	.setValidity = setValid,
 	.setComparison = setComp,
 	.getTaskCount = getTCount,
-	.addTasks = addTs,
+	.addTask = addT,
 };
 
 #endif // Vv_ENABLE_VULKAN
