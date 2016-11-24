@@ -1,7 +1,15 @@
 project(vivacious)
 cmake_minimum_required(VERSION 3.0)
 
-include(CTest)
+if(CMAKE_VERSION VERSION_LESS "3.1")
+	if(CMAKE_C_COMPILER_ID STREQUAL "GNU"
+		OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
+
+		set(CMAKE_C_FLAGS "--std=c99 ${CMAKE_C_FLAGS}")
+	else()
+		set(CMAKE_C_STANDARD 99)
+	endif()
+endif()
 
 set(VULKAN_ENABLE ON CACHE BOOL "Enable Vulkan support")
 set(VULKAN_INCLUDE_DIR "" CACHE PATH "Vulkan include directory")
@@ -36,6 +44,7 @@ endif(X_ENABLE)
 
 set(CMAKE_C_VISIBILITY_PRESET hidden)
 set(CMAKE_CXX_VISIBILITY_PRESET hidden)
+set(CMAKE_C_STANDARD 99)
 
 add_definitions(-DVv_VERSION_MAJOR=0 -DVv_VERSION_MINOR=0 -DVv_VERSION_PATCH=0)
 
