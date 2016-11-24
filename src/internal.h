@@ -17,8 +17,10 @@
 #ifndef H_internal
 #define H_internal
 
-#if defined(__clang__) && __has_attribute(visibility)
-	#define VvAPI __attribute__((visibility("default")))
+#if defined(__clang__)
+	#if __has_attribute(visibility)
+		#define VvAPI __attribute__((visibility("default")))
+	#endif
 #elif defined(__GNUC__) && __GNUC__ >= 4
 	#define VvAPI __attribute__((visibility("default")))
 #elif defined(_WIN32)

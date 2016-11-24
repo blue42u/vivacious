@@ -44,11 +44,11 @@ VkInstance inst;
 VkPhysicalDevice pdev;
 VkDevice dev;
 
-const VvVkB_TaskSpec intasks[] = {
-	{.flags = VK_QUEUE_GRAPHICS_BIT, .fam = 1, .pri = 1.0},
-	{.flags = VK_QUEUE_TRANSFER_BIT, .fam = 2, .pri = 0.5}
+const VvVkB_TaskInfo intasks[] = {
+	{.flags = VK_QUEUE_GRAPHICS_BIT, .family = 1, .priority = 1.0},
+	{.flags = VK_QUEUE_TRANSFER_BIT, .family = 2, .priority = 0.5}
 };
-VkQueue qs[sizeof(intasks)/sizeof(VvVkB_TaskSpec)];
+VkQueue qs[sizeof(intasks)/sizeof(VvVkB_TaskInfo)];
 
 void setupVk() {
 	vVvk.allocate(&bind);
@@ -63,7 +63,7 @@ void setupVk() {
 		"VK_KHR_surface", "VK_KHR_xcb_surface",
 		"VK_EXT_debug_report", NULL });
 
-	VkResult r = vkb.createInstance(vk, ii, &inst);
+	VkResult r = vkb.createInstance(&bind, ii, &inst);
 	if(r<0) error("Could not create instance", r);
 	vVvk.loadInst(&bind, inst, VK_FALSE);
 	startDebug(&bind, inst);
@@ -73,16 +73,21 @@ void setupVk() {
 		"VK_KHR_swapchain", NULL });
 	vkb.setValidity(di, valid, NULL);
 
-	Vv_VKB_ADDTASKS(vkb, di, intasks, inds)
+	for(int i=0; i<sizeof(intasks)/sizeof(VvVkB_TaskInfo); i++) {
+		*vkb.newTask(di) = intasks[i];
+	}
 
-	VvVkB_TaskInfo* tasks = malloc(vkb.getTaskCount(di)*sizeof(VvVkB_TaskInfo));
-	r = vkb.createDevice(vk, di, inst, &pdev, &dev, tasks);
+	VvVkB_QueueSpec* qspecs = malloc(
+		vkb.getTaskCount(di)*sizeof(VvVkB_QueueSpec));
+	r = vkb.createDevice(&bind, di, inst, &pdev, &dev, qspecs);
 	if(r<0) error("Could not create device", r);
 	vVvk.loadDev(&bind, dev, VK_TRUE);
 
-	vk->GetDeviceQueue(dev, tasks[inds[0]].family, tasks[inds[0]].index, &qs[0]);
-	vk->GetDeviceQueue(dev, tasks[inds[1]].family, tasks[inds[1]].index, &qs[1]);
-	free(tasks);
+	for(int i=0; i<sizeof(intasks)/sizeof(VvVkB_TaskInfo); i++) {
+		vk->GetDeviceQueue(dev, qspecs[i].family,
+			qspecs[i].index, &qs[i]);
+	}
+	free(qspecs);
 }
 
 void shutdownVk() {
