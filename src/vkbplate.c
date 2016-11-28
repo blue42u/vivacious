@@ -163,8 +163,6 @@ static VvVkB_TaskInfo* nextT(VvVkB_DevInfo* di) {
 static VkBool32 queuePDev(const VvVk_1_0* vk, VvVkB_DevInfo* di,
 	VkPhysicalDevice pdev, VvVkB_QueueSpec* qs, int** rcnts) {
 
-	printf("Queuing PDev %p\n", pdev);
-
 	uint32_t cnt = 0;
 	vk->GetPhysicalDeviceQueueFamilyProperties(pdev, &cnt, NULL);
 	VkQueueFamilyProperties* qfp = malloc(cnt*sizeof(VkQueueFamilyProperties));
@@ -286,7 +284,6 @@ static VkResult createDev(const VvVk_Binding* vkb, VvVkB_DevInfo* di,
 		}
 	}
 
-	printf("Creating Dev on %p\n", *pdev);
 	r = vk->CreateDevice(*pdev, &(VkDeviceCreateInfo){
 		.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
 		.enabledExtensionCount = di->extcnt,

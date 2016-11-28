@@ -4,6 +4,7 @@ set(CPS
 	core.h
 	window.h
 	vkbplate.h
+	vkmemory.h
 )
 
 if(VULKAN_ENABLE)

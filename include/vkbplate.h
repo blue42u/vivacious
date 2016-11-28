@@ -19,7 +19,6 @@
 
 #include <vivacious/core.h>
 #include <vivacious/vulkan.h>
-#include <vivacious/window.h>
 
 // A handle which collects information on the Instance to be created.
 _Vv_TYPEDEF(VvVkB_InstInfo);
