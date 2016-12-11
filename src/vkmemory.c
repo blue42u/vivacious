@@ -106,28 +106,48 @@ static void registerBuffer(VvVkM_Pool* pool, VkBuffer b,
 	pool->recs[pool->cnt-1].buff = b;
 }
 
+static void registerImage(VvVkM_Pool* pool, VkImage i,
+	VkMemoryPropertyFlags ideal, VkMemoryPropertyFlags req) {
+
+	VkMemoryRequirements mreq;
+	pool->vk->GetImageMemoryRequirements(pool->dev, i, &mreq);
+	registerGeneral(pool, ideal, req, &mreq);
+	pool->recs[pool->cnt-1].isImage = 1;
+	pool->recs[pool->cnt-1].img = i;
+}
+
 static VkResult bind(VvVkM_Pool* pool) {
 	for(int i=0; i < pool->cnt; i++) {
 		if(pool->recs[i].isAlloced) continue;
 		Resource* rec = &pool->recs[i];
+
 		VkMemoryRequirements mreq;
 		if(rec->isImage) {
+			pool->vk->GetImageMemoryRequirements(pool->dev,
+				rec->img, &mreq);
 		} else {
 			pool->vk->GetBufferMemoryRequirements(pool->dev,
 				rec->buff, &mreq);
-			VkResult r = pool->vk->AllocateMemory(pool->dev,
-				&(VkMemoryAllocateInfo){
+		}
+		VkResult r = pool->vk->AllocateMemory(pool->dev,
+			&(VkMemoryAllocateInfo){
 
-				.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-				.allocationSize = mreq.size,
-				.memoryTypeIndex = rec->mtype,
-			}, NULL, &rec->mem);
+			.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+			.allocationSize = mreq.size,
+			.memoryTypeIndex = rec->mtype,
+		}, NULL, &rec->mem);
+		if(r < 0) return r;
+
+		if(rec->isImage) {
+			r = pool->vk->BindImageMemory(pool->dev, rec->img,
+				rec->mem, 0);
 			if(r < 0) return r;
+		} else {
 			r = pool->vk->BindBufferMemory(pool->dev, rec->buff,
 				rec->mem, 0);
 			if(r < 0) return r;
-			rec->isAlloced = 1;
 		}
+		rec->isAlloced = 1;
 	}
 	return VK_SUCCESS;
 }
@@ -142,14 +162,35 @@ static int findBuffer(VvVkM_Pool* pool, VkBuffer b) {
 	return -1;
 }
 
+static int findImage(VvVkM_Pool* pool, VkImage img) {
+	for(int i=0; i < pool->cnt; i++) {
+		Resource* rec = &pool->recs[i];
+		if(rec->isImage && rec->img == img) {
+			return i;
+		}
+	}
+	return -1;
+}
+
 static VkResult mapBuffer(VvVkM_Pool* pool, VkBuffer b, void** out) {
 	Resource* rec = &pool->recs[findBuffer(pool, b)];
 	return pool->vk->MapMemory(pool->dev, rec->mem,
 		0, VK_WHOLE_SIZE, 0, out);
 }
 
+static VkResult mapImage(VvVkM_Pool* pool, VkImage i, void** out) {
+	Resource* rec = &pool->recs[findImage(pool, i)];
+	return pool->vk->MapMemory(pool->dev, rec->mem,
+		0, VK_WHOLE_SIZE, 0, out);
+}
+
 static void unmapBuffer(VvVkM_Pool* pool, VkBuffer b) {
 	Resource* rec = &pool->recs[findBuffer(pool, b)];
+	pool->vk->UnmapMemory(pool->dev, rec->mem);
+}
+
+static void unmapImage(VvVkM_Pool* pool, VkImage i) {
+	Resource* rec = &pool->recs[findImage(pool, i)];
 	pool->vk->UnmapMemory(pool->dev, rec->mem);
 }
 
@@ -163,32 +204,52 @@ static VkMappedMemoryRange getRangeBuffer(VvVkM_Pool* pool, VkBuffer b) {
 	};
 }
 
+static VkMappedMemoryRange getRangeImage(VvVkM_Pool* pool, VkImage i) {
+	Resource* rec = &pool->recs[findImage(pool, i)];
+	return (VkMappedMemoryRange){
+		.sType=VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
+		.memory=rec->mem,
+		.offset=0,
+		.size=VK_WHOLE_SIZE,
+	};
+}
+
 static void unbindBuffer(VvVkM_Pool* pool, VkBuffer b) {}
+static void unbindImage(VvVkM_Pool* pool, VkImage i) {}
 
-static void destroyBuffer(VvVkM_Pool* pool, VkBuffer b) {
-	int ind = findBuffer(pool, b);
-	Resource* rec = &pool->recs[ind];
-	if(rec->isAlloced) pool->vk->FreeMemory(pool->dev, rec->mem, NULL);
-	pool->vk->DestroyBuffer(pool->dev, rec->buff, NULL);
-
+static void destroyGeneral(VvVkM_Pool* pool, int ind) {
+	if(pool->recs[ind].isAlloced)
+		pool->vk->FreeMemory(pool->dev, pool->recs[ind].mem, NULL);
 	for(int i=ind+1; i < pool->cnt; i++)
 		pool->recs[i-1] = pool->recs[i];
 	pool->cnt--;
 	pool->recs = realloc(pool->recs, pool->cnt*sizeof(Resource));
 }
 
+static void destroyBuffer(VvVkM_Pool* pool, VkBuffer b) {
+	int ind = findBuffer(pool, b);
+	pool->vk->DestroyBuffer(pool->dev, pool->recs[ind].buff, NULL);
+	destroyGeneral(pool, ind);
+}
+
+static void destroyImage(VvVkM_Pool* pool, VkImage i) {
+	int ind = findImage(pool, i);
+	pool->vk->DestroyImage(pool->dev, pool->recs[ind].img, NULL);
+	destroyGeneral(pool, ind);
+}
+
 VvAPI const Vv_VulkanMemoryManager vVvkm_test = {
 	.create = create,
 	.destroy = destroy,
 
-	.registerBuffer=registerBuffer,
+	.registerBuffer=registerBuffer, .registerImage=registerImage,
 	.bind=bind,
-	.unbindBuffer=unbindBuffer,
-	.destroyBuffer=destroyBuffer,
+	.unbindBuffer=unbindBuffer, .unbindImage=unbindImage,
+	.destroyBuffer=destroyBuffer, .destroyImage=destroyImage,
 
-	.mapBuffer=mapBuffer,
-	.unmapBuffer=unmapBuffer,
-	.getRangeBuffer=getRangeBuffer,
+	.mapBuffer=mapBuffer, .mapImage=mapImage,
+	.unmapBuffer=unmapBuffer, .unmapImage=unmapImage,
+	.getRangeBuffer=getRangeBuffer, .getRangeImage=getRangeImage,
 };
 
 #endif // Vv_ENABLE_VULKAN
