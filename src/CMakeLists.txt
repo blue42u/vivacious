@@ -6,6 +6,7 @@ set(SRC
 	window/x.c
 	window/xcb.c
 	vkbplate.c
+	vkmemory.c
 )
 set(LUA
 	vulkan.lua

@@ -33,13 +33,29 @@ _Vv_STRUCT(Vv_VulkanMemoryManager) {
 
 	// Register a resource, to batch the allocation and binding process.
 	// This can allow the implementation to better optimize allocation.
+	// The actual flags used for `ideal` are `ideal | required`. In other
+	// words, the required flags are always present and required.
 	void (*registerBuffer)(VvVkM_Pool*, VkBuffer,
 		VkMemoryPropertyFlags ideal, VkMemoryPropertyFlags required);
 	void (*registerImage)(VvVkM_Pool*, VkImage,
 		VkMemoryPropertyFlags ideal, VkMemoryPropertyFlags required);
 
-	// Bind any resources that are currently registered.
-	void (*bind)(VvVkM_Pool*);
+	// Bind any resources that are currently registered. Returns an error
+	// if any errors in allocation and binding are incountered.
+	VkResult (*bind)(VvVkM_Pool*);
+
+	// Map the memory for a resource.
+	VkResult (*mapBuffer)(VvVkM_Pool*, VkBuffer, void**);
+	VkResult (*mapImage)(VvVkM_Pool*, VkImage, void**);
+
+	// Unmap the memory for a resource.
+	void (*unmapBuffer)(VvVkM_Pool*, VkBuffer);
+	void (*unmapImage)(VvVkM_Pool*, VkImage);
+
+	// Get the memory range for a resource. Can be used either to map
+	// the memory manually, or to flush or invalidate the resource.
+	VkMappedMemoryRange (*getRangeBuffer)(VvVkM_Pool*, VkBuffer);
+	VkMappedMemoryRange (*getRangeImage)(VvVkM_Pool*, VkImage);
 
 	// Possibly unbind a resource, and register it so a later `bind`
 	// will place it in a (better?) place. May also no-op. Imp-dependant.

@@ -115,12 +115,132 @@ void cleanupCb() {
 	vk->DestroyCommandPool(dev, cpool, NULL);
 }
 
+struct {
+	VkBuffer host;
+	VkBuffer device;
+} bf;
+typedef struct {
+	int32_t a;
+	char b[256];
+	uint32_t c;
+} BuffData;
+
+void setupBuff() {
+	VkResult r = vk->CreateBuffer(dev, &(VkBufferCreateInfo){
+		.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+		.size = sizeof(BuffData),
+		.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT
+			| VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+		.sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+	}, NULL, &bf.host);
+	if(r < 0) error("Count not create Buffer `host`", r);
+
+	r = vk->CreateBuffer(dev, &(VkBufferCreateInfo){
+		.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+		.size = sizeof(BuffData),
+		.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT
+			| VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+		.sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+	}, NULL, &bf.device);
+	if(r < 0) error("Count not create Buffer `device`", r);
+}
+
+void cleanupBuff() {
+	vk->DestroyBuffer(dev, bf.host, NULL);
+	vk->DestroyBuffer(dev, bf.device, NULL);
+}
+
+void fillCb() {
+	VkCommandBufferBeginInfo cbbi = {
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+	};
+
+	vk->BeginCommandBuffer(cb.cpTo, &cbbi);
+	vk->CmdCopyBuffer(cb.cpTo, bf.host, bf.device,
+		1, (VkBufferCopy[]){ {0, 0, sizeof(BuffData)} });
+	vk->EndCommandBuffer(cb.cpTo);
+
+	vk->BeginCommandBuffer(cb.cpFrom, &cbbi);
+	vk->CmdCopyBuffer(cb.cpFrom, bf.device, bf.host,
+		1, (VkBufferCopy[]){ {0, 0, sizeof(BuffData)} });
+	vk->EndCommandBuffer(cb.cpFrom);
+
+	vk->BeginCommandBuffer(cb.fill, &cbbi);
+	vk->CmdUpdateBuffer(cb.fill, bf.device, 0,
+		sizeof(BuffData), &(BuffData){
+			.a = -17,
+			.b = "Hello, world!",
+			.c = 372,
+		});
+	vk->EndCommandBuffer(cb.fill);
+}
+
 int main() {
 	setupVk();
 	setupCb();
+	setupBuff();
 
+	VvVkM_Pool* pool = vkm.create(&vkbind, pdev, dev);
+
+	vkm.registerBuffer(pool, bf.host, 0,
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+	vkm.registerBuffer(pool, bf.device, 0,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	VkResult r = vkm.bind(pool);
+	if(r < 0) error("Could not bind pool", r);
+
+	fillCb();
+
+	BuffData* bd;
+	r = vkm.mapBuffer(pool, bf.host, (void**) &bd);
+	if(r < 0) error("Could not map memory", r);
+
+	// Macro it up to reduce repetition.
+	#define FLUSH() \
+	r = vk->FlushMappedMemoryRanges(dev, 1, (VkMappedMemoryRange[]){ \
+		vkm.getRangeBuffer(pool, bf.host), \
+	}); \
+	if(r < 0) error("Could not flush memory", r);
+
+	#define INVALIDATE() \
+	r = vk->InvalidateMappedMemoryRanges(dev, 1, (VkMappedMemoryRange[]){ \
+		vkm.getRangeBuffer(pool, bf.host), \
+	}); \
+	if(r < 0) error("Could not invalidate memory", r);
+
+	// This is just a test, so we're going to take this slow.
+	#define SUBMIT(N) \
+	vk->QueueSubmit(q, 1, &(VkSubmitInfo){ \
+		.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO, \
+		.commandBufferCount = 1, \
+		.pCommandBuffers = &cb. N, \
+	}, NULL); \
+	vk->QueueWaitIdle(q);
+
+	// Main body of the test
+	printf("Copying data into and back from the card...\n");
+	*bd = (BuffData){ 42, "The Answer", 42 };
+	printf("Before: %d '%s' %d\n", bd->a, bd->b, bd->c);
+	FLUSH()
+	SUBMIT(cpTo)
+	*bd = (BuffData){ 0, "This should not be seen", 0 };
+	FLUSH()
+	SUBMIT(cpFrom)
+	INVALIDATE()
+	printf("After: %d '%s' %d\n", bd->a, bd->b, bd->c);
+
+	printf("\nGetting data from command buffer...\n");
+	*bd = (BuffData){ 0, "Default to see things", 0 };
+	FLUSH()
+	SUBMIT(fill)
+	SUBMIT(cpFrom)
+	INVALIDATE()
+	printf("Data: %d '%s' %d\n", bd->a, bd->b, bd->c);
+
+	// Cleanup
+	vkm.destroy(pool);
+	cleanupBuff();
 	cleanupCb();
 	cleanupVk();
-
 	return 0;
 }
