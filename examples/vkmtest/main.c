@@ -227,10 +227,10 @@ int main() {
 	FLUSH()
 	SUBMIT(cpFrom)
 	INVALIDATE()
-	printf("After: %d '%s' %d\n", bd->a, bd->b, bd->c);
+	printf("After:  %d '%s' %d\n", bd->a, bd->b, bd->c);
 
 	printf("\nGetting data from command buffer...\n");
-	*bd = (BuffData){ 0, "Default to see things", 0 };
+	*bd = (BuffData){ 0, "This should also not be seen", 0 };
 	FLUSH()
 	SUBMIT(fill)
 	SUBMIT(cpFrom)

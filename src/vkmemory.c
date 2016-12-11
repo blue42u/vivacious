@@ -65,25 +65,20 @@ static void destroy(VvVkM_Pool* pool) {
 	free(pool);
 }
 
-static void registerBuffer(VvVkM_Pool* pool, VkBuffer b,
-	VkMemoryPropertyFlags ideal, VkMemoryPropertyFlags req) {
+static void registerGeneral(VvVkM_Pool* pool, VkMemoryPropertyFlags ideal,
+	VkMemoryPropertyFlags req, VkMemoryRequirements* mreq) {
 
 	ideal |= req;
-	VkMemoryRequirements mreq;
-	pool->vk->GetBufferMemoryRequirements(pool->dev, b, &mreq);
 	pool->cnt++;
 	pool->recs = realloc(pool->recs, sizeof(Resource)*pool->cnt);
 	Resource* rec = &pool->recs[pool->cnt-1];
-	*rec = (Resource){
-		.isImage = 0, .isAlloced = 0,
-		.buff = b,
-	};
+	*rec = (Resource){ .isAlloced = 0, };
 
 	VkPhysicalDeviceMemoryProperties pdmp;
 	pool->vk->GetPhysicalDeviceMemoryProperties(pool->pdev, &pdmp);
 
 	for(int i=0; i<pdmp.memoryTypeCount; i++) {
-		if((mreq.memoryTypeBits & (1<<i))
+		if((mreq->memoryTypeBits & (1<<i))
 			&& ((pdmp.memoryTypes[i].propertyFlags&ideal)==ideal)) {
 
 			rec->mtype = i;
@@ -91,7 +86,7 @@ static void registerBuffer(VvVkM_Pool* pool, VkBuffer b,
 		}
 	}
 	for(int i=0; i<pdmp.memoryTypeCount; i++) {
-		if((mreq.memoryTypeBits & (1<<i))
+		if((mreq->memoryTypeBits & (1<<i))
 			&& ((pdmp.memoryTypes[i].propertyFlags & req) == req)) {
 
 			rec->mtype = i;
@@ -99,6 +94,16 @@ static void registerBuffer(VvVkM_Pool* pool, VkBuffer b,
 		}
 	}
 	rec->mtype = -1;
+}
+
+static void registerBuffer(VvVkM_Pool* pool, VkBuffer b,
+	VkMemoryPropertyFlags ideal, VkMemoryPropertyFlags req) {
+
+	VkMemoryRequirements mreq;
+	pool->vk->GetBufferMemoryRequirements(pool->dev, b, &mreq);
+	registerGeneral(pool, ideal, req, &mreq);
+	pool->recs[pool->cnt-1].isImage = 0;
+	pool->recs[pool->cnt-1].buff = b;
 }
 
 static VkResult bind(VvVkM_Pool* pool) {
@@ -127,53 +132,41 @@ static VkResult bind(VvVkM_Pool* pool) {
 	return VK_SUCCESS;
 }
 
-static VkResult mapBuffer(VvVkM_Pool* pool, VkBuffer b, void** out) {
+static int findBuffer(VvVkM_Pool* pool, VkBuffer b) {
 	for(int i=0; i < pool->cnt; i++) {
 		Resource* rec = &pool->recs[i];
-		if(!rec->isImage && rec->buff == b && rec->isAlloced) {
-			return pool->vk->MapMemory(pool->dev, rec->mem,
-				0, VK_WHOLE_SIZE, 0, out);
+		if(!rec->isImage && rec->buff == b) {
+			return i;
 		}
 	}
-	return VK_INCOMPLETE;
+	return -1;
+}
+
+static VkResult mapBuffer(VvVkM_Pool* pool, VkBuffer b, void** out) {
+	Resource* rec = &pool->recs[findBuffer(pool, b)];
+	return pool->vk->MapMemory(pool->dev, rec->mem,
+		0, VK_WHOLE_SIZE, 0, out);
 }
 
 static void unmapBuffer(VvVkM_Pool* pool, VkBuffer b) {
-	for(int i=0; i < pool->cnt; i++) {
-		Resource* rec = &pool->recs[i];
-		if(!rec->isImage && rec->buff == b && rec->isAlloced) {
-			pool->vk->UnmapMemory(pool->dev, rec->mem);
-			return;
-		}
-	}
+	Resource* rec = &pool->recs[findBuffer(pool, b)];
+	pool->vk->UnmapMemory(pool->dev, rec->mem);
 }
 
 static VkMappedMemoryRange getRangeBuffer(VvVkM_Pool* pool, VkBuffer b) {
-	for(int i=0; i < pool->cnt; i++) {
-		Resource* rec = &pool->recs[i];
-		if(!rec->isImage && rec->buff == b && rec->isAlloced) {
-			return (VkMappedMemoryRange){
-				.sType=VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
-				.memory=rec->mem,
-				.offset=0,
-				.size=VK_WHOLE_SIZE,
-			};
-		}
-	}
-	return (VkMappedMemoryRange){};
+	Resource* rec = &pool->recs[findBuffer(pool, b)];
+	return (VkMappedMemoryRange){
+		.sType=VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
+		.memory=rec->mem,
+		.offset=0,
+		.size=VK_WHOLE_SIZE,
+	};
 }
 
 static void unbindBuffer(VvVkM_Pool* pool, VkBuffer b) {}
 
 static void destroyBuffer(VvVkM_Pool* pool, VkBuffer b) {
-	int ind;
-	for(int i=0; i < pool->cnt; i++) {
-		Resource* rec = &pool->recs[i];
-		if(!rec->isImage && rec->buff == b) {
-			ind = i;
-			break;
-		}
-	}
+	int ind = findBuffer(pool, b);
 	Resource* rec = &pool->recs[ind];
 	if(rec->isAlloced) pool->vk->FreeMemory(pool->dev, rec->mem, NULL);
 	pool->vk->DestroyBuffer(pool->dev, rec->buff, NULL);
