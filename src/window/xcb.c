@@ -28,21 +28,11 @@ int _vVlibxcb(Xcb* xcb) {
 	if(!xcb->libxcb) return 1;
 	xcb->libewmh = _vVopendl("libxcb-ewmh.so", "libxcb-ewmh.dynlib", NULL);
 
-	xcb->connect = _vVsymdl(xcb->libxcb, "xcb_connect");
-	xcb->disconnect = _vVsymdl(xcb->libxcb, "xcb_disconnect");
-	xcb->screen_next = _vVsymdl(xcb->libxcb, "xcb_screen_next");
-	xcb->setup_roots_iterator = _vVsymdl(xcb->libxcb, "xcb_setup_roots_iterator");
-	xcb->get_setup = _vVsymdl(xcb->libxcb, "xcb_get_setup");
-	xcb->generate_id = _vVsymdl(xcb->libxcb, "xcb_generate_id");
-	xcb->create_window = _vVsymdl(xcb->libxcb, "xcb_create_window");
-	xcb->flush = _vVsymdl(xcb->libxcb, "xcb_flush");
-	xcb->destroy_window = _vVsymdl(xcb->libxcb, "xcb_destroy_window");
-	xcb->map_window = _vVsymdl(xcb->libxcb, "xcb_map_window");
-	xcb->change_property = _vVsymdl(xcb->libxcb, "xcb_change_property");
-	xcb->get_geometry = _vVsymdl(xcb->libxcb, "xcb_get_geometry");
-	xcb->get_geometry_reply = _vVsymdl(xcb->libxcb, "xcb_get_geometry_reply");
-	xcb->ewmh_init_atoms = _vVsymdl(xcb->libewmh, "xcb_ewmh_init_atoms");
-	xcb->ewmh_init_atoms_replies = _vVsymdl(xcb->libewmh, "xcb_ewmh_init_atoms_replies");
+#define _libxcb(T, N, ...) xcb->N = _vVsymdl(xcb->libxcb, "xcb_" #N);
+	XCB_LIST(_libxcb)
+
+#define _libewmh(T, N, ...) xcb->N = _vVsymdl(xcb->libewmh, "xcb_" #N);
+	EWMH_LIST(_libewmh)
 
 	return 0;
 }

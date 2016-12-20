@@ -78,6 +78,9 @@ static VvWi_Connection* Connect() {
 }
 
 static void Disconnect(VvWi_Connection* wc) {
+	if(wc->xcb.ewmh_init_atoms) {	// If we have EWMH support
+		xcb_ewmh_connection_wipe(&wc->ewmh);
+	}
 	wc->xcb.disconnect(wc->conn);
 	_vVfreexcb(&wc->xcb);
 	free(wc);
@@ -101,6 +104,7 @@ static VvWi_Window* CreateWindow(VvWi_Connection* wc, int width, int height,
 static void DestroyWindow(VvWi_Window* w) {
 	w->c->xcb.destroy_window(w->c->conn, w->id);
 	w->c->xcb.flush(w->c->conn);
+	free(w);
 }
 
 static void ShowWindow(VvWi_Window* w) {
@@ -182,13 +186,13 @@ static void GetScreenSize(VvWi_Connection* wc, int ext[2]) {
 }
 
 VvAPI const Vv_Window vVwi_X = {
-	Connect, Disconnect,
-	CreateWindow, DestroyWindow,
-	ShowWindow, SetTitle,
-	CreateVkSurface,
-	SetFullscreen,
-	SetWindowSize, GetWindowSize,
-	GetScreenSize,
+	.connect=Connect, .disconnect=Disconnect,
+	.createWindow=CreateWindow, .destroyWindow=DestroyWindow,
+	.showWindow=ShowWindow, .setTitle=SetTitle,
+	.createVkSurface=CreateVkSurface,
+	.setFullscreen=SetFullscreen,
+	.setWindowSize=SetWindowSize, .getWindowSize=GetWindowSize,
+	.getScreenSize=GetScreenSize,
 };
 
 #endif // Vv_ENABLE_X

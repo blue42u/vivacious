@@ -33,7 +33,7 @@ _Vv_ENUM(VvWi_EventMask) {
 _Vv_TYPEDEF(VvWi_Connection);
 
 // A Window is the opaque handle for a window on a screen, somewhere...
-// ...Hopefully. Maybe our implementation is tricking us. Or maybe not.
+// ...Or maybe our implementation is tricking us. We don't care.
 _Vv_TYPEDEF(VvWi_Window);
 
 // Dependancy structs. Referenced here to avoid -Wvisibility warnings.
@@ -42,44 +42,42 @@ struct VvVk_Binding;
 
 _Vv_STRUCT(Vv_Window) {
 	// Connect to the system's window manager.
-	VvWi_Connection* (*Connect)();
+	VvWi_Connection* (*connect)();
 
-	// Disconnect. Also can clean stuff up. Consider the connection
-	// invalid after this.
-	void (*Disconnect)(VvWi_Connection*);
+	// Disconnect, and destroy the connection.
+	void (*disconnect)(VvWi_Connection*);
 
 	// Create a new window for the screen. May or may not be visible
-	// immediately after creation, use ShowWindow to be sure.
-	VvWi_Window* (*CreateWindow)(VvWi_Connection*, int width, int height,
+	// immediately after creation, use showWindow to be sure.
+	VvWi_Window* (*createWindow)(VvWi_Connection*, int width, int height,
 		VvWi_EventMask events);
 
 	// Close/Destroy a window. After this, the window is invalid.
-	void (*DestroyWindow)(VvWi_Window*);
+	void (*destroyWindow)(VvWi_Window*);
 
 	// Show a window on the screen, if its not shown already.
-	void (*ShowWindow)(VvWi_Window*);
+	void (*showWindow)(VvWi_Window*);
 
-	// Set the window's title. <name> is assumed to be a null-terminated
-	// character array, as is convention with C strings.
-	void (*SetTitle)(VvWi_Window*, const char* name);
+	// Set the window's title.
+	void (*setTitle)(VvWi_Window*, const char* name);
 
 	// Create a VkSurface based on a Window. Returns a VkResult, and
 	// <psurf> is a VkSurface*.
-	int (*CreateVkSurface)(VvWi_Window*, void* inst, void* psurf,
+	int (*createVkSurface)(VvWi_Window*, void* inst, void* psurf,
 		const struct VvVk_Binding*);
 
 	// Make a window fullscreen if <enable> is a true value, otherwise
 	// make the window windowed.
-	void (*SetFullscreen)(VvWi_Window*, int enable);
+	void (*setFullscreen)(VvWi_Window*, int enable);
 
 	// Set the size of a window.
-	void (*SetWindowSize)(VvWi_Window*, const int[2]);
+	void (*setWindowSize)(VvWi_Window*, const int[2]);
 
 	// Get the size of a window.
-	void (*GetWindowSize)(VvWi_Window*, int[2]);
+	void (*getWindowSize)(VvWi_Window*, int[2]);
 
 	// Get the size of the screen.
-	void (*GetScreenSize)(VvWi_Connection*, int[2]);
+	void (*getScreenSize)(VvWi_Connection*, int[2]);
 };
 
 extern const Vv_Window vVwi_X;
