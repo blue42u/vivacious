@@ -6,6 +6,7 @@ set(CPS
 	window.h
 	vkbplate.h
 	vkmemory.h
+	vkpipeline.h
 )
 set(ODEPS
 	vk.xml

@@ -34,7 +34,7 @@ _Vv_TYPEDEF(VvVkP_Scope);
 // VkSubpassDependency, but with Operations instead of indices.
 _Vv_STRUCT(VvVkP_Dependency) {
 	// The Operation to depend on.
-	VvVkP_Operation op;
+	VvVkP_Operation* op;
 
 	// The specific stages of <op> and the "dst" Op which are affected.
 	VkPipelineStageFlags srcStage;
@@ -46,11 +46,11 @@ _Vv_STRUCT(VvVkP_Dependency) {
 
 	// Any other flags for the Dependency.
 	VkDependencyFlags flags;
-}
+};
 
 _Vv_STRUCT(Vv_VulkanPipeline) {
 	// Create a new Builder
-	VvVkP_Builder* (*create)(const Vv_Vulkan*,
+	VvVkP_Builder* (*create)(const VvVk_Binding*,
 		uint32_t attachCount, const VkAttachmentDescription* attaches);
 
 	// Destroy a Builder
@@ -63,8 +63,8 @@ _Vv_STRUCT(Vv_VulkanPipeline) {
 	// in the same subpass of the VkRenderPass.
 	// Scopes with the same <level> cannot overlap.
 	VvVkP_Scope* (*addScope)(VvVkP_Builder*,
-		void (*begin)(VkCommandBuffer, void* userdata),
-		void (*end)(VkCommandBuffer, void* userdata),
+		void (*begin)(void* userdata, VkCommandBuffer),
+		void (*end)(void* userdata, VkCommandBuffer),
 		void* userdata,
 		VkBool32 subpasslocal,
 		int level);
@@ -76,9 +76,10 @@ _Vv_STRUCT(Vv_VulkanPipeline) {
 	// Add an Operation to a Builder. <func> and <init> will be called
 	// during the call to `record`. <scopes> is an array of <scopeCnt>
 	// Scopes; <depends> is an array of <dependCnt> Dependencies.
+	// If the set of Scopes is impossible to occur, this can return NULL.
 	VvVkP_Operation* (*addOperation)(VvVkP_Builder*,
 		VkResult (*init)(void* userdata,
-			const VkCommandBufferInheritanceInfo* cbii);
+			const VkCommandBufferInheritanceInfo* cbii),
 		void (*func)(void* userdata, VkCommandBuffer),
 		void* userdata,
 		int scopeCnt, VvVkP_Scope* scopes,
@@ -114,6 +115,9 @@ _Vv_STRUCT(Vv_VulkanPipeline) {
 	VvVkP_Scope* (*addComputePipeline)(VvVkP_Builder*,
 		const VkComputePipelineCreateInfo* info,
 		VvVkP_Scope* base);
-}
+};
+
+// Test TEST, test test Test.
+extern const Vv_VulkanPipeline vVvkp_test;
 
 #endif // H_vivacious_vkpipeline
