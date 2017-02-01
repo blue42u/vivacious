@@ -23,21 +23,21 @@ static VvWi_Connection* conn;
 static VvWi_Window* win;
 
 void createWindow() {
-	conn = winapi.Connect();
+	conn = winapi.connect();
 
 	int ext[2] = {0,0};
-	winapi.GetScreenSize(conn, ext);
+	winapi.getScreenSize(conn, ext);
 
-	win = winapi.CreateWindow(conn, ext[0], ext[1], 0);
-	winapi.SetTitle(win, "Example Vulkan Thing!");
-	winapi.ShowWindow(win);
+	win = winapi.createWindow(conn, ext[0], ext[1], 0);
+	winapi.setTitle(win, "Example Vulkan Thing!");
+	winapi.showWindow(win);
 
-	VkResult r = winapi.CreateVkSurface(win, com.inst, &com.surf, &vkb);
+	VkResult r = winapi.createVkSurface(win, com.inst, &com.surf, &vkb);
 	if(r<0) error("Error creating surface: %d!\n", r);
 }
 
 void destroyWindow() {
 	vks->DestroySurfaceKHR(com.inst, com.surf, NULL);
-	winapi.DestroyWindow(win);
-	winapi.Disconnect(conn);
+	winapi.destroyWindow(win);
+	winapi.disconnect(conn);
 }

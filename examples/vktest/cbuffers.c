@@ -90,5 +90,6 @@ void destroyCBuffs() {
 		com.simagecnt*sizeof(struct CBuffs)/sizeof(VkCommandBuffer),
 		com.cbuffs);
 	vk->DestroyCommandPool(com.dev, pool, NULL);
+	free(com.cbuffs);
 }
 

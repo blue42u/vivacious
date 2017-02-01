@@ -44,6 +44,7 @@ void createSChain() {
 	vks->GetPhysicalDeviceSurfacePresentModesKHR(com.pdev, com.surf,
 		&cnt, pms);
 	VkPresentModeKHR pm = choosePM(cnt, pms);
+	free(pms);
 
 	VkSwapchainCreateInfoKHR sci = {
 		VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR, NULL, 0,
@@ -54,10 +55,12 @@ void createSChain() {
 		0, NULL,
 		sc.currentTransform, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
 		pm, VK_TRUE,
-		VK_NULL_HANDLE,
+		NULL,
 	};
 	r = vkc->CreateSwapchainKHR(com.dev, &sci, NULL, &com.schain);
 	if(r<0) error("Error creating swapchain: %d!\n", r);
+
+	free(sfs);
 
 	r = vkc->GetSwapchainImagesKHR(com.dev, com.schain,
 		&com.simagecnt, NULL);
