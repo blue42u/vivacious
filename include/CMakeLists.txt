@@ -1,4 +1,5 @@
 set(GENS
+	vulkan.lua
 )
 set(CPS
 	core.h
@@ -6,13 +7,9 @@ set(CPS
 	vkbplate.h
 	vkmemory.h
 )
-
-if(VULKAN_ENABLE)
-set(GENS ${GENS}
-	vulkan.lua)
-set(CPS ${CPS}
-	)
-endif(VULKAN_ENABLE)
+set(ODEPS
+	vk.xml
+)
 
 set(OUTPUT ${CMAKE_BINARY_DIR}/include/vivacious)
 file(MAKE_DIRECTORY ${OUTPUT})
@@ -25,7 +22,7 @@ foreach(LG ${GENS})
 		COMMAND lua ${LG} ${OUTPUT}/${G} ${CMAKE_CURRENT_SOURCE_DIR}
 		WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 		MAIN_DEPENDENCY ${LG}
-		DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/vk.xml)
+		DEPENDS ${ODEPS})
 	set(DEPS ${DEPS} ${OUTPUT}/${G})
 endforeach()
 
