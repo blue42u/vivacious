@@ -1,27 +1,34 @@
 # Vivacious
 
-A full-featured game engine, with manners. Use the engine and platform APIs
-in tandem, without entering support hell. Its fast, and natively supports both
-Lua and Vulkan.
+Vivacious (or vV for short) is an extensible layered graphics engine, built
+from the ground up to use Vulkan. Choose different implementations at runtime,
+for a case-specific performace boost.
+Or let the engine choose for you. Your choice.
 
 ## Compiling
 
+TL;DR: The usual `cmake` and `make` build. Outputs are in `build/libs`.
+
 ```
+$ cd path/to/build/dir
 $ cmake path/to/vivacious
 $ make
 ```
 
-Many options are available, etc.
+By default, all supporting libraries are enabled. To disable a library, or
+set a specific include path, change the following CMake settings:
+- `<LIBRARY>_ENABLE`: Boolean, default ON.
+- `<LIBRARY>_INCLUDE_DIR`: Path to the include directory for the library.
 
-## Usage (from Lua)
+The libraries for which support can be enabled are as follows:
+- `VULKAN`: Available from the Vulkan SDK.
+- `LUA`: Available from lua.org or `liblua5.3-dev` on some Linux distros.
+- `X`: Includes XCB, available from `libxcb1-dev` on some Linux distros.
 
-```lua
-local vV = require 'libvivacious'
-local wind = vV.createWindow('My Cool Window')
-... etc. ...
-```
+## Small example
 
-See the examples and documentation for more information.
+Currently, the vV API is still really big. For now, see the contents of the
+`examples/` directory.
 
 ## License
 
