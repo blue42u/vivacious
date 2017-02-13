@@ -1,14 +1,12 @@
 project(vivacious)
 cmake_minimum_required(VERSION 3.0)
 
-if(CMAKE_VERSION VERSION_LESS "3.1")
-	if(CMAKE_C_COMPILER_ID STREQUAL "GNU"
-		OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
-
-		set(CMAKE_C_FLAGS "--std=c99 ${CMAKE_C_FLAGS}")
-	else()
-		set(CMAKE_C_STANDARD 99)
-	endif()
+if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.3")
+	# Silence an odd error. It turns out that setting the visibility does
+	# not change the static compile, and the executables are not libraries.
+	# All the non-static non-API functions are prefixed with _vV, so this
+	# *shouldn't* cause any issues with an earlier CMake.
+	cmake_policy(SET CMP0063 NEW)
 endif()
 
 set(VULKAN_ENABLE ON CACHE BOOL "Enable Vulkan support")
