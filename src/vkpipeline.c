@@ -33,7 +33,7 @@ struct VvVkP_Builder {
 	struct {
 		VvVkP_Scope* begin;
 		VvVkP_Scope* end;
-	} scopes;
+	} sps;
 
 	// Doubly-linked list for the Operations.
 	struct {
@@ -69,7 +69,7 @@ struct VvVkP_Operation {
 	struct {
 		int cnt;
 		VvVkP_Scope* data;
-	} scopes;
+	} sps;
 
 	struct {
 		int cnt;
@@ -77,7 +77,7 @@ struct VvVkP_Operation {
 	} depends;
 };
 #define FREE_OP(op) (\
-free((op)->scopes.data), \
+free((op)->sps.data), \
 free((op)->depends.data), \
 free(op))
 
@@ -89,7 +89,7 @@ static VvVkP_Builder* create(const VvVk_Binding* vk, uint32_t acnt,
 		.vk = vk,
 		.attach.cnt = acnt,
 		.attach.data = malloc(acnt * sizeof(VkAttachmentDescription)),
-		.scopes.begin = NULL, .scopes.end = NULL,
+		.sps.begin = NULL, .sps.end = NULL,
 		.ops.begin = NULL, .ops.end = NULL,
 	};
 	memcpy(b->attach.data, as, acnt * sizeof(VkAttachmentDescription));
@@ -99,7 +99,7 @@ static VvVkP_Builder* create(const VvVk_Binding* vk, uint32_t acnt,
 static void destroy(VvVkP_Builder* b) {
 	free(b->attach.data);
 
-	VvVkP_Scope* scop = b->scopes.begin;
+	VvVkP_Scope* scop = b->sps.begin;
 	while(scop && scop->next) {
 		scop = scop->next;
 		free(scop->prev);
@@ -114,6 +114,32 @@ static void destroy(VvVkP_Builder* b) {
 	FREE_OP(op);
 
 	free(b);
+}
+
+static VvVkP_Scope* addSp(VvVkP_Builder* b,
+	void (*begin)(void*, VkCommandBuffer),
+	void (*end)(void*, VkCommandBuffer),
+	void* udata,
+	VkBool32 sublocal, int level) {
+
+	VvVkP_Scope* sp = malloc(sizeof(VvVkP_Scope));
+	*sp = (VvVkP_Scope){
+		.sublocal = sublocal, .level = level,
+		.funcs.begin = begin, .funcs.end = end, .funcs.udata = udata,
+		.prev = b->sps.end, .next = NULL,
+	};
+	if(!b->sps.begin) b->sps.begin = sp;
+	if(b->sps.end) b->sps.end->next = sp;
+	b->sps.end = sp;
+	return sp;
+}
+
+static void rmSp(VvVkP_Builder* b, VvVkP_Scope* sp) {
+	if(sp == b->sps.begin) b->sps.begin = sp->next;
+	if(sp == b->sps.end) b->sps.end = sp->prev;
+	if(sp->prev) sp->prev->next = sp->next;
+	if(sp->next) sp->next->prev = sp->prev;
+	free(sp);
 }
 
 static void insertOp(VvVkP_Builder* b, VvVkP_Operation* op) {
@@ -158,13 +184,13 @@ static VvVkP_Operation* addOp(VvVkP_Builder* b,
 	VvVkP_Operation* op = malloc(sizeof(VvVkP_Operation));
 	*op = (VvVkP_Operation){
 		.funcs.init = init, .funcs.func = func, .funcs.udata = udata,
-		.scopes.cnt = sc, .scopes.data = NULL,
+		.sps.cnt = sc, .sps.data = NULL,
 		.depends.cnt = dc, .depends.data = NULL,
 	};
 
 	if(sc > 0) {
-		op->scopes.data = malloc(sc*sizeof(VvVkP_Scope*));
-		memcpy(op->scopes.data, ss, sc*sizeof(VvVkP_Scope*));
+		op->sps.data = malloc(sc*sizeof(VvVkP_Scope*));
+		memcpy(op->sps.data, ss, sc*sizeof(VvVkP_Scope*));
 	}
 	if(dc > 0) {
 		op->depends.data = malloc(dc*sizeof(VvVkP_Dependency));
@@ -205,6 +231,7 @@ static void depends(VvVkP_Builder* b, VvVkP_Operation* op, int dc,
 
 VvAPI const Vv_VulkanPipeline vVvkp_test = {
 	.create = create, .destroy = destroy,
+	.addScope = addSp, .removeScope = rmSp,
 	.addOperation = addOp, .removeOperation = rmOp,
 	.depends = depends,
 };
