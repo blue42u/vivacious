@@ -16,13 +16,29 @@
 
 #include "common.h"
 
-
-
 int main() {
 	setupVk();
 	setupCb();
 
 	VvVkP_Builder* b = vkp.create(&vkbind, 0, NULL);
+
+	VvVkP_Operation* ops[3];
+
+	ops[0] = vkp.addOperation(b, NULL, NULL, NULL,
+		0, NULL,
+		0, NULL);
+
+	ops[1] = vkp.addOperation(b, NULL, NULL, NULL,
+		0, NULL,
+		1, (VvVkP_Dependency[]){ {ops[0]} });
+
+	ops[2] = vkp.addOperation(b, NULL, NULL, NULL,
+		0, NULL,
+		0, NULL);
+
+	vkp.depends(b, ops[2], 2, (VvVkP_Dependency[]){ {ops[0]}, {ops[1]} });
+
+	vkp.removeOperation(b, ops[1]);
 
 	vkp.destroy(b);
 

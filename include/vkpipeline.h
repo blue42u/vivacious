@@ -82,7 +82,7 @@ _Vv_STRUCT(Vv_VulkanPipeline) {
 			const VkCommandBufferInheritanceInfo* cbii),
 		void (*func)(void* userdata, VkCommandBuffer),
 		void* userdata,
-		int scopeCnt, VvVkP_Scope* scopes,
+		int scopeCnt, VvVkP_Scope** scopes,
 		int dependCnt, const VvVkP_Dependency* depends);
 
 	// Delete a Scope from a Builder. <op> is invalid after this.
