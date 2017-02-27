@@ -16,23 +16,11 @@
 
 #include "common.h"
 
-void enter(void* ud, VkCommandBuffer cb) {
-	printf("Entering scope %s {\n", (const char*)ud);
-}
-
-void leave(void* ud, VkCommandBuffer cb) {
-	printf("} Leaving scope %s;\n", (const char*)ud);
-}
-
-void inside(void* ud, VkCommandBuffer cb) {
-	printf("Doing Op %s;\n", (const char*)ud);
-}
-
-#define addOp(NAME, SCOPES, DEPENDS) ({ \
-	VvVkP_Scope* _scps[] = SCOPES; \
+#define addCmd(NAME, SCOPES, DEPENDS) ({ \
+	VvVkP_State* _stats[] = SCOPES; \
 	VvVkP_Dependency _deps[] = DEPENDS; \
-	vkp.addOperation(b, NULL, inside, NAME, \
-		sizeof(_scps)/sizeof(VvVkP_Scope*), _scps, \
+	vkp.addCommand(g, NAME, 0, \
+		sizeof(_stats)/sizeof(VvVkP_State*), _stats, \
 		sizeof(_deps)/sizeof(VvVkP_Dependency), _deps); \
 })
 
@@ -40,22 +28,23 @@ int main() {
 	setupVk();
 	setupCb();
 
-	VvVkP_Builder* b = vkp.create(&vkbind, 0, NULL);
+	VvVkP_Graph* g = vkp.create(100);	// 100 chars for names
 
-	VvVkP_Scope* sps[] = {
-		vkp.addScope(b, enter, leave, "1", VK_FALSE, 0),
-		vkp.addScope(b, enter, leave, "2", VK_FALSE, 0),
+	VvVkP_State* stats[] = {
+		vkp.addState(g, "1"),
+		vkp.addState(g, "2"),
 	};
 
-	VvVkP_Operation* ops[3];
-	ops[0] = addOp("1:1", { sps[0] }, {});
-	ops[1] = addOp("1:2", { sps[0] }, { ops[0] });
-	ops[2] = addOp("2:1", { sps[1] }, { ops[0] });
+	VvVkP_Command* cmds[3];
+	cmds[0] = addCmd("1:1", { stats[0] }, {});
+	cmds[1] = addCmd("1:2", { stats[0] }, { cmds[0] });
+	cmds[2] = addCmd("2:1", { stats[1] }, { cmds[0] });
 
-	vkp.depends(b, ops[2], 2, (VvVkP_Dependency[]){ {ops[0]}, {ops[1]} });
-	vkp.removeOperation(b, ops[1]);
+	vkp.addDepends(g, cmds[2],
+		2, (VvVkP_Dependency[]){ {cmds[0]}, {cmds[1]} });
+	vkp.removeCommand(g, cmds[1]);
 
-	vkp.destroy(b);
+	vkp.destroy(g);
 
 	cleanupCb();
 	cleanupVk();

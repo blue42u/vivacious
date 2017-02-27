@@ -22,129 +22,104 @@
 #include <stdio.h>
 #include <string.h>
 
-struct VvVkP_Builder {
-	const VvVk_Binding* vk;
-	struct {
-		uint32_t cnt;
-		VkAttachmentDescription* data;
-	} attach;
+struct VvVkP_Graph {
+	size_t size;
 
-	// Doubly-linked list for the Scopes.
+	// Doubly-linked list for the States.
 	struct {
-		VvVkP_Scope* begin;
-		VvVkP_Scope* end;
-	} sps;
+		VvVkP_State* begin;
+		VvVkP_State* end;
+	} stats;
 
-	// Doubly-linked list for the Operations.
+	// Doubly-linked list for the Commands.
 	struct {
-		VvVkP_Operation* begin;
-		VvVkP_Operation* end;
-	} ops;
+		VvVkP_Command* begin;
+		VvVkP_Command* end;
+	} cmds;
 };
 
-struct VvVkP_Scope {
-	VvVkP_Scope* prev;
-	VvVkP_Scope* next;
-
-	struct {
-		void (*begin)(void*, VkCommandBuffer);
-		void (*end)(void*, VkCommandBuffer);
-		void* udata;
-	} funcs;
-
-	VkBool32 sublocal;
-	int level;
+struct VvVkP_State {
+	VvVkP_State* prev;
+	VvVkP_State* next;
+	char udata[];
 };
+#define FREE_ST(st) (\
+free(st))
 
-struct VvVkP_Operation {
-	VvVkP_Operation* prev;
-	VvVkP_Operation* next;
+struct VvVkP_Command {
+	VvVkP_Command* prev;
+	VvVkP_Command* next;
 
-	struct {
-		VkResult (*init)(void*, const VkCommandBufferInheritanceInfo*);
-		void (*func)(void*, VkCommandBuffer);
-		void* udata;
-	} funcs;
+	int second;
 
 	struct {
 		int cnt;
-		VvVkP_Scope* data;
-	} sps;
+		VvVkP_State* data;
+	} stats;
 
 	struct {
 		int cnt;
 		VvVkP_Dependency* data;
 	} depends;
+
+	char udata[];
 };
 #define FREE_OP(op) (\
-free((op)->sps.data), \
+free((op)->stats.data), \
 free((op)->depends.data), \
 free(op))
 
-static VvVkP_Builder* create(const VvVk_Binding* vk, uint32_t acnt,
-	const VkAttachmentDescription* as) {
-
-	VvVkP_Builder* b = malloc(sizeof(VvVkP_Builder));
-	*b = (VvVkP_Builder){
-		.vk = vk,
-		.attach.cnt = acnt,
-		.attach.data = malloc(acnt * sizeof(VkAttachmentDescription)),
-		.sps.begin = NULL, .sps.end = NULL,
-		.ops.begin = NULL, .ops.end = NULL,
+static VvVkP_Graph* create(size_t udatasize) {
+	VvVkP_Graph* g = malloc(sizeof(VvVkP_Graph));
+	*g = (VvVkP_Graph){
+		.size=udatasize,
+		.stats.begin = NULL, .stats.end = NULL,
+		.cmds.begin = NULL, .cmds.end = NULL,
 	};
-	memcpy(b->attach.data, as, acnt * sizeof(VkAttachmentDescription));
-	return b;
+	return g;
 }
 
-static void destroy(VvVkP_Builder* b) {
-	free(b->attach.data);
-
-	VvVkP_Scope* scop = b->sps.begin;
-	while(scop && scop->next) {
-		scop = scop->next;
-		free(scop->prev);
+static void destroy(VvVkP_Graph* g) {
+	VvVkP_State* stat = g->stats.begin;
+	while(stat && stat->next) {
+		stat = stat->next;
+		FREE_ST(stat->prev);
 	}
-	free(scop);
+	FREE_ST(stat);
 
-	VvVkP_Operation* op = b->ops.begin;
-	while(op && op->next) {
-		op = op->next;
-		FREE_OP(op->prev);
+	VvVkP_Command* cmd = g->cmds.begin;
+	while(cmd && cmd->next) {
+		cmd = cmd->next;
+		FREE_OP(cmd->prev);
 	}
-	FREE_OP(op);
+	FREE_OP(cmd);
 
-	free(b);
+	free(g);
 }
 
-static VvVkP_Scope* addSp(VvVkP_Builder* b,
-	void (*begin)(void*, VkCommandBuffer),
-	void (*end)(void*, VkCommandBuffer),
-	void* udata,
-	VkBool32 sublocal, int level) {
-
-	VvVkP_Scope* sp = malloc(sizeof(VvVkP_Scope));
-	*sp = (VvVkP_Scope){
-		.sublocal = sublocal, .level = level,
-		.funcs.begin = begin, .funcs.end = end, .funcs.udata = udata,
-		.prev = b->sps.end, .next = NULL,
+static VvVkP_State* addSt(VvVkP_Graph* g, void* udata) {
+	VvVkP_State* sp = malloc(sizeof(VvVkP_State) + g->size);
+	*sp = (VvVkP_State){
+		.prev = g->stats.end, .next = NULL,
 	};
-	if(!b->sps.begin) b->sps.begin = sp;
-	if(b->sps.end) b->sps.end->next = sp;
-	b->sps.end = sp;
+	memcpy(sp->udata, udata, g->size);
+	if(!g->stats.begin) g->stats.begin = sp;
+	if(g->stats.end) g->stats.end->next = sp;
+	g->stats.end = sp;
 	return sp;
 }
 
-static void rmSp(VvVkP_Builder* b, VvVkP_Scope* sp) {
-	if(sp == b->sps.begin) b->sps.begin = sp->next;
-	if(sp == b->sps.end) b->sps.end = sp->prev;
+static void rmSt(VvVkP_Graph* g, VvVkP_State* sp) {
+	if(sp == g->stats.begin) g->stats.begin = sp->next;
+	if(sp == g->stats.end) g->stats.end = sp->prev;
 	if(sp->prev) sp->prev->next = sp->next;
 	if(sp->next) sp->next->prev = sp->prev;
 	free(sp);
 }
 
-static void insertOp(VvVkP_Builder* b, VvVkP_Operation* op) {
+static void insertOp(VvVkP_Graph* g, VvVkP_Command* op) {
 	int missing = op->depends.cnt;
-	VvVkP_Operation* before = b->ops.begin;
+	VvVkP_Command* before = g->cmds.begin;
 	while(missing > 0 && before != NULL) {
 		for(int i=0; i < op->depends.cnt; i++)
 			if(op->depends.data[i].op == before)
@@ -156,16 +131,16 @@ static void insertOp(VvVkP_Builder* b, VvVkP_Operation* op) {
 		return;
 	}
 	if(before == NULL) {	// i.e. we reached the end
-		if(b->ops.end) b->ops.end->next = op;
-		op->prev = b->ops.end;
+		if(g->cmds.end) g->cmds.end->next = op;
+		op->prev = g->cmds.end;
 		op->next = NULL;
-		b->ops.end = op;
-		if(!b->ops.begin) b->ops.begin = op;	// If empty...
-	} else if(before == b->ops.begin) {	// i.e. we just began
+		g->cmds.end = op;
+		if(!g->cmds.begin) g->cmds.begin = op;	// If empty...
+	} else if(before == g->cmds.begin) {	// i.e. we just began
 		before->prev = op;
 		op->next = before;
 		op->prev = NULL;
-		b->ops.begin = op;
+		g->cmds.begin = op;
 	} else {	// Somewhere in the middle
 		op->prev = before->prev;
 		before->prev->next = op;
@@ -174,47 +149,45 @@ static void insertOp(VvVkP_Builder* b, VvVkP_Operation* op) {
 	}
 }
 
-static VvVkP_Operation* addOp(VvVkP_Builder* b,
-	VkResult (*init)(void*, const VkCommandBufferInheritanceInfo*),
-	void (*func)(void*, VkCommandBuffer),
-	void* udata,
-	int sc, VvVkP_Scope** ss,
+static VvVkP_Command* addCmd(VvVkP_Graph* g, void* udata, int second,
+	int sc, VvVkP_State** ss,
 	int dc, const VvVkP_Dependency* ds) {
 
-	VvVkP_Operation* op = malloc(sizeof(VvVkP_Operation));
-	*op = (VvVkP_Operation){
-		.funcs.init = init, .funcs.func = func, .funcs.udata = udata,
-		.sps.cnt = sc, .sps.data = NULL,
+	VvVkP_Command* op = malloc(sizeof(VvVkP_Command) + g->size);
+	*op = (VvVkP_Command){
+		.second = second,
+		.stats.cnt = sc, .stats.data = NULL,
 		.depends.cnt = dc, .depends.data = NULL,
 	};
+	memcpy(op->udata, udata, g->size);
 
 	if(sc > 0) {
-		op->sps.data = malloc(sc*sizeof(VvVkP_Scope*));
-		memcpy(op->sps.data, ss, sc*sizeof(VvVkP_Scope*));
+		op->stats.data = malloc(sc*sizeof(VvVkP_State*));
+		memcpy(op->stats.data, ss, sc*sizeof(VvVkP_State*));
 	}
 	if(dc > 0) {
 		op->depends.data = malloc(dc*sizeof(VvVkP_Dependency));
 		memcpy(op->depends.data, ds, dc*sizeof(VvVkP_Dependency));
 	}
 
-	insertOp(b, op);
+	insertOp(g, op);
 	return op;
 }
 
-static void rmOp(VvVkP_Builder* b, VvVkP_Operation* op) {
-	if(op == b->ops.begin) b->ops.begin = op->next;
-	if(op == b->ops.end) b->ops.end = op->prev;
+static void rmCmd(VvVkP_Graph* g, VvVkP_Command* op) {
+	if(op == g->cmds.begin) g->cmds.begin = op->next;
+	if(op == g->cmds.end) g->cmds.end = op->prev;
 	if(op->prev) op->prev->next = op->next;
 	if(op->next) op->next->prev = op->prev;
 	FREE_OP(op);
 }
 
-static void depends(VvVkP_Builder* b, VvVkP_Operation* op, int dc,
-	const VvVkP_Dependency* ds) {
+static void depends(VvVkP_Graph* g, VvVkP_Command* op,
+	int dc, const VvVkP_Dependency* ds) {
 
 	// First, we take the op out of the list
-	if(op == b->ops.begin) b->ops.begin = op->next;
-	if(op == b->ops.end) b->ops.end = op->prev;
+	if(op == g->cmds.begin) g->cmds.begin = op->next;
+	if(op == g->cmds.end) g->cmds.end = op->prev;
 	if(op->prev) op->prev->next = op->next;
 	if(op->next) op->next->prev = op->prev;
 
@@ -226,14 +199,13 @@ static void depends(VvVkP_Builder* b, VvVkP_Operation* op, int dc,
 	op->depends.cnt += dc;
 
 	// Then we add it back in
-	insertOp(b, op);
+	insertOp(g, op);
 }
 
 VvAPI const Vv_VulkanPipeline vVvkp_test = {
 	.create = create, .destroy = destroy,
-	.addScope = addSp, .removeScope = rmSp,
-	.addOperation = addOp, .removeOperation = rmOp,
-	.depends = depends,
+	.addState = addSt,
+	.addCommand = addCmd, .removeCommand = rmCmd, .addDepends = depends,
 };
 
 #endif // Vv_ENABLE_VULKAN
