@@ -16,6 +16,18 @@
 
 #include "common.h"
 
+void enter(const VvVk_Binding* vkb, void* name, VkCommandBuffer cb) {
+	printf("Setting State %s!\n", (char*)name);
+}
+
+void leave(const VvVk_Binding* vkb, void* name, VkCommandBuffer cb) {
+	printf("Unsetting State %s!\n", (char*)name);
+}
+
+void inside(const VvVk_Binding* vkb, void* name, VkCommandBuffer cb) {
+	printf("Executing Command %s!\n", (char*)name);
+}
+
 #define addCmd(NAME, SCOPES, DEPENDS) ({ \
 	VvVkP_State* _stats[] = SCOPES; \
 	VvVkP_Dependency _deps[] = DEPENDS; \
@@ -35,14 +47,17 @@ int main() {
 		vkp.addState(g, "2"),
 	};
 
-	VvVkP_Command* cmds[3];
+	VvVkP_Command* cmds[4];
 	cmds[0] = addCmd("1:1", { stats[0] }, {});
 	cmds[1] = addCmd("1:2", { stats[0] }, { cmds[0] });
 	cmds[2] = addCmd("2:1", { stats[1] }, { cmds[0] });
+	cmds[3] = addCmd("2:2", { stats[1] }, { cmds[2] });
 
 	vkp.addDepends(g, cmds[2],
 		2, (VvVkP_Dependency[]){ {cmds[0]}, {cmds[1]} });
-	vkp.removeCommand(g, cmds[1]);
+	vkp.removeCommand(g, cmds[3]);
+
+	vkp.execute(g, NULL, NULL, NULL, enter, leave, inside);
 
 	vkp.destroy(g);
 

@@ -54,7 +54,7 @@ struct VvVkP_Command {
 
 	struct {
 		int cnt;
-		VvVkP_State* data;
+		VvVkP_State** data;
 	} stats;
 
 	struct {
@@ -202,10 +202,60 @@ static void depends(VvVkP_Graph* g, VvVkP_Command* op,
 	insertOp(g, op);
 }
 
+static void exec(const VvVkP_Graph* g, const VvVk_Binding* vk,
+	VkCommandBuffer cbuff, const VkRenderPassBeginInfo* info,
+	void (*set)(const VvVk_Binding*, void*, VkCommandBuffer),
+	void (*uset)(const VvVk_Binding*, void*, VkCommandBuffer),
+	void (*cmd)(const VvVk_Binding*, void*, VkCommandBuffer)) {
+
+	int statcnt = 0;
+	for(VvVkP_State* st = g->stats.begin; st; st = st->next)
+		statcnt++;
+	VvVkP_State* stats[statcnt];
+	int setting[statcnt];
+
+	VvVkP_State* st;
+	int i;
+	for(st=g->stats.begin, i=0; st; st = st->next, i++) {
+		stats[i] = st;
+		setting[i] = 0;
+	}
+
+	for(VvVkP_Command* c = g->cmds.begin; c; c = c->next) {
+		// First, get the States right
+		for(int i=0; i<statcnt; i++) {
+			int shouldbe = 0;
+			for(int j=0; j < c->stats.cnt; j++) {
+				if(c->stats.data[j] == stats[i]) {
+					shouldbe = 1;
+					break;
+				}
+			}
+
+			if(shouldbe && !setting[i]) {
+				if(set) set(vk, stats[i]->udata, cbuff);
+			} else if(!shouldbe && setting[i]) {
+				if(uset) uset(vk, stats[i]->udata, cbuff);
+			}
+			setting[i] = shouldbe;
+		}
+
+		// Now execute the Command
+		if(cmd) cmd(vk, c->udata, cbuff);
+	}
+
+	// Now unset all the extra States
+	for(int i=0; i<statcnt; i++) {
+		if(setting[i])
+			uset(vk, stats[i]->udata, cbuff);
+	}
+}
+
 VvAPI const Vv_VulkanPipeline vVvkp_test = {
 	.create = create, .destroy = destroy,
 	.addState = addSt,
 	.addCommand = addCmd, .removeCommand = rmCmd, .addDepends = depends,
+	.execute = exec,
 };
 
 #endif // Vv_ENABLE_VULKAN

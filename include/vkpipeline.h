@@ -91,7 +91,7 @@ _Vv_STRUCT(Vv_VulkanPipeline) {
 	// and <cmd> to execute a Command.
 	// No Command should be executed with more than its States set.
 	void (*execute)(const VvVkP_Graph*, const VvVk_Binding*,
-		const VkRenderPassBeginInfo*,
+		VkCommandBuffer, const VkRenderPassBeginInfo*,
 		void (*set)(const VvVk_Binding*, void* udata, VkCommandBuffer),
 		void (*uset)(const VvVk_Binding*, void* udata, VkCommandBuffer),
 		void (*cmd)(const VvVk_Binding*, void* udata, VkCommandBuffer));
