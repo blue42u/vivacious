@@ -25,13 +25,13 @@ void leave(const VvVk_Binding* vkb, void* name, VkCommandBuffer cb) {
 }
 
 void inside(const VvVk_Binding* vkb, void* name, VkCommandBuffer cb) {
-	printf("Executing Command %s!\n", (char*)name);
+	printf("Executing Subpass %s!\n", (char*)name);
 }
 
-#define addCmd(NAME, SCOPES, DEPENDS) ({ \
+#define addSub(NAME, SCOPES, DEPENDS) ({ \
 	VvVkP_State* _stats[] = SCOPES; \
 	VvVkP_Dependency _deps[] = DEPENDS; \
-	vkp.addCommand(g, NAME, 0, \
+	vkp.addSubpass(g, NAME, 0, \
 		sizeof(_stats)/sizeof(VvVkP_State*), _stats, \
 		sizeof(_deps)/sizeof(VvVkP_Dependency), _deps); \
 })
@@ -47,15 +47,15 @@ int main() {
 		vkp.addState(g, "2"),
 	};
 
-	VvVkP_Command* cmds[4];
-	cmds[0] = addCmd("1:1", { stats[0] }, {});
-	cmds[1] = addCmd("1:2", { stats[0] }, { cmds[0] });
-	cmds[2] = addCmd("2:1", { stats[1] }, { cmds[0] });
-	cmds[3] = addCmd("2:2", { stats[1] }, { cmds[2] });
+	VvVkP_Subpass* subs[4];
+	subs[0] = addSub("1:1", { stats[0] }, {});
+	subs[1] = addSub("1:2", { stats[0] }, { subs[0] });
+	subs[2] = addSub("2:1", { stats[1] }, { subs[0] });
+	subs[3] = addSub("2:2", { stats[1] }, { subs[2] });
 
-	vkp.addDepends(g, cmds[2],
-		2, (VvVkP_Dependency[]){ {cmds[0]}, {cmds[1]} });
-	vkp.removeCommand(g, cmds[3]);
+	vkp.addDepends(g, subs[2],
+		2, (VvVkP_Dependency[]){ {subs[0]}, {subs[1]} });
+	vkp.removeSubpass(g, subs[3]);
 
 	vkp.execute(g, NULL, NULL, NULL, enter, leave, inside);
 

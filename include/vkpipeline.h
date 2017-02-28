@@ -20,21 +20,21 @@
 #include <vivacious/core.h>
 #include <vivacious/vulkan.h>
 
-// The entire Graph, which holds the dependancy info for Commands and
+// The entire Graph, which holds the dependancy info for Subpasss and
 // States.
 _Vv_TYPEDEF(VvVkP_Graph);
 
-// An atomic (may be single) Command. Just a handle into the appropriate Graph.
-_Vv_TYPEDEF(VvVkP_Command);
+// An atomic (may be single) Subpass. Just a handle into the appropriate Graph.
+_Vv_TYPEDEF(VvVkP_Subpass);
 
-// A State in which a Command may be executed.
+// A State in which a Subpass may be executed.
 _Vv_TYPEDEF(VvVkP_State);
 
-// A description of a dependency on another Command. Intended to reflect
-// VkSubpassDependency, but with Commands instead of indices.
+// A description of a dependency on another Subpass. Intended to reflect
+// VkSubpassDependency, but with Subpasss instead of indices.
 _Vv_STRUCT(VvVkP_Dependency) {
-	// The Command to depend on.
-	VvVkP_Command* op;
+	// The Subpass to depend on.
+	VvVkP_Subpass* op;
 
 	// The specific stages of <op> and the "dst" Op which are affected.
 	VkPipelineStageFlags srcStage;
@@ -50,46 +50,55 @@ _Vv_STRUCT(VvVkP_Dependency) {
 
 _Vv_STRUCT(Vv_VulkanPipeline) {
 	// Create a new Graph. Starts out very empty.
-	// Every Command and State has a piece of udata, which is <udatasize>
+	// Every Subpass and State has a piece of udata, which is <udatasize>
 	// large. This is for use in `execute` later.
 	VvVkP_Graph* (*create)(size_t udatasize);
 
 	// Destroy a Graph, cleaning up all the little extra bits.
 	void (*destroy)(VvVkP_Graph*);
 
-	// Add a State to the Graph, with some udata. See `addCommand`.
+	// Add a State to the Graph, with some udata. See `addSubpass`.
 	VvVkP_State* (*addState)(VvVkP_Graph*, void* udata);
 
-	// Add a Command to the Graph, complete with some dependancies.
+	// Add a Subpass to the Graph, complete with some dependancies.
 	// <udata> should point to a block of <udatasize> which is copied and
-	// stored as part of the Command.
-	// <secondary> indicates whether this Command needs to be in a
-	// VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS subpass.
-	VvVkP_Command* (*addCommand)(VvVkP_Graph*, void* udata, int secondary,
+	// stored as part of the Subpass.
+	// <secondary> indicates whether this Subpass requires the use of
+	// VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS.
+	VvVkP_Subpass* (*addSubpass)(VvVkP_Graph*, void* udata, int secondary,
 		int statecnt, VvVkP_State** states,
 		int depcnt, const VvVkP_Dependency* depends);
 
-	// Add more dependencies to a Command. For adding things into the middle
+	// Add more dependencies to a Subpass. For adding things into the middle
 	// of the entire pipeline/pass.
-	void (*addDepends)(VvVkP_Graph*, VvVkP_Command*,
+	void (*addDepends)(VvVkP_Graph*, VvVkP_Subpass*,
 		int depcnt, const VvVkP_Dependency* depends);
 
-	// Remove a Command from the Graph. Since its not needed anymore, I see.
-	void (*removeCommand)(VvVkP_Graph*, VvVkP_Command*);
+	// Remove a Subpass from the Graph. Since its not needed anymore, I see.
+	void (*removeSubpass)(VvVkP_Graph*, VvVkP_Subpass*);
 
-	// Create a VkRenderPass from the Graph, which is designed to work as
-	// expected when used in `execute`. <subpassCount>, <pSubpasses>,
-	// <dependencyCount>, and <pDependencies> are ignored in <info>.
-	// const to allow for multithreading.
-	VkRenderPass (*compile)(const VvVkP_Graph*, const VvVk_Binding*,
-		const VkRenderPassCreateInfo* info);
+	// Copy a list of all the udata's for all the States in the Graph. This
+	// may not include all unused States. Uses the usual Vulkan way of
+	// getting large arrays of things.
+	// const for multithreading.
+	void (*getStates)(const VvVkP_Graph*, int* cnt, void* states);
+
+	// Copy a list of all the udata's for all the Subpasss in the Graph.
+	// Uses the usual Vulkan way of getting large arrays of things.
+	// const for multithreading.
+	void (*getSubpasss)(const VvVkP_Graph*, int* cnt, void* cmds);
+
+	// Compile out the list of subpass dependencies. Subpass indices are
+	// the same as indicies from `getSubpasses`. Uses the normal Vulkan way.
+	void (*getDepends)(const VvVkP_Graph*, int* cnt,
+		VkSubpassDependency* depends);
 
 	// Execute the proper Vulkan calls from `vkBeginRenderPass` to `End`,
-	// using the handlers to convert the Commands and States to commands.
+	// using the handlers to convert the Subpasss and States to commands.
 	// const to allow for multithreading.
 	// <set> is called to set a State, <uset> to unset a State,
-	// and <cmd> to execute a Command.
-	// No Command should be executed with more than its States set.
+	// and <cmd> to execute a Subpass.
+	// No Subpass should be executed with more than its States set.
 	void (*execute)(const VvVkP_Graph*, const VvVk_Binding*,
 		VkCommandBuffer, const VkRenderPassBeginInfo*,
 		void (*set)(const VvVk_Binding*, void* udata, VkCommandBuffer),

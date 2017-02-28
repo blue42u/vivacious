@@ -31,11 +31,11 @@ struct VvVkP_Graph {
 		VvVkP_State* end;
 	} stats;
 
-	// Doubly-linked list for the Commands.
+	// Doubly-linked list for the Subpasss.
 	struct {
-		VvVkP_Command* begin;
-		VvVkP_Command* end;
-	} cmds;
+		VvVkP_Subpass* begin;
+		VvVkP_Subpass* end;
+	} subs;
 };
 
 struct VvVkP_State {
@@ -46,9 +46,9 @@ struct VvVkP_State {
 #define FREE_ST(st) (\
 free(st))
 
-struct VvVkP_Command {
-	VvVkP_Command* prev;
-	VvVkP_Command* next;
+struct VvVkP_Subpass {
+	VvVkP_Subpass* prev;
+	VvVkP_Subpass* next;
 
 	int second;
 
@@ -74,7 +74,7 @@ static VvVkP_Graph* create(size_t udatasize) {
 	*g = (VvVkP_Graph){
 		.size=udatasize,
 		.stats.begin = NULL, .stats.end = NULL,
-		.cmds.begin = NULL, .cmds.end = NULL,
+		.subs.begin = NULL, .subs.end = NULL,
 	};
 	return g;
 }
@@ -87,12 +87,12 @@ static void destroy(VvVkP_Graph* g) {
 	}
 	FREE_ST(stat);
 
-	VvVkP_Command* cmd = g->cmds.begin;
-	while(cmd && cmd->next) {
-		cmd = cmd->next;
-		FREE_OP(cmd->prev);
+	VvVkP_Subpass* sub = g->subs.begin;
+	while(sub && sub->next) {
+		sub = sub->next;
+		FREE_OP(sub->prev);
 	}
-	FREE_OP(cmd);
+	FREE_OP(sub);
 
 	free(g);
 }
@@ -117,9 +117,9 @@ static void rmSt(VvVkP_Graph* g, VvVkP_State* sp) {
 	free(sp);
 }
 
-static void insertOp(VvVkP_Graph* g, VvVkP_Command* op) {
+static void insertSub(VvVkP_Graph* g, VvVkP_Subpass* op) {
 	int missing = op->depends.cnt;
-	VvVkP_Command* before = g->cmds.begin;
+	VvVkP_Subpass* before = g->subs.begin;
 	while(missing > 0 && before != NULL) {
 		for(int i=0; i < op->depends.cnt; i++)
 			if(op->depends.data[i].op == before)
@@ -131,16 +131,16 @@ static void insertOp(VvVkP_Graph* g, VvVkP_Command* op) {
 		return;
 	}
 	if(before == NULL) {	// i.e. we reached the end
-		if(g->cmds.end) g->cmds.end->next = op;
-		op->prev = g->cmds.end;
+		if(g->subs.end) g->subs.end->next = op;
+		op->prev = g->subs.end;
 		op->next = NULL;
-		g->cmds.end = op;
-		if(!g->cmds.begin) g->cmds.begin = op;	// If empty...
-	} else if(before == g->cmds.begin) {	// i.e. we just began
+		g->subs.end = op;
+		if(!g->subs.begin) g->subs.begin = op;	// If empty...
+	} else if(before == g->subs.begin) {	// i.e. we just began
 		before->prev = op;
 		op->next = before;
 		op->prev = NULL;
-		g->cmds.begin = op;
+		g->subs.begin = op;
 	} else {	// Somewhere in the middle
 		op->prev = before->prev;
 		before->prev->next = op;
@@ -149,12 +149,12 @@ static void insertOp(VvVkP_Graph* g, VvVkP_Command* op) {
 	}
 }
 
-static VvVkP_Command* addCmd(VvVkP_Graph* g, void* udata, int second,
+static VvVkP_Subpass* addSub(VvVkP_Graph* g, void* udata, int second,
 	int sc, VvVkP_State** ss,
 	int dc, const VvVkP_Dependency* ds) {
 
-	VvVkP_Command* op = malloc(sizeof(VvVkP_Command) + g->size);
-	*op = (VvVkP_Command){
+	VvVkP_Subpass* op = malloc(sizeof(VvVkP_Subpass) + g->size);
+	*op = (VvVkP_Subpass){
 		.second = second,
 		.stats.cnt = sc, .stats.data = NULL,
 		.depends.cnt = dc, .depends.data = NULL,
@@ -170,24 +170,24 @@ static VvVkP_Command* addCmd(VvVkP_Graph* g, void* udata, int second,
 		memcpy(op->depends.data, ds, dc*sizeof(VvVkP_Dependency));
 	}
 
-	insertOp(g, op);
+	insertSub(g, op);
 	return op;
 }
 
-static void rmCmd(VvVkP_Graph* g, VvVkP_Command* op) {
-	if(op == g->cmds.begin) g->cmds.begin = op->next;
-	if(op == g->cmds.end) g->cmds.end = op->prev;
+static void rmSub(VvVkP_Graph* g, VvVkP_Subpass* op) {
+	if(op == g->subs.begin) g->subs.begin = op->next;
+	if(op == g->subs.end) g->subs.end = op->prev;
 	if(op->prev) op->prev->next = op->next;
 	if(op->next) op->next->prev = op->prev;
 	FREE_OP(op);
 }
 
-static void depends(VvVkP_Graph* g, VvVkP_Command* op,
+static void depends(VvVkP_Graph* g, VvVkP_Subpass* op,
 	int dc, const VvVkP_Dependency* ds) {
 
 	// First, we take the op out of the list
-	if(op == g->cmds.begin) g->cmds.begin = op->next;
-	if(op == g->cmds.end) g->cmds.end = op->prev;
+	if(op == g->subs.begin) g->subs.begin = op->next;
+	if(op == g->subs.end) g->subs.end = op->prev;
 	if(op->prev) op->prev->next = op->next;
 	if(op->next) op->next->prev = op->prev;
 
@@ -199,7 +199,7 @@ static void depends(VvVkP_Graph* g, VvVkP_Command* op,
 	op->depends.cnt += dc;
 
 	// Then we add it back in
-	insertOp(g, op);
+	insertSub(g, op);
 }
 
 static void exec(const VvVkP_Graph* g, const VvVk_Binding* vk,
@@ -221,7 +221,7 @@ static void exec(const VvVkP_Graph* g, const VvVk_Binding* vk,
 		setting[i] = 0;
 	}
 
-	for(VvVkP_Command* c = g->cmds.begin; c; c = c->next) {
+	for(VvVkP_Subpass* c = g->subs.begin; c; c = c->next) {
 		// First, get the States right
 		for(int i=0; i<statcnt; i++) {
 			int shouldbe = 0;
@@ -240,7 +240,7 @@ static void exec(const VvVkP_Graph* g, const VvVk_Binding* vk,
 			setting[i] = shouldbe;
 		}
 
-		// Now execute the Command
+		// Now execute the Subpass
 		if(cmd) cmd(vk, c->udata, cbuff);
 	}
 
@@ -254,7 +254,7 @@ static void exec(const VvVkP_Graph* g, const VvVk_Binding* vk,
 VvAPI const Vv_VulkanPipeline vVvkp_test = {
 	.create = create, .destroy = destroy,
 	.addState = addSt,
-	.addCommand = addCmd, .removeCommand = rmCmd, .addDepends = depends,
+	.addSubpass = addSub, .removeSubpass = rmSub, .addDepends = depends,
 	.execute = exec,
 };
 
