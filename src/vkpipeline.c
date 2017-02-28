@@ -122,7 +122,7 @@ static void insertSub(VvVkP_Graph* g, VvVkP_Subpass* op) {
 	VvVkP_Subpass* before = g->subs.begin;
 	while(missing > 0 && before != NULL) {
 		for(int i=0; i < op->depends.cnt; i++)
-			if(op->depends.data[i].op == before)
+			if(op->depends.data[i].subpass == before)
 				missing--;
 		before = before->next;
 	}
@@ -198,8 +198,68 @@ static void depends(VvVkP_Graph* g, VvVkP_Subpass* op,
 		dc*sizeof(VvVkP_Dependency));
 	op->depends.cnt += dc;
 
-	// Then we add it back in
+	// Then we add it back in (slight issue, fix later)
 	insertSub(g, op);
+}
+
+static void* getSts(const VvVkP_Graph* g, int* cnt) {
+	*cnt = 0;
+	for(VvVkP_State* st = g->stats.begin; st; st = st->next)
+		(*cnt)++;
+	char* out = malloc(*cnt * g->size);
+	int i = 0;
+	for(VvVkP_State* st = g->stats.begin; st; st=st->next, i++)
+		memcpy(&out[i*g->size], st->udata, g->size);
+	return out;
+}
+
+static void* getSubs(const VvVkP_Graph* g, int* cnt) {
+	*cnt = 0;
+	for(VvVkP_Subpass* sp = g->subs.begin; sp; sp = sp->next)
+		(*cnt)++;
+	char* out = malloc(*cnt * g->size);
+	int i = 0;
+	for(VvVkP_Subpass* sp = g->subs.begin; sp; i++, sp=sp->next)
+		memcpy(&out[i*g->size], sp->udata, g->size);
+	return out;
+}
+
+static VkSubpassDependency* getDeps(const VvVkP_Graph* g, int* cnt) {
+	int sc = 0;
+	*cnt = 0;
+	for(VvVkP_Subpass* sp = g->subs.begin; sp; sp = sp->next) {
+		*cnt += sp->depends.cnt;
+		sc++;
+	}
+	VvVkP_Subpass* sps[sc];
+	sc = 0;
+	for(VvVkP_Subpass* sp = g->subs.begin; sp; sp = sp->next, sc++)
+		sps[sc] = sp;
+
+	VkSubpassDependency* out = malloc(*cnt * sizeof(VkSubpassDependency));
+
+	int si = 0;
+	int ind = 0;
+	for(VvVkP_Subpass* sp = g->subs.begin; sp; sp=sp->next, si++) {
+		for(int i=0; i < sp->depends.cnt && ind<*cnt; i++) {
+			VvVkP_Dependency d = sp->depends.data[i];
+			int srcind = -1;
+			for(int i=0; i<sc; i++) {
+				if(sps[i] == d.subpass) {
+					srcind = i;
+					break;
+				}
+			}
+			out[ind] = (VkSubpassDependency){
+				srcind, si,
+				d.srcStage, d.dstStage,
+				d.srcAccess, d.dstAccess,
+				d.flags,
+			};
+			ind++;
+		}
+	}
+	return out;
 }
 
 static void exec(const VvVkP_Graph* g, const VvVk_Binding* vk,
@@ -255,6 +315,7 @@ VvAPI const Vv_VulkanPipeline vVvkp_test = {
 	.create = create, .destroy = destroy,
 	.addState = addSt,
 	.addSubpass = addSub, .removeSubpass = rmSub, .addDepends = depends,
+	.getStates = getSts, .getSubpasses = getSubs, .getDepends = getDeps,
 	.execute = exec,
 };
 

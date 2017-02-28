@@ -16,22 +16,29 @@
 
 #include "common.h"
 
-void enter(const VvVk_Binding* vkb, void* name, VkCommandBuffer cb) {
-	printf("Setting State %s!\n", (char*)name);
+typedef struct {
+	char name[100];
+} UData;
+
+void enter(const VvVk_Binding* vkb, void* udata, VkCommandBuffer cb) {
+	UData* ud = udata;
+	printf("Setting State %s!\n", ud->name);
 }
 
-void leave(const VvVk_Binding* vkb, void* name, VkCommandBuffer cb) {
-	printf("Unsetting State %s!\n", (char*)name);
+void leave(const VvVk_Binding* vkb, void* udata, VkCommandBuffer cb) {
+	UData* ud = udata;
+	printf("Unsetting State %s!\n", ud->name);
 }
 
-void inside(const VvVk_Binding* vkb, void* name, VkCommandBuffer cb) {
-	printf("Executing Subpass %s!\n", (char*)name);
+void inside(const VvVk_Binding* vkb, void* udata, VkCommandBuffer cb) {
+	UData* ud = udata;
+	printf("Executing Subpass %s!\n", ud->name);
 }
 
-#define addSub(NAME, SCOPES, DEPENDS) ({ \
+#define addSub(DATA, SCOPES, DEPENDS) ({ \
 	VvVkP_State* _stats[] = SCOPES; \
 	VvVkP_Dependency _deps[] = DEPENDS; \
-	vkp.addSubpass(g, NAME, 0, \
+	vkp.addSubpass(g, &(UData)DATA, 0, \
 		sizeof(_stats)/sizeof(VvVkP_State*), _stats, \
 		sizeof(_deps)/sizeof(VvVkP_Dependency), _deps); \
 })
@@ -40,7 +47,7 @@ int main() {
 	setupVk();
 	setupCb();
 
-	VvVkP_Graph* g = vkp.create(100);	// 100 chars for names
+	VvVkP_Graph* g = vkp.create(sizeof(UData));
 
 	VvVkP_State* stats[] = {
 		vkp.addState(g, "1"),
@@ -48,14 +55,26 @@ int main() {
 	};
 
 	VvVkP_Subpass* subs[4];
-	subs[0] = addSub("1:1", { stats[0] }, {});
-	subs[1] = addSub("1:2", { stats[0] }, { subs[0] });
-	subs[2] = addSub("2:1", { stats[1] }, { subs[0] });
-	subs[3] = addSub("2:2", { stats[1] }, { subs[2] });
+	subs[0] = addSub({"1:1"}, { stats[0] }, {});
+	subs[1] = addSub({"1:2"}, { stats[0] }, { subs[0] });
+	subs[2] = addSub({"2:1"}, { stats[1] }, { subs[0] });
+	subs[3] = addSub({"2:2"}, { stats[1] }, { subs[2] });
 
 	vkp.addDepends(g, subs[2],
 		2, (VvVkP_Dependency[]){ {subs[0]}, {subs[1]} });
 	vkp.removeSubpass(g, subs[3]);
+
+	int statcnt;
+	UData* udstats = vkp.getStates(g, &statcnt);
+	for(int i=0; i<statcnt; i++)
+		printf("Checking State %s...\n", udstats[i].name);
+	free(udstats);
+
+	int subcnt;
+	UData* udsubs = vkp.getSubpasses(g, &subcnt);
+	for(int i=0; i<subcnt; i++)
+		printf("Checking Subpass %s...\n", udsubs[i].name);
+	free(udsubs);
 
 	vkp.execute(g, NULL, NULL, NULL, enter, leave, inside);
 

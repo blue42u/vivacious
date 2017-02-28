@@ -34,7 +34,7 @@ _Vv_TYPEDEF(VvVkP_State);
 // VkSubpassDependency, but with Subpasss instead of indices.
 _Vv_STRUCT(VvVkP_Dependency) {
 	// The Subpass to depend on.
-	VvVkP_Subpass* op;
+	VvVkP_Subpass* subpass;
 
 	// The specific stages of <op> and the "dst" Op which are affected.
 	VkPipelineStageFlags srcStage;
@@ -78,20 +78,20 @@ _Vv_STRUCT(Vv_VulkanPipeline) {
 	void (*removeSubpass)(VvVkP_Graph*, VvVkP_Subpass*);
 
 	// Copy a list of all the udata's for all the States in the Graph. This
-	// may not include all unused States. Uses the usual Vulkan way of
-	// getting large arrays of things.
+	// may not include all unused States. Return value should be freed by
+	// the application.
 	// const for multithreading.
-	void (*getStates)(const VvVkP_Graph*, int* cnt, void* states);
+	void* (*getStates)(const VvVkP_Graph*, int* cnt);
 
 	// Copy a list of all the udata's for all the Subpasss in the Graph.
-	// Uses the usual Vulkan way of getting large arrays of things.
+	// Return value should be freed by the application.
 	// const for multithreading.
-	void (*getSubpasss)(const VvVkP_Graph*, int* cnt, void* cmds);
+	void* (*getSubpasses)(const VvVkP_Graph*, int* cnt);
 
 	// Compile out the list of subpass dependencies. Subpass indices are
-	// the same as indicies from `getSubpasses`. Uses the normal Vulkan way.
-	void (*getDepends)(const VvVkP_Graph*, int* cnt,
-		VkSubpassDependency* depends);
+	// the same as indicies from `getSubpasses`. Return freed by app.
+	// const for multithreading.
+	VkSubpassDependency* (*getDepends)(const VvVkP_Graph*, int* cnt);
 
 	// Execute the proper Vulkan calls from `vkBeginRenderPass` to `End`,
 	// using the handlers to convert the Subpasss and States to commands.
