@@ -50,7 +50,7 @@ struct VvVkP_Subpass {
 	VvVkP_Subpass* prev;
 	VvVkP_Subpass* next;
 
-	int second;
+	VkSubpassContents contents;
 
 	struct {
 		int cnt;
@@ -155,7 +155,9 @@ static VvVkP_Subpass* addSub(VvVkP_Graph* g, void* udata, int second,
 
 	VvVkP_Subpass* op = malloc(sizeof(VvVkP_Subpass) + g->size);
 	*op = (VvVkP_Subpass){
-		.second = second,
+		.contents = second
+			? VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS
+			: VK_SUBPASS_CONTENTS_INLINE,
 		.stats.cnt = sc, .stats.data = NULL,
 		.depends.cnt = dc, .depends.data = NULL,
 	};
@@ -224,7 +226,7 @@ static void* getSubs(const VvVkP_Graph* g, int* cnt) {
 	return out;
 }
 
-static VkSubpassDependency* getDeps(const VvVkP_Graph* g, int* cnt) {
+static VkSubpassDependency* getDeps(const VvVkP_Graph* g, uint32_t* cnt) {
 	int sc = 0;
 	*cnt = 0;
 	for(VvVkP_Subpass* sp = g->subs.begin; sp; sp = sp->next) {
@@ -281,6 +283,11 @@ static void exec(const VvVkP_Graph* g, const VvVk_Binding* vk,
 		setting[i] = 0;
 	}
 
+	// Enter the RenderPass
+	vk->core->vk_1_0->CmdBeginRenderPass(cbuff, info,
+		g->subs.begin ? g->subs.begin->contents
+		: VK_SUBPASS_CONTENTS_INLINE);
+
 	for(VvVkP_Subpass* c = g->subs.begin; c; c = c->next) {
 		// First, get the States right
 		for(int i=0; i<statcnt; i++) {
@@ -302,6 +309,11 @@ static void exec(const VvVkP_Graph* g, const VvVk_Binding* vk,
 
 		// Now execute the Subpass
 		if(cmd) cmd(vk, c->udata, cbuff);
+
+		// Record the subpass shift
+		if(c->next)
+			vk->core->vk_1_0->CmdNextSubpass(cbuff,
+				c->next->contents);
 	}
 
 	// Now unset all the extra States
@@ -309,6 +321,9 @@ static void exec(const VvVkP_Graph* g, const VvVk_Binding* vk,
 		if(setting[i])
 			uset(vk, stats[i]->udata, cbuff);
 	}
+
+	// Exit the RenderPass
+	vk->core->vk_1_0->CmdEndRenderPass(cbuff);
 }
 
 VvAPI const Vv_VulkanPipeline vVvkp_test = {

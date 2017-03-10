@@ -30,14 +30,22 @@ void setupVk() {
 	vVvk.allocate(&vkbind);
 	vk = vkbind.core->vk_1_0;
 
-	VvVkB_InstInfo* ii = vkb.createInstInfo("VkM test!", 0);
+	VvVkB_InstInfo* ii = vkb.createInstInfo("VkP test!", 0);
 	vkb.setInstVersion(ii, VK_MAKE_VERSION(1,0,0));
 	vkb.addLayers(ii, (const char*[]){
-		"VK_LAYER_LUNARG_standard_validation",
+//		"VK_LAYER_LUNARG_core_validation",
+		"VK_LAYER_LUNARG_parameter_validation",
+		"VK_LAYER_LUNARG_object_tracker",
+		"VK_LAYER_GOOGLE_threading",
+//		"VK_LAYER_GOOGLE_unique_objects",
+
+		"VK_LAYER_LUNARG_swapchain",
 		NULL
 	});
 	vkb.addInstExtensions(ii, (const char*[]){
 		"VK_EXT_debug_report",
+		"VK_KHR_surface",
+		"VK_KHR_xcb_surface",
 		NULL
 	});
 	r = vkb.createInstance(&vkbind, ii, &inst);
@@ -46,7 +54,11 @@ void setupVk() {
 	vVvk.loadInst(&vkbind, inst, VK_FALSE);
 
 	VvVkB_DevInfo* di = vkb.createDevInfo(VK_MAKE_VERSION(1,0,0));
-	*vkb.newTask(di) = (VvVkB_TaskInfo){.flags = VK_QUEUE_TRANSFER_BIT};
+	vkb.addDevExtensions(di, (const char*[]){
+		"VK_KHR_swapchain",
+		NULL
+	});
+	*vkb.newTask(di) = (VvVkB_TaskInfo){.flags = VK_QUEUE_GRAPHICS_BIT};
 	if(vkb.getTaskCount(di) != 1) error("Odd thing with VkB", 0);
 	VvVkB_QueueSpec qs;
 	r = vkb.createDevice(&vkbind, di, inst, &pdev, &dev, &qs);

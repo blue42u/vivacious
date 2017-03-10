@@ -91,7 +91,7 @@ _Vv_STRUCT(Vv_VulkanPipeline) {
 	// Compile out the list of subpass dependencies. Subpass indices are
 	// the same as indicies from `getSubpasses`. Return freed by app.
 	// const for multithreading.
-	VkSubpassDependency* (*getDepends)(const VvVkP_Graph*, int* cnt);
+	VkSubpassDependency* (*getDepends)(const VvVkP_Graph*, uint32_t* cnt);
 
 	// Execute the proper Vulkan calls from `vkBeginRenderPass` to `End`,
 	// using the handlers to convert the Subpasss and States to commands.

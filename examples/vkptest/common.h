@@ -46,3 +46,23 @@ extern VkCommandBuffer cb;
 
 void setupCb();
 void cleanupCb();
+
+extern VkRenderPass rpass;
+
+extern VkSurfaceKHR surf;
+
+void setupWin();
+void cleanupWin();
+
+extern VkFormat format;
+extern VkImage image;
+extern VkExtent2D extent;
+extern VkSwapchainKHR schain;
+
+void setupSChain();
+void cleanupSChain();
+
+extern VkFramebuffer fbuff;
+
+void setupFBuff();
+void cleanupFBuff();
