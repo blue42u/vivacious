@@ -14,6 +14,7 @@ set(VULKAN_INCLUDE_DIR "" CACHE PATH "Vulkan include directory")
 
 set(LUA_ENABLE ON CACHE BOOL "Enable Lua support")
 set(LUA_INCLUDE_DIR "" CACHE PATH "Lua include directory")
+set(LUA_EXECUTABLE "lua" CACHE PATH "Lua executable command")
 
 set(X_ENABLE ON CACHE BOOL "Enable X support")
 set(X_INCLUDE_DIR "" CACHE PATH "X include directory")
