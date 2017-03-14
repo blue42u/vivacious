@@ -17,7 +17,8 @@
 #include "common.h"
 
 VkFormat format;
-VkImage image;
+uint32_t imageCount;
+VkImage* images;
 VkExtent2D extent;
 VkSwapchainKHR schain;
 
@@ -66,7 +67,7 @@ void setupSChain() {
 		VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR, NULL, 0,
 		surf, sc.minImageCount, format, sfs[0].colorSpace,
 		extent, 1,
-		VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+		VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
 		VK_SHARING_MODE_EXCLUSIVE,
 		0, NULL,
 		sc.currentTransform, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
@@ -74,17 +75,18 @@ void setupSChain() {
 		NULL,
 	};
 	r = vkc->CreateSwapchainKHR(dev, &sci, NULL, &schain);
-	if(r<0) error("Error creating swapchain: %d!\n", r);
+	if(r<0) error("creating swapchain", r);
 
 	free(sfs);
 
-	r = vkc->GetSwapchainImagesKHR(dev, schain, &cnt, NULL);
-	if(r<0) error("Error getting swapchain images: %d!\n", r);
-	cnt = 1;
-	r = vkc->GetSwapchainImagesKHR(dev, schain, &cnt, &image);
-	if(r<0) error("Error getting swapchain images: %d!\n", r);
+	r = vkc->GetSwapchainImagesKHR(dev, schain, &imageCount, NULL);
+	if(r<0) error("getting swapchain image count", r);
+	images = malloc(imageCount*sizeof(VkImage));
+	r = vkc->GetSwapchainImagesKHR(dev, schain, &imageCount, images);
+	if(r<0) error("getting swapchain images", r);
 }
 
 void cleanupSChain() {
+	free(images);
 	vkc->DestroySwapchainKHR(dev, schain, NULL);
 }

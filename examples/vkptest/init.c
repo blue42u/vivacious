@@ -33,11 +33,11 @@ void setupVk() {
 	VvVkB_InstInfo* ii = vkb.createInstInfo("VkP test!", 0);
 	vkb.setInstVersion(ii, VK_MAKE_VERSION(1,0,0));
 	vkb.addLayers(ii, (const char*[]){
-//		"VK_LAYER_LUNARG_core_validation",
+		"VK_LAYER_LUNARG_core_validation",
 		"VK_LAYER_LUNARG_parameter_validation",
 		"VK_LAYER_LUNARG_object_tracker",
 		"VK_LAYER_GOOGLE_threading",
-//		"VK_LAYER_GOOGLE_unique_objects",
+		"VK_LAYER_GOOGLE_unique_objects",
 
 		"VK_LAYER_LUNARG_swapchain",
 		NULL
@@ -77,7 +77,7 @@ void cleanupVk() {
 }
 
 VkCommandPool cpool;
-VkCommandBuffer cb;
+VkCommandBuffer* cbs;
 
 void setupCb() {
 	VkResult r = vk->CreateCommandPool(dev, &(VkCommandPoolCreateInfo){
@@ -86,16 +86,19 @@ void setupCb() {
 	}, NULL, &cpool);
 	if(r < 0) error("Could not create CommandPool", r);
 
+	cbs = malloc(imageCount*sizeof(VkCommandBuffer));
+
 	r = vk->AllocateCommandBuffers(dev, &(VkCommandBufferAllocateInfo){
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
 		.commandPool = cpool,
 		.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-		.commandBufferCount = 1,
-	}, &cb);
-	if(r < 0) error("Could not allocate CommandBuffer", r);
+		.commandBufferCount = imageCount,
+	}, cbs);
+	if(r < 0) error("Could not allocate CommandBuffers", r);
 }
 
 void cleanupCb() {
-	vk->FreeCommandBuffers(dev, cpool, 1, &cb);
+	vk->FreeCommandBuffers(dev, cpool, imageCount, cbs);
+	free(cbs);
 	vk->DestroyCommandPool(dev, cpool, NULL);
 }

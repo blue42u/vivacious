@@ -14,6 +14,9 @@
    limitations under the License.
 ***************************************************************************/
 
+#ifndef H_common
+#define H_common
+
 #include <vivacious/vkpipeline.h>
 #include <vivacious/vkbplate.h>
 #include <vivacious/vkmemory.h>
@@ -41,28 +44,38 @@ extern uint32_t qfam;
 void setupVk();
 void cleanupVk();
 
-extern VkCommandPool cpool;
-extern VkCommandBuffer cb;
-
-void setupCb();
-void cleanupCb();
-
-extern VkRenderPass rpass;
-
 extern VkSurfaceKHR surf;
 
 void setupWin();
 void cleanupWin();
 
 extern VkFormat format;
-extern VkImage image;
-extern VkExtent2D extent;
 extern VkSwapchainKHR schain;
+extern uint32_t imageCount;
+extern VkImage* images;
+extern VkExtent2D extent;
 
 void setupSChain();
 void cleanupSChain();
 
-extern VkFramebuffer fbuff;
+extern VkCommandPool cpool;
+extern VkCommandBuffer* cbs;
+
+void setupCb();
+void cleanupCb();
+
+// This is from main.c
+extern VkRenderPass rpass;
+
+extern VkFramebuffer* fbuffs;
 
 void setupFBuff();
 void cleanupFBuff();
+
+extern VkPipeline pipeline;
+extern VkPipelineLayout playout;
+
+void setupPipeline();
+void cleanupPipeline();
+
+#endif

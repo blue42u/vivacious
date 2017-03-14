@@ -20,21 +20,21 @@ VkRenderPass rpass;
 
 typedef struct {
 	char name[100];
+	uint32_t id;
 } UData;
 
 void enter(const VvVk_Binding* vkb, void* udata, VkCommandBuffer cb) {
 	UData* ud = udata;
 	printf("Setting State %s!\n", ud->name);
-}
-
-void leave(const VvVk_Binding* vkb, void* udata, VkCommandBuffer cb) {
-	UData* ud = udata;
-	printf("Unsetting State %s!\n", ud->name);
+	vk->CmdPushConstants(cb, playout,
+		VK_SHADER_STAGE_VERTEX_BIT,
+		0, sizeof(uint32_t), &ud->id);
 }
 
 void inside(const VvVk_Binding* vkb, void* udata, VkCommandBuffer cb) {
 	UData* ud = udata;
 	printf("Executing Subpass %s!\n", ud->name);
+	vk->CmdDraw(cb, 3, 1, 0, ud->id);
 }
 
 #define STAGE VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
@@ -53,17 +53,17 @@ void inside(const VvVk_Binding* vkb, void* udata, VkCommandBuffer cb) {
 
 int main() {
 	setupVk();
-	setupCb();
 	setupWin();
 	setupSChain();
+	setupCb();
 
 	VkResult r;
 
 	VvVkP_Graph* g = vkp.create(sizeof(UData));
 
 	VvVkP_State* stats[] = {
-		vkp.addState(g, "1"),
-		vkp.addState(g, "2"),
+		vkp.addState(g, &(UData){ "1", 0 }),
+		vkp.addState(g, &(UData){ "2", 1 }),
 	};
 
 	VvVkP_Subpass* subs[4];
@@ -79,17 +79,10 @@ int main() {
 		});
 	vkp.removeSubpass(g, subs[3]);
 
-	int statcnt;
-	UData* udstats = vkp.getStates(g, &statcnt);
-	for(int i=0; i<statcnt; i++)
-		printf("Checking State %s...\n", udstats[i].name);
-	free(udstats);
-
 	int subcnt;
 	UData* udsubs = vkp.getSubpasses(g, &subcnt);
 	VkSubpassDescription subdes[subcnt];
 	for(int i=0; i<subcnt; i++) {
-		printf("Checking Subpass %s...\n", udsubs[i].name);
 		subdes[i] = (VkSubpassDescription){
 			0, VK_PIPELINE_BIND_POINT_GRAPHICS,
 			0, NULL,
@@ -124,30 +117,39 @@ int main() {
 	free(deps);
 
 	setupFBuff();
+	setupPipeline();
 
-	r = vk->BeginCommandBuffer(cb, &(VkCommandBufferBeginInfo){
-		VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, NULL,
-		.pInheritanceInfo = NULL,
-	});
-	if(r<0) error("starting CommandBuffer", r);
-	vkp.execute(g, &vkbind, cb, &(VkRenderPassBeginInfo){
-		VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO, NULL,
-		.renderPass = rpass, .framebuffer = fbuff,
-		.renderArea = { .offset = {0,0}, .extent = extent, },
-		.clearValueCount = 1, .pClearValues = (VkClearValue[]){
-			{},
-		},
-	}, enter, leave, inside);
-	vk->EndCommandBuffer(cb);
+	for(int i=0; i<imageCount; i++) {
+		r = vk->BeginCommandBuffer(cbs[i], &(VkCommandBufferBeginInfo){
+			VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, NULL,
+			.pInheritanceInfo = NULL,
+		});
+		if(r<0) error("starting CommandBuffer", r);
+
+		vk->CmdBindPipeline(cbs[i], VK_PIPELINE_BIND_POINT_GRAPHICS,
+			pipeline);
+
+		vkp.execute(g, &vkbind, cbs[i], &(VkRenderPassBeginInfo){
+			VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO, NULL,
+			.renderPass = rpass, .framebuffer = fbuffs[i],
+			.renderArea = { .offset = {0,0}, .extent = extent, },
+			.clearValueCount = 1, .pClearValues = (VkClearValue[]){
+				{},
+			},
+		}, enter, NULL, inside);
+
+		vk->EndCommandBuffer(cbs[i]);
+	}
+
+	cleanupPipeline();
+	cleanupFBuff();
 
 	vk->DestroyRenderPass(dev, rpass, NULL);
-
 	vkp.destroy(g);
 
-	cleanupFBuff();
+	cleanupCb();
 	cleanupSChain();
 	cleanupWin();
-	cleanupCb();
 	cleanupVk();
 	return 0;
 }

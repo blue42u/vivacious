@@ -16,37 +16,47 @@
 
 #include "common.h"
 
-static VkImageView iview;
-VkFramebuffer fbuff;
+static VkImageView* iviews;
+VkFramebuffer* fbuffs;
 
 void setupFBuff() {
 	VkResult r;
 
-	r = vk->CreateImageView(dev, &(VkImageViewCreateInfo){
-		VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO, NULL,
-		.image = image,
-		.viewType = VK_IMAGE_VIEW_TYPE_2D,
-		.format = format,
-		.components = {},	// Identity map
-		.subresourceRange = {
-			VK_IMAGE_ASPECT_COLOR_BIT,
-			0, 1,
-			0, 1,
-		},
-	}, NULL, &iview);
-	if(r<0) error("creating image view", r);
+	iviews = malloc(imageCount*sizeof(VkImageView));
+	for(int i=0; i<imageCount; i++) {
+		r = vk->CreateImageView(dev, &(VkImageViewCreateInfo){
+			VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO, NULL,
+			.image = images[i],
+			.viewType = VK_IMAGE_VIEW_TYPE_2D,
+			.format = format,
+			.components = {},	// Identity map
+			.subresourceRange = {
+				VK_IMAGE_ASPECT_COLOR_BIT,
+				0, 1,
+				0, 1,
+			},
+		}, NULL, &iviews[i]);
+		if(r<0) error("creating image view", r);
+	}
 
-	r = vk->CreateFramebuffer(dev, &(VkFramebufferCreateInfo){
-		VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO, NULL,
-		.renderPass = rpass,
-		.attachmentCount = 1, .pAttachments = &iview,
-		.width = extent.width, .height = extent.height,
-		.layers = 1,
-	}, NULL, &fbuff);
-	if(r<0) error("creating framebuffer", r);
+	fbuffs = malloc(imageCount*sizeof(VkFramebuffer));
+	for(int i=0; i<imageCount; i++) {
+		r = vk->CreateFramebuffer(dev, &(VkFramebufferCreateInfo){
+			VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO, NULL,
+			.renderPass = rpass,
+			.attachmentCount = 1, .pAttachments = &iviews[i],
+			.width = extent.width, .height = extent.height,
+			.layers = 1,
+		}, NULL, &fbuffs[i]);
+		if(r<0) error("creating framebuffer", r);
+	}
 }
 
 void cleanupFBuff() {
-	vk->DestroyFramebuffer(dev, fbuff, NULL);
-	vk->DestroyImageView(dev, iview, NULL);
+	for(int i=0; i<imageCount; i++) {
+		vk->DestroyFramebuffer(dev, fbuffs[i], NULL);
+		vk->DestroyImageView(dev, iviews[i], NULL);
+	}
+	free(fbuffs);
+	free(iviews);
 }
