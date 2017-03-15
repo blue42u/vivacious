@@ -31,11 +31,11 @@ struct VvVkP_Graph {
 		VvVkP_State* end;
 	} stats;
 
-	// Doubly-linked list for the Subpasss.
+	// Doubly-linked list for the Steps.
 	struct {
-		VvVkP_Subpass* begin;
-		VvVkP_Subpass* end;
-	} subs;
+		VvVkP_Step* begin;
+		VvVkP_Step* end;
+	} steps;
 };
 
 struct VvVkP_State {
@@ -46,9 +46,9 @@ struct VvVkP_State {
 #define FREE_ST(st) (\
 free(st))
 
-struct VvVkP_Subpass {
-	VvVkP_Subpass* prev;
-	VvVkP_Subpass* next;
+struct VvVkP_Step {
+	VvVkP_Step* prev;
+	VvVkP_Step* next;
 
 	VkSubpassContents contents;
 
@@ -64,17 +64,17 @@ struct VvVkP_Subpass {
 
 	char udata[];
 };
-#define FREE_OP(op) (\
-free((op)->stats.data), \
-free((op)->depends.data), \
-free(op))
+#define FREE_SP(sp) (\
+free((sp)->stats.data), \
+free((sp)->depends.data), \
+free(sp))
 
 static VvVkP_Graph* create(size_t udatasize) {
 	VvVkP_Graph* g = malloc(sizeof(VvVkP_Graph));
 	*g = (VvVkP_Graph){
 		.size=udatasize,
 		.stats.begin = NULL, .stats.end = NULL,
-		.subs.begin = NULL, .subs.end = NULL,
+		.steps.begin = NULL, .steps.end = NULL,
 	};
 	return g;
 }
@@ -87,12 +87,12 @@ static void destroy(VvVkP_Graph* g) {
 	}
 	FREE_ST(stat);
 
-	VvVkP_Subpass* sub = g->subs.begin;
-	while(sub && sub->next) {
-		sub = sub->next;
-		FREE_OP(sub->prev);
+	VvVkP_Step* sp = g->steps.begin;
+	while(sp && sp->next) {
+		sp = sp->next;
+		FREE_SP(sp->prev);
 	}
-	FREE_OP(sub);
+	FREE_SP(sp);
 
 	free(g);
 }
@@ -117,12 +117,12 @@ static void rmSt(VvVkP_Graph* g, VvVkP_State* sp) {
 	free(sp);
 }
 
-static void insertSub(VvVkP_Graph* g, VvVkP_Subpass* op) {
-	int missing = op->depends.cnt;
-	VvVkP_Subpass* before = g->subs.begin;
+static void insertSub(VvVkP_Graph* g, VvVkP_Step* sp) {
+	int missing = sp->depends.cnt;
+	VvVkP_Step* before = g->steps.begin;
 	while(missing > 0 && before != NULL) {
-		for(int i=0; i < op->depends.cnt; i++)
-			if(op->depends.data[i].subpass == before)
+		for(int i=0; i < sp->depends.cnt; i++)
+			if(sp->depends.data[i].step == before)
 				missing--;
 		before = before->next;
 	}
@@ -131,77 +131,77 @@ static void insertSub(VvVkP_Graph* g, VvVkP_Subpass* op) {
 		return;
 	}
 	if(before == NULL) {	// i.e. we reached the end
-		if(g->subs.end) g->subs.end->next = op;
-		op->prev = g->subs.end;
-		op->next = NULL;
-		g->subs.end = op;
-		if(!g->subs.begin) g->subs.begin = op;	// If empty...
-	} else if(before == g->subs.begin) {	// i.e. we just began
-		before->prev = op;
-		op->next = before;
-		op->prev = NULL;
-		g->subs.begin = op;
+		if(g->steps.end) g->steps.end->next = sp;
+		sp->prev = g->steps.end;
+		sp->next = NULL;
+		g->steps.end = sp;
+		if(!g->steps.begin) g->steps.begin = sp;	// If empty...
+	} else if(before == g->steps.begin) {	// i.e. we just began
+		before->prev = sp;
+		sp->next = before;
+		sp->prev = NULL;
+		g->steps.begin = sp;
 	} else {	// Somewhere in the middle
-		op->prev = before->prev;
-		before->prev->next = op;
-		op->next = before;
-		before->prev = op;
+		sp->prev = before->prev;
+		before->prev->next = sp;
+		sp->next = before;
+		before->prev = sp;
 	}
 }
 
-static VvVkP_Subpass* addSub(VvVkP_Graph* g, void* udata, int second,
+static VvVkP_Step* addSp(VvVkP_Graph* g, void* udata, int second,
 	int sc, VvVkP_State** ss,
 	int dc, const VvVkP_Dependency* ds) {
 
-	VvVkP_Subpass* op = malloc(sizeof(VvVkP_Subpass) + g->size);
-	*op = (VvVkP_Subpass){
+	VvVkP_Step* sp = malloc(sizeof(VvVkP_Step) + g->size);
+	*sp = (VvVkP_Step){
 		.contents = second
 			? VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS
 			: VK_SUBPASS_CONTENTS_INLINE,
 		.stats.cnt = sc, .stats.data = NULL,
 		.depends.cnt = dc, .depends.data = NULL,
 	};
-	memcpy(op->udata, udata, g->size);
+	memcpy(sp->udata, udata, g->size);
 
 	if(sc > 0) {
-		op->stats.data = malloc(sc*sizeof(VvVkP_State*));
-		memcpy(op->stats.data, ss, sc*sizeof(VvVkP_State*));
+		sp->stats.data = malloc(sc*sizeof(VvVkP_State*));
+		memcpy(sp->stats.data, ss, sc*sizeof(VvVkP_State*));
 	}
 	if(dc > 0) {
-		op->depends.data = malloc(dc*sizeof(VvVkP_Dependency));
-		memcpy(op->depends.data, ds, dc*sizeof(VvVkP_Dependency));
+		sp->depends.data = malloc(dc*sizeof(VvVkP_Dependency));
+		memcpy(sp->depends.data, ds, dc*sizeof(VvVkP_Dependency));
 	}
 
-	insertSub(g, op);
-	return op;
+	insertSub(g, sp);
+	return sp;
 }
 
-static void rmSub(VvVkP_Graph* g, VvVkP_Subpass* op) {
-	if(op == g->subs.begin) g->subs.begin = op->next;
-	if(op == g->subs.end) g->subs.end = op->prev;
-	if(op->prev) op->prev->next = op->next;
-	if(op->next) op->next->prev = op->prev;
-	FREE_OP(op);
+static void rmSp(VvVkP_Graph* g, VvVkP_Step* sp) {
+	if(sp == g->steps.begin) g->steps.begin = sp->next;
+	if(sp == g->steps.end) g->steps.end = sp->prev;
+	if(sp->prev) sp->prev->next = sp->next;
+	if(sp->next) sp->next->prev = sp->prev;
+	FREE_SP(sp);
 }
 
-static void depends(VvVkP_Graph* g, VvVkP_Subpass* op,
+static void depends(VvVkP_Graph* g, VvVkP_Step* sp,
 	int dc, const VvVkP_Dependency* ds) {
 
-	// First, we take the op out of the list
-	if(op == g->subs.begin) g->subs.begin = op->next;
-	if(op == g->subs.end) g->subs.end = op->prev;
-	if(op->prev) op->prev->next = op->next;
-	if(op->next) op->next->prev = op->prev;
+	// First, we take the Step out of the list
+	if(sp == g->steps.begin) g->steps.begin = sp->next;
+	if(sp == g->steps.end) g->steps.end = sp->prev;
+	if(sp->prev) sp->prev->next = sp->next;
+	if(sp->next) sp->next->prev = sp->prev;
 
 	// Then we expand depends.data
-	op->depends.data = realloc(op->depends.data,
-		(dc + op->depends.cnt)*sizeof(VvVkP_Dependency));
-	memcpy(&op->depends.data[op->depends.cnt], ds,
+	sp->depends.data = realloc(sp->depends.data,
+		(dc + sp->depends.cnt)*sizeof(VvVkP_Dependency));
+	memcpy(&sp->depends.data[sp->depends.cnt], ds,
 		dc*sizeof(VvVkP_Dependency));
-	op->depends.cnt += dc;
+	sp->depends.cnt += dc;
 
 	// Then we add it back in (slight issue, fix later)
-	insertSub(g, op);
+	insertSub(g, sp);
 }
 
 static void* getSts(const VvVkP_Graph* g, int* cnt) {
@@ -215,13 +215,13 @@ static void* getSts(const VvVkP_Graph* g, int* cnt) {
 	return out;
 }
 
-static void* getSubs(const VvVkP_Graph* g, int* cnt) {
+static void* getSps(const VvVkP_Graph* g, int* cnt) {
 	*cnt = 0;
-	for(VvVkP_Subpass* sp = g->subs.begin; sp; sp = sp->next)
+	for(VvVkP_Step* sp = g->steps.begin; sp; sp = sp->next)
 		(*cnt)++;
 	char* out = malloc(*cnt * g->size);
 	int i = 0;
-	for(VvVkP_Subpass* sp = g->subs.begin; sp; i++, sp=sp->next)
+	for(VvVkP_Step* sp = g->steps.begin; sp; i++, sp=sp->next)
 		memcpy(&out[i*g->size], sp->udata, g->size);
 	return out;
 }
@@ -229,25 +229,25 @@ static void* getSubs(const VvVkP_Graph* g, int* cnt) {
 static VkSubpassDependency* getDeps(const VvVkP_Graph* g, uint32_t* cnt) {
 	int sc = 0;
 	*cnt = 0;
-	for(VvVkP_Subpass* sp = g->subs.begin; sp; sp = sp->next) {
+	for(VvVkP_Step* sp = g->steps.begin; sp; sp = sp->next) {
 		*cnt += sp->depends.cnt;
 		sc++;
 	}
-	VvVkP_Subpass* sps[sc];
+	VvVkP_Step* sps[sc];
 	sc = 0;
-	for(VvVkP_Subpass* sp = g->subs.begin; sp; sp = sp->next, sc++)
+	for(VvVkP_Step* sp = g->steps.begin; sp; sp = sp->next, sc++)
 		sps[sc] = sp;
 
 	VkSubpassDependency* out = malloc(*cnt * sizeof(VkSubpassDependency));
 
 	int si = 0;
 	int ind = 0;
-	for(VvVkP_Subpass* sp = g->subs.begin; sp; sp=sp->next, si++) {
+	for(VvVkP_Step* sp = g->steps.begin; sp; sp=sp->next, si++) {
 		for(int i=0; i < sp->depends.cnt && ind<*cnt; i++) {
 			VvVkP_Dependency d = sp->depends.data[i];
 			int srcind = -1;
 			for(int i=0; i<sc; i++) {
-				if(sps[i] == d.subpass) {
+				if(sps[i] == d.step) {
 					srcind = i;
 					break;
 				}
@@ -285,10 +285,10 @@ static void exec(const VvVkP_Graph* g, const VvVk_Binding* vk,
 
 	// Enter the RenderPass
 	vk->core->vk_1_0->CmdBeginRenderPass(cbuff, info,
-		g->subs.begin ? g->subs.begin->contents
+		g->steps.begin ? g->steps.begin->contents
 		: VK_SUBPASS_CONTENTS_INLINE);
 
-	for(VvVkP_Subpass* c = g->subs.begin; c; c = c->next) {
+	for(VvVkP_Step* c = g->steps.begin; c; c = c->next) {
 		// First, get the States right
 		for(int i=0; i<statcnt; i++) {
 			int shouldbe = 0;
@@ -307,7 +307,7 @@ static void exec(const VvVkP_Graph* g, const VvVk_Binding* vk,
 			setting[i] = shouldbe;
 		}
 
-		// Now execute the Subpass
+		// Now execute the Step
 		if(cmd) cmd(vk, c->udata, cbuff);
 
 		// Record the subpass shift
@@ -329,8 +329,8 @@ static void exec(const VvVkP_Graph* g, const VvVk_Binding* vk,
 VvAPI const Vv_VulkanPipeline vVvkp_test = {
 	.create = create, .destroy = destroy,
 	.addState = addSt,
-	.addSubpass = addSub, .removeSubpass = rmSub, .addDepends = depends,
-	.getStates = getSts, .getSubpasses = getSubs, .getDepends = getDeps,
+	.addStep = addSp, .removeStep = rmSp, .addDepends = depends,
+	.getStates = getSts, .getSteps = getSps, .getDepends = getDeps,
 	.execute = exec,
 };
 

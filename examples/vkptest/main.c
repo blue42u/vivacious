@@ -33,20 +33,20 @@ void enter(const VvVk_Binding* vkb, void* udata, VkCommandBuffer cb) {
 
 void inside(const VvVk_Binding* vkb, void* udata, VkCommandBuffer cb) {
 	UData* ud = udata;
-	printf("Executing Subpass %s!\n", ud->name);
+	printf("Executing Step %s!\n", ud->name);
 	vk->CmdDraw(cb, 3, 1, 0, ud->id);
 }
 
 #define STAGE VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
 
-#define addSub(DATA, SCOPES, DEPENDS) ({ \
+#define addSp(DATA, SCOPES, DEPENDS) ({ \
 	VvVkP_State* _stats[] = SCOPES; \
 	VvVkP_Dependency _deps[] = DEPENDS; \
 	for(int i=0; i<sizeof(_deps)/sizeof(_deps[0]); i++) { \
 		_deps[i].srcStage = STAGE; \
 		_deps[i].dstStage = STAGE; \
 	} \
-	vkp.addSubpass(g, &(UData)DATA, 0, \
+	vkp.addStep(g, &(UData)DATA, 0, \
 		sizeof(_stats)/sizeof(VvVkP_State*), _stats, \
 		sizeof(_deps)/sizeof(VvVkP_Dependency), _deps); \
 })
@@ -66,21 +66,21 @@ int main() {
 		vkp.addState(g, &(UData){ "2", 1 }),
 	};
 
-	VvVkP_Subpass* subs[4];
-	subs[0] = addSub({"1:1"}, { stats[0] }, {});
-	subs[1] = addSub({"1:2"}, { stats[0] }, { subs[0] });
-	subs[2] = addSub({"2:1"}, { stats[1] }, { subs[0] });
-	subs[3] = addSub({"2:2"}, { stats[1] }, { subs[2] });
+	VvVkP_Step* steps[4];
+	steps[0] = addSp({"1:1"}, { stats[0] }, {});
+	steps[1] = addSp({"1:2"}, { stats[0] }, { steps[0] });
+	steps[2] = addSp({"2:1"}, { stats[1] }, { steps[0] });
+	steps[3] = addSp({"2:2"}, { stats[1] }, { steps[2] });
 
-	vkp.addDepends(g, subs[2],
+	vkp.addDepends(g, steps[2],
 		2, (VvVkP_Dependency[]){
-			{subs[0],STAGE,STAGE},
-			{subs[1],STAGE,STAGE}
+			{steps[0],STAGE,STAGE},
+			{steps[1],STAGE,STAGE}
 		});
-	vkp.removeSubpass(g, subs[3]);
+	vkp.removeStep(g, steps[3]);
 
 	int subcnt;
-	UData* udsubs = vkp.getSubpasses(g, &subcnt);
+	UData* udsteps = vkp.getSteps(g, &subcnt);
 	VkSubpassDescription subdes[subcnt];
 	for(int i=0; i<subcnt; i++) {
 		subdes[i] = (VkSubpassDescription){
@@ -93,7 +93,7 @@ int main() {
 			0, NULL,
 		};
 	}
-	free(udsubs);
+	free(udsteps);
 
 	uint32_t depcnt;
 	VkSubpassDependency* deps = vkp.getDepends(g, &depcnt);
