@@ -317,9 +317,11 @@ static void exec(const VvVkP_Graph* g, const VvVk_Binding* vk,
 	}
 
 	// Now unset all the extra States
-	for(int i=0; i<statcnt; i++) {
-		if(setting[i])
-			uset(vk, stats[i]->udata, cbuff);
+	if(uset) {
+		for(int i=0; i<statcnt; i++) {
+			if(setting[i])
+				uset(vk, stats[i]->udata, cbuff);
+		}
 	}
 
 	// Exit the RenderPass
