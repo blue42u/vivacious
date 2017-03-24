@@ -37,10 +37,23 @@ void inside(const VvVk_Binding* vkb, void* udata, VkCommandBuffer cb) {
 	vk->CmdDraw(cb, 3, 1, 0, ud->id);
 }
 
+static VkAttachmentReference arefs[] = {
+	{0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL },
+};
+VkSubpassDescription spass(int spcnt, void** steps, int stcnt, void** states) {
+	return (VkSubpassDescription){
+			0, VK_PIPELINE_BIND_POINT_GRAPHICS,
+			0, NULL,
+			1, arefs, NULL,
+			NULL,
+			0, NULL,
+	};
+}
+
 #define STAGE VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
 
 #define addSp(DATA, SCOPES, DEPENDS) ({ \
-	VvVkP_State* _stats[] = SCOPES; \
+	const VvVkP_State* _stats[] = SCOPES; \
 	VvVkP_Dependency _deps[] = DEPENDS; \
 	for(int i=0; i<sizeof(_deps)/sizeof(_deps[0]); i++) { \
 		_deps[i].srcStage = STAGE; \
@@ -62,8 +75,8 @@ int main() {
 	VvVkP_Graph* g = vkp.create(sizeof(UData));
 
 	VvVkP_State* stats[] = {
-		vkp.addState(g, &(UData){ "1", 0 }),
-		vkp.addState(g, &(UData){ "2", 1 }),
+		vkp.addState(g, &(UData){ "1", 0 }, 0),
+		vkp.addState(g, &(UData){ "2", 1 }, 0),
 	};
 
 	VvVkP_Step* steps[4];
@@ -79,28 +92,8 @@ int main() {
 		});
 	vkp.removeStep(g, steps[3]);
 
-	int subcnt;
-	UData* udsteps = vkp.getSteps(g, &subcnt);
-	VkSubpassDescription subdes[subcnt];
-	for(int i=0; i<subcnt; i++) {
-		subdes[i] = (VkSubpassDescription){
-			0, VK_PIPELINE_BIND_POINT_GRAPHICS,
-			0, NULL,
-			1, (VkAttachmentReference[]){
-				{0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL },
-			}, NULL,
-			NULL,
-			0, NULL,
-		};
-	}
-	free(udsteps);
-
-	uint32_t depcnt;
-	VkSubpassDependency* deps = vkp.getDepends(g, &depcnt);
-	r = vk->CreateRenderPass(dev, &(VkRenderPassCreateInfo){
-		VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO, NULL,
-		.attachmentCount = 1,
-		.pAttachments = (VkAttachmentDescription[]){
+	rpass = vkp.getRenderPass(g, &vkbind, &r, dev,
+		1, (VkAttachmentDescription[]){
 			{
 				.format = format,
 				.samples = VK_SAMPLE_COUNT_1_BIT,
@@ -109,12 +102,8 @@ int main() {
 				.initialLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
 				.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
 			},
-		},
-		.subpassCount = subcnt, .pSubpasses = subdes,
-		.dependencyCount = depcnt, .pDependencies = deps,
-	}, NULL, &rpass);
-	if(r<0) error("creating RenderPass", r);
-	free(deps);
+		}, spass);
+	if(!rpass) error("creating RenderPass", r);
 
 	setupFBuff();
 	setupPipeline();
@@ -129,14 +118,14 @@ int main() {
 		vk->CmdBindPipeline(cbs[i], VK_PIPELINE_BIND_POINT_GRAPHICS,
 			pipeline);
 
-		vkp.execute(g, &vkbind, cbs[i], &(VkRenderPassBeginInfo){
+		vkp.record(g, &vkbind, cbs[i], &(VkRenderPassBeginInfo){
 			VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO, NULL,
 			.renderPass = rpass, .framebuffer = fbuffs[i],
 			.renderArea = { .offset = {0,0}, .extent = extent, },
 			.clearValueCount = 1, .pClearValues = (VkClearValue[]){
 				{},
 			},
-		}, enter, NULL, inside);
+		}, &images[i], enter, NULL, inside);
 
 		vk->EndCommandBuffer(cbs[i]);
 	}
@@ -144,7 +133,6 @@ int main() {
 	cleanupPipeline();
 	cleanupFBuff();
 
-	vk->DestroyRenderPass(dev, rpass, NULL);
 	vkp.destroy(g);
 
 	cleanupCb();

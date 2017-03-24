@@ -20,8 +20,7 @@
 #include <vivacious/core.h>
 #include <vivacious/vulkan.h>
 
-// The entire Graph, which holds the dependancy info for Steps and
-// States.
+// The entire Graph, which holds the dependancy info for Steps and States.
 _Vv_TYPEDEF(VvVkP_Graph);
 
 // An atomic (may be single) Step. Just a handle into the appropriate Graph.
@@ -92,7 +91,7 @@ _Vv_STRUCT(Vv_VulkanPipeline) {
 	// If NULL is returned, <result> is set to the result from
 	// a call to vkCreateRenderPass, or another suitable error.
 	VkRenderPass (*getRenderPass)(VvVkP_Graph*, const VvVk_Binding*,
-		VkResult* result,
+		VkResult* result, VkDevice dev,
 		uint32_t attachCount, const VkAttachmentDescription* attaches,
 		VkSubpassDescription (*spass)(
 			int stepCnt, void** steps,
@@ -114,9 +113,12 @@ _Vv_STRUCT(Vv_VulkanPipeline) {
 	// <set> and <uset> are used for recording State transitions, and
 	// <cmd> for recording Steps. No Step should be called with a
 	// different set of "set" States than specified by `addStep`.
+	// <attachments> is the array of Images that were used to create
+	// the Framebuffer, used for attachment-based dependencies.
 	// const to allow for multithreading.
 	void (*record)(const VvVkP_Graph*, const VvVk_Binding*,
 		VkCommandBuffer, const VkRenderPassBeginInfo*,
+		VkImage* attachments,
 		void (*set)(const VvVk_Binding*, void* udata, VkCommandBuffer),
 		void (*uset)(const VvVk_Binding*, void* udata, VkCommandBuffer),
 		void (*cmd)(const VvVk_Binding*, void* udata, VkCommandBuffer));

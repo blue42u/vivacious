@@ -24,6 +24,9 @@
 
 struct VvVkP_Graph {
 	VkRenderPass rpass;	// Because we must remember.
+	VkDevice dev;
+	PFN_vkDestroyRenderPass drpass;
+	VkImageLayout* layouts;	// Saving info for attachment-based deps.
 
 	// Doubly-linked list for the States.
 	struct {
@@ -36,14 +39,15 @@ struct VvVkP_Graph {
 		VvVkP_Step* begin;
 		VvVkP_Step* end;
 	} steps;
+
+	int second;	// Since we only have one subpass, global contents
 };
 
 struct VvVkP_State {
 	VvVkP_State* prev;
 	VvVkP_State* next;
 	void* udata;
-
-	int bound;	// Single-subpass flag
+	int bound;	// subpass-bound flag
 };
 #define FREE_ST(st) (\
 free(st))
@@ -52,8 +56,6 @@ struct VvVkP_Step {
 	VvVkP_Step* prev;
 	VvVkP_Step* next;
 	void* udata;
-
-	VkSubpassContents contents;
 
 	struct {
 		int cnt;
@@ -75,6 +77,7 @@ static VvVkP_Graph* create() {
 	*g = (VvVkP_Graph){
 		.stats.begin = NULL, .stats.end = NULL,
 		.steps.begin = NULL, .steps.end = NULL,
+		.second = -1, .layouts = NULL, .rpass = NULL,
 	};
 	return g;
 }
@@ -94,6 +97,9 @@ static void destroy(VvVkP_Graph* g) {
 	}
 	FREE_SP(sp);
 
+	if(g->layouts) free(g->layouts);
+	if(g->rpass) g->drpass(g->dev, g->rpass, NULL);
+
 	free(g);
 }
 
@@ -107,14 +113,6 @@ static VvVkP_State* addSt(VvVkP_Graph* g, void* udata, int bound) {
 	if(g->stats.end) g->stats.end->next = sp;
 	g->stats.end = sp;
 	return sp;
-}
-
-static void rmSt(VvVkP_Graph* g, VvVkP_State* st) {
-	if(st == g->stats.begin) g->stats.begin = st->next;
-	if(st == g->stats.end) g->stats.end = st->prev;
-	if(st->prev) st->prev->next = st->next;
-	if(st->next) st->next->prev = st->prev;
-	FREE_ST(st);
 }
 
 static void insert(VvVkP_Graph* g, VvVkP_Step* sp) {
@@ -153,11 +151,11 @@ static VvVkP_Step* addSp(VvVkP_Graph* g, void* udata, int second,
 	int sc, const VvVkP_State** ss,
 	int dc, const VvVkP_Dependency* ds) {
 
+	if(g->second == -1) g->second = second ? 1 : 0;
+	else if(g->second != (second ? 1 : 0)) return NULL;
+
 	VvVkP_Step* sp = malloc(sizeof(VvVkP_Step));
 	*sp = (VvVkP_Step){
-		.contents = second
-			? VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS
-			: VK_SUBPASS_CONTENTS_INLINE,
 		.stats.cnt = sc, .stats.data = NULL,
 		.depends.cnt = dc, .depends.data = NULL,
 		.udata = udata,
@@ -204,6 +202,81 @@ static void depends(VvVkP_Graph* g, VvVkP_Step* sp,
 	insert(g, sp);
 }
 
+static VkRenderPass getRP(VvVkP_Graph* g, const VvVk_Binding* vkb, VkResult* rs,
+	VkDevice dev,
+	uint32_t aCnt, const VkAttachmentDescription* as,
+	VkSubpassDescription (*spass)(int,void**,int,void**)) {
+
+	// Destroy the old RenderPass
+	if(g->rpass) g->drpass(g->dev, g->rpass, NULL);
+
+	// Get a contiguous array of Steps and dependencies
+	int depcnt = 0, spcnt = 0;
+	for(VvVkP_Step* sp = g->steps.begin; sp; sp = sp->next) {
+		spcnt++;
+		depcnt += sp->depends.cnt;
+	}
+	void* sps[spcnt];
+	VkSubpassDependency deps[depcnt];
+	spcnt = 0; depcnt = 0;
+	for(VvVkP_Step* sp = g->steps.begin; sp; sp = sp->next) {
+		sps[spcnt++] = sp;
+		for(int i=0; i < sp->depends.cnt; i++)
+			deps[depcnt++] = (VkSubpassDependency){
+				.srcSubpass = 0, .dstSubpass = 0,
+				.srcStageMask = sp->depends.data[i].srcStage,
+				.dstStageMask = sp->depends.data[i].dstStage,
+				.srcAccessMask = sp->depends.data[i].srcAccess,
+				.dstAccessMask = sp->depends.data[i].dstAccess,
+				.dependencyFlags = sp->depends.data[i].flags
+					| (sp->depends.data[i].attachmentEnable
+					? VK_DEPENDENCY_BY_REGION_BIT : 0),
+			};
+	}
+
+	// Get a contiguous array of bound States
+	int stcnt = 0;
+	for(VvVkP_State* st = g->stats.begin; st; st = st->next)
+		if(st->bound) stcnt++;
+	void* sts[stcnt];
+	spcnt = 0;
+	for(VvVkP_State* st = g->stats.begin; st; st = st->next)
+		if(st->bound) sts[stcnt++] = st;
+
+	// Get the description for the only subpass
+	VkSubpassDescription sd = spass(spcnt, sps, stcnt, sts);
+	if(g->layouts) free(g->layouts);
+	g->layouts = calloc(aCnt, sizeof(VkImageLayout));
+	for(int i=0; i<sd.inputAttachmentCount; i++)
+		g->layouts[sd.pInputAttachments[i].attachment]
+			= sd.pInputAttachments[i].layout;
+	for(int i=0; i<sd.colorAttachmentCount; i++) {
+		g->layouts[sd.pColorAttachments[i].attachment]
+			= sd.pColorAttachments[i].layout;
+		if(sd.pResolveAttachments)
+			g->layouts[sd.pResolveAttachments[i].attachment]
+				= sd.pResolveAttachments[i].layout;
+	}
+	if(sd.pDepthStencilAttachment)
+		g->layouts[sd.pDepthStencilAttachment->attachment]
+			= sd.pDepthStencilAttachment->layout;
+
+	// Make the RenderPass
+	g->dev = dev;
+	g->drpass = vkb->core->vk_1_0->DestroyRenderPass;
+	VkResult r = vkb->core->vk_1_0->CreateRenderPass(dev, &(VkRenderPassCreateInfo){
+		VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO, NULL, 0,
+		aCnt, as,
+		1, &sd,
+		depcnt, deps,
+	}, NULL, &(g->rpass));
+	if(r<0) {
+		g->rpass = NULL;
+		if(rs) *rs = r;
+		return NULL;
+	} else return g->rpass;
+}
+
 static void** getSts(const VvVkP_Graph* g, int* cnt, uint32_t** spasses) {
 	*cnt = 0;
 	for(VvVkP_State* st = g->stats.begin; st; st = st->next)
@@ -226,15 +299,9 @@ static void** getSps(const VvVkP_Graph* g, int* cnt) {
 	return out;
 }
 
-static VkRenderPass getRP(VvVkP_Graph* g, const VvVk_Binding* vkb, VkResult* rs,
-	uint32_t aCnt, const VkAttachmentDescription* as,
-	VkSubpassDescription (*spass)(int,void**,int,void**)) {
-
-	return NULL;
-}
-
 static void rec(const VvVkP_Graph* g, const VvVk_Binding* vk,
 	VkCommandBuffer cbuff, const VkRenderPassBeginInfo* info,
+	VkImage* imgs,
 	void (*set)(const VvVk_Binding*, void*, VkCommandBuffer),
 	void (*uset)(const VvVk_Binding*, void*, VkCommandBuffer),
 	void (*cmd)(const VvVk_Binding*, void*, VkCommandBuffer)) {
@@ -244,25 +311,55 @@ static void rec(const VvVkP_Graph* g, const VvVk_Binding* vk,
 		statcnt++;
 	VvVkP_State* stats[statcnt];
 	int setting[statcnt];
-
-	VvVkP_State* st;
-	int i;
-	for(st=g->stats.begin, i=0; st; st = st->next, i++) {
-		stats[i] = st;
-		setting[i] = 0;
+	statcnt = 0;
+	for(VvVkP_State* st = g->stats.begin; st; st = st->next) {
+		stats[statcnt] = st;
+		setting[statcnt] = 0;
+		statcnt++;
 	}
 
 	// Enter the RenderPass
 	vk->core->vk_1_0->CmdBeginRenderPass(cbuff, info,
-		g->steps.begin ? g->steps.begin->contents
+		g->second ? VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS
 		: VK_SUBPASS_CONTENTS_INLINE);
 
-	for(VvVkP_Step* c = g->steps.begin; c; c = c->next) {
-		// First, get the States right
+	for(VvVkP_Step* sp = g->steps.begin; sp; sp = sp->next) {
+		// Record all the dependencies
+		for(int i=0; i < sp->depends.cnt; i++) {
+			VvVkP_Dependency* d = &sp->depends.data[i];
+			if(d->attachmentEnable)
+				vk->core->vk_1_0->CmdPipelineBarrier(cbuff,
+					d->srcStage, d->dstStage, d->flags,
+					0, NULL,
+					0, NULL,
+					1, &(VkImageMemoryBarrier){
+						VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+						NULL,
+						d->srcAccess, d->dstAccess,
+						g->layouts[d->attachment],
+						g->layouts[d->attachment],
+						VK_QUEUE_FAMILY_IGNORED,
+						VK_QUEUE_FAMILY_IGNORED,
+						imgs[d->attachment],
+						d->attachmentRange,
+					});
+			else
+				vk->core->vk_1_0->CmdPipelineBarrier(cbuff,
+					d->srcStage, d->dstStage, d->flags,
+					1, &(VkMemoryBarrier){
+						VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+						NULL,
+						d->srcAccess, d->dstAccess,
+					},
+					0, NULL,
+					0, NULL);
+		}
+
+		// Get the States right
 		for(int i=0; i<statcnt; i++) {
 			int shouldbe = 0;
-			for(int j=0; j < c->stats.cnt; j++) {
-				if(c->stats.data[j] == stats[i]) {
+			for(int j=0; j < sp->stats.cnt; j++) {
+				if(sp->stats.data[j] == stats[i]) {
 					shouldbe = 1;
 					break;
 				}
@@ -277,12 +374,7 @@ static void rec(const VvVkP_Graph* g, const VvVk_Binding* vk,
 		}
 
 		// Now execute the Step
-		if(cmd) cmd(vk, c->udata, cbuff);
-
-		// Record the subpass shift
-		if(c->next)
-			vk->core->vk_1_0->CmdNextSubpass(cbuff,
-				c->next->contents);
+		if(cmd) cmd(vk, sp->udata, cbuff);
 	}
 
 	// Now unset all the extra States
