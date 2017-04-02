@@ -23,7 +23,6 @@ VkExtent2D extent;
 VkSwapchainKHR schain;
 
 static VvVk_KHR_surface* vks;
-static VvVk_KHR_swapchain* vkc;
 
 static VkPresentModeKHR choosePM(uint32_t cnt, VkPresentModeKHR* pms) {
 	for(int i=0; i<cnt; i++)
@@ -37,7 +36,6 @@ static VkPresentModeKHR choosePM(uint32_t cnt, VkPresentModeKHR* pms) {
 
 void setupSChain() {
 	vks = vkbind.ext->KHR_surface;
-	vkc = vkbind.ext->KHR_swapchain;
 
 	VkBool32 supported;
 	VkResult r = vks->GetPhysicalDeviceSurfaceSupportKHR(pdev, qfam, surf,

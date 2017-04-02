@@ -35,6 +35,7 @@ void error(const char* m, VkResult r);
 
 extern VvVk_Binding vkbind;
 extern VvVk_1_0* vk;
+extern VvVk_KHR_swapchain* vkc;
 extern VkInstance inst;
 extern VkPhysicalDevice pdev;
 extern VkDevice dev;
@@ -60,6 +61,7 @@ void cleanupSChain();
 
 extern VkCommandPool cpool;
 extern VkCommandBuffer* cbs;
+extern VkCommandBuffer* cbi;
 
 void setupCb();
 void cleanupCb();

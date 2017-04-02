@@ -15,6 +15,7 @@
 ***************************************************************************/
 
 #include "common.h"
+#include <time.h>
 
 VkRenderPass rpass;
 
@@ -72,6 +73,7 @@ int main() {
 
 	VkResult r;
 
+	// Create the vV Graph for this
 	VvVkP_Graph* g = vkp.create(sizeof(UData));
 
 	VvVkP_State* stats[] = {
@@ -92,6 +94,7 @@ int main() {
 		});
 	vkp.removeStep(g, steps[3]);
 
+	// Get the RenderPass
 	rpass = vkp.getRenderPass(g, &vkbind, &r, dev,
 		1, (VkAttachmentDescription[]){
 			{
@@ -108,6 +111,7 @@ int main() {
 	setupFBuff();
 	setupPipeline();
 
+	// Record the CommandBuffers
 	for(int i=0; i<imageCount; i++) {
 		r = vk->BeginCommandBuffer(cbs[i], &(VkCommandBufferBeginInfo){
 			VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, NULL,
@@ -128,7 +132,100 @@ int main() {
 		}, &images[i], enter, NULL, inside);
 
 		vk->EndCommandBuffer(cbs[i]);
+
+		r = vk->BeginCommandBuffer(cbi[i], &(VkCommandBufferBeginInfo){
+			VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, NULL,
+			.pInheritanceInfo = NULL,
+		});
+		if(r<0) error("starting CommandBuffer", r);
+		vk->CmdPipelineBarrier(cbi[i],
+			VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+			VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
+			0,
+			0, NULL,
+			0, NULL,
+			1, (VkImageMemoryBarrier[]) { {
+				VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, NULL,
+				VK_ACCESS_HOST_WRITE_BIT,
+				VK_ACCESS_MEMORY_WRITE_BIT,
+				VK_IMAGE_LAYOUT_UNDEFINED,
+				VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+				VK_QUEUE_FAMILY_IGNORED,
+				VK_QUEUE_FAMILY_IGNORED,
+				images[i],
+				{ VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1, },
+			} });
+		vk->EndCommandBuffer(cbi[i]);
 	}
+
+	VkSemaphore draw, pres;
+	{
+		VkSemaphoreCreateInfo sci = {
+			VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO, NULL,
+		};
+		r = vk->CreateSemaphore(dev, &sci, NULL, &draw);
+		if(r<0) error("creating semaphore", r);
+		r = vk->CreateSemaphore(dev, &sci, NULL, &pres);
+		if(r<0) error("creating semaphore", r);
+	}
+
+	VkFence fences[imageCount];
+	int used[imageCount];
+	for(int i=0; i<imageCount; i++) {
+		vk->CreateFence(dev, &(VkFenceCreateInfo){
+			VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, NULL,
+			.flags = VK_FENCE_CREATE_SIGNALED_BIT,
+		}, NULL, &fences[i]);
+		used[i] = 0;
+	}
+
+	time_t start = time(NULL);
+	while(difftime(time(NULL), start) < 8) {
+		uint32_t index;
+		r = vkc->AcquireNextImageKHR(dev, schain, UINT64_MAX,
+			draw, NULL, &index);
+		if(r<0) error("acquiring image", r);
+
+		r = vk->WaitForFences(dev, 1, &fences[index],
+			VK_TRUE, UINT64_MAX);
+		if(r<0) error("waiting for a fence", r);
+
+		r = vk->ResetFences(dev, 1, &fences[index]);
+		if(r<0) error("resetting a fence", r);
+
+		r = vk->QueueSubmit(q, 1, (VkSubmitInfo[]){ {
+			VK_STRUCTURE_TYPE_SUBMIT_INFO, NULL,
+			.waitSemaphoreCount = 1, .pWaitSemaphores = &draw,
+			.pWaitDstStageMask = (VkPipelineStageFlags[]){
+				VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+			},
+			.commandBufferCount = used[index] ? 1 : 2,
+			.pCommandBuffers = (VkCommandBuffer[]){
+				cbi[index], cbs[index],
+			},
+			.signalSemaphoreCount = 1, .pSignalSemaphores = &pres,
+		} }, fences[index]);
+		if(r<0) error("submitting", r);
+
+		used[index] = 1;
+
+		vkc->QueuePresentKHR(q, (VkPresentInfoKHR[]){ {
+			VK_STRUCTURE_TYPE_PRESENT_INFO_KHR, NULL,
+			.waitSemaphoreCount = 1, .pWaitSemaphores = &pres,
+			.swapchainCount = 1, .pSwapchains = &schain,
+			.pImageIndices = &index,
+			.pResults = NULL
+		} });
+		if(r<0) error("presenting", r);
+	}
+
+	r = vk->WaitForFences(dev, imageCount, fences, VK_TRUE, UINT64_MAX);
+	if(r<0) error("waiting for fences", r);
+
+	vk->DestroySemaphore(dev, draw, NULL);
+	vk->DestroySemaphore(dev, pres, NULL);
+	for(int i=0; i<imageCount; i++)
+		vk->DestroyFence(dev, fences[i], NULL);
 
 	cleanupPipeline();
 	cleanupFBuff();

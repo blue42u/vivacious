@@ -18,6 +18,7 @@
 
 VvVk_Binding vkbind;
 VvVk_1_0* vk;
+VvVk_KHR_swapchain* vkc;
 VkInstance inst;
 VkPhysicalDevice pdev;
 VkDevice dev;
@@ -29,6 +30,7 @@ void setupVk() {
 
 	vVvk.allocate(&vkbind);
 	vk = vkbind.core->vk_1_0;
+	vkc = vkbind.ext->KHR_swapchain;
 
 	VvVkB_InstInfo* ii = vkb.createInstInfo("VkP test!", 0);
 	vkb.setInstVersion(ii, VK_MAKE_VERSION(1,0,0));
@@ -78,6 +80,7 @@ void cleanupVk() {
 
 VkCommandPool cpool;
 VkCommandBuffer* cbs;
+VkCommandBuffer* cbi;
 
 void setupCb() {
 	VkResult r = vk->CreateCommandPool(dev, &(VkCommandPoolCreateInfo){
@@ -95,10 +98,22 @@ void setupCb() {
 		.commandBufferCount = imageCount,
 	}, cbs);
 	if(r < 0) error("Could not allocate CommandBuffers", r);
+
+	cbi = malloc(imageCount*sizeof(VkCommandBuffer));
+
+	r = vk->AllocateCommandBuffers(dev, &(VkCommandBufferAllocateInfo){
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+		.commandPool = cpool,
+		.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+		.commandBufferCount = imageCount,
+	}, cbi);
+	if(r < 0) error("Could not allocate CommandBuffers", r);
 }
 
 void cleanupCb() {
 	vk->FreeCommandBuffers(dev, cpool, imageCount, cbs);
 	free(cbs);
+	vk->FreeCommandBuffers(dev, cpool, imageCount, cbi);
+	free(cbi);
 	vk->DestroyCommandPool(dev, cpool, NULL);
 }
