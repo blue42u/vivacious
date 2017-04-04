@@ -60,7 +60,7 @@ VkSubpassDescription spass(int spcnt, void** steps, int stcnt, void** states) {
 		_deps[i].srcStage = STAGE; \
 		_deps[i].dstStage = STAGE; \
 	} \
-	vkp.addStep(g, &(UData)DATA, 0, \
+	vkp.addStep(g, &DATA, 0, \
 		sizeof(_stats)/sizeof(VvVkP_State*), _stats, \
 		sizeof(_deps)/sizeof(VvVkP_Dependency), _deps); \
 })
@@ -82,17 +82,17 @@ int main() {
 	};
 
 	VvVkP_Step* steps[4];
-	steps[0] = addSp({"1:1"}, { stats[0] }, {});
-	steps[1] = addSp({"1:2"}, { stats[0] }, { steps[0] });
-	steps[2] = addSp({"2:1"}, { stats[1] }, { steps[0] });
-	steps[3] = addSp({"2:2"}, { stats[1] }, { steps[2] });
+	steps[0] = addSp(((UData){"1:1", 0}), { stats[0] }, {});
+	steps[1] = addSp(((UData){"1:2", 1}), { stats[0] }, { steps[0] });
+	steps[2] = addSp(((UData){"2:1", 0}), { stats[1] }, { steps[0] });
+	steps[3] = addSp(((UData){"2:2", 1}), { stats[1] }, { steps[2] });
 
 	vkp.addDepends(g, steps[2],
 		2, (VvVkP_Dependency[]){
 			{steps[0],STAGE,STAGE},
 			{steps[1],STAGE,STAGE}
 		});
-	vkp.removeStep(g, steps[3]);
+	//vkp.removeStep(g, steps[3]);
 
 	// Get the RenderPass
 	rpass = vkp.getRenderPass(g, &vkbind, &r, dev,
@@ -127,7 +127,7 @@ int main() {
 			.renderPass = rpass, .framebuffer = fbuffs[i],
 			.renderArea = { .offset = {0,0}, .extent = extent, },
 			.clearValueCount = 1, .pClearValues = (VkClearValue[]){
-				{},
+				{.color={.float32={.01,.03,.05,1}}},
 			},
 		}, &images[i], enter, NULL, inside);
 
@@ -180,7 +180,7 @@ int main() {
 	}
 
 	time_t start = time(NULL);
-	while(difftime(time(NULL), start) < 8) {
+	while(difftime(time(NULL), start) < 3) {
 		uint32_t index;
 		r = vkc->AcquireNextImageKHR(dev, schain, UINT64_MAX,
 			draw, NULL, &index);

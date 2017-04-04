@@ -97,7 +97,7 @@ void setupPipeline() {
 		.pInputAssemblyState = &(VkPipelineInputAssemblyStateCreateInfo){
 			VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
 			NULL,
-			.topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST,
+			.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
 			.primitiveRestartEnable = VK_FALSE,
 		},
 		.pTessellationState = NULL,
