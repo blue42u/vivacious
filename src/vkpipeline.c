@@ -117,33 +117,60 @@ static VvVkP_State* addSt(VvVkP_Graph* g, void* udata, int bound) {
 
 static void insert(VvVkP_Graph* g, VvVkP_Step* sp) {
 	int missing = sp->depends.cnt;
-	VvVkP_Step* before = g->steps.begin;
-	while(missing > 0 && before != NULL) {
-		for(int i=0; i < sp->depends.cnt; i++)
-			if(sp->depends.data[i].step == before)
-				missing--;
-		before = before->next;
+	sp->prev = sp->next = NULL;
+	struct {
+		VvVkP_Step* begin;
+		VvVkP_Step* end;
+	} strip = {sp, sp};
+	VvVkP_Step* here = g->steps.begin;
+	while(missing > 0 && here != NULL) {
+		int needsus = 0;
+		for(int i=0; i < here->depends.cnt; i++) {
+			if(here->depends.data[i].step == sp) {
+				needsus = 1;
+				break;
+			}
+		}
+		if(!needsus) { // If it doesn't need to come after, does it come before?
+			for(int i=0; i < sp->depends.cnt; i++)
+				if(sp->depends.data[i].step == here)
+					missing--;
+			here = here->next;
+		} else {
+			VvVkP_Step* piece = here;
+			here = here->next;
+			if(piece->next) piece->next->prev = piece->prev;
+			else g->steps.end = piece->prev;
+			if(piece->prev) piece->prev->next = piece->next;
+			else g->steps.begin = piece->next;
+
+			// Move after to the end of the "allafter" l-list
+			strip.end->next = piece;
+			piece->prev = strip.end;
+			piece->next = NULL;
+			strip.end = piece;
+		}
 	}
 	if(missing > 0) {
 		fprintf(stderr, "Error in insert!\n");
 		return;
 	}
-	if(before == NULL) {	// i.e. we reached the end
-		if(g->steps.end) g->steps.end->next = sp;
-		sp->prev = g->steps.end;
-		sp->next = NULL;
-		g->steps.end = sp;
-		if(!g->steps.begin) g->steps.begin = sp;	// If empty...
-	} else if(before == g->steps.begin) {	// i.e. we just began
-		before->prev = sp;
-		sp->next = before;
-		sp->prev = NULL;
-		g->steps.begin = sp;
+	if(here == NULL) {	// i.e. we reached the end
+		if(g->steps.end) g->steps.end->next = strip.begin;
+		strip.begin->prev = g->steps.end;
+		strip.end->next = NULL;
+		g->steps.end = strip.end;
+		if(!g->steps.begin) g->steps.begin = strip.begin;	// If empty...
+	} else if(here == g->steps.begin) {	// i.e. we just began
+		here->prev = strip.end;
+		strip.end->next = here;
+		strip.begin->prev = NULL;
+		g->steps.begin = strip.begin;
 	} else {	// Somewhere in the middle
-		sp->prev = before->prev;
-		before->prev->next = sp;
-		sp->next = before;
-		before->prev = sp;
+		strip.begin->prev = here->prev;
+		here->prev->next = strip.begin;
+		strip.end->next = here;
+		here->prev = strip.end;
 	}
 }
 

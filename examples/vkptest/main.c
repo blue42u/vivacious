@@ -83,8 +83,8 @@ int main() {
 
 	VvVkP_Step* steps[4];
 	steps[0] = addSp(((UData){"1:1", 0}), { stats[0] }, {});
-	steps[1] = addSp(((UData){"1:2", 1}), { stats[0] }, { steps[0] });
 	steps[2] = addSp(((UData){"2:1", 0}), { stats[1] }, { steps[0] });
+	steps[1] = addSp(((UData){"1:2", 1}), { stats[0] }, { steps[0] });
 	steps[3] = addSp(((UData){"2:2", 1}), { stats[1] }, { steps[2] });
 
 	vkp.addDepends(g, steps[2],
