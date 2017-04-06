@@ -126,10 +126,13 @@ static void insert(VvVkP_Graph* g, VvVkP_Step* sp) {
 	while(missing > 0 && here != NULL) {
 		int needsus = 0;
 		for(int i=0; i < here->depends.cnt; i++) {
-			if(here->depends.data[i].step == sp) {
-				needsus = 1;
-				break;
+			for(VvVkP_Step* us = sp; us; us = us->next) {
+				if(here->depends.data[i].step == us) {
+					needsus = 1;
+					break;
+				}
 			}
+			if(needsus) break;
 		}
 		if(!needsus) { // If it doesn't need to come after, does it come before?
 			for(int i=0; i < sp->depends.cnt; i++)
