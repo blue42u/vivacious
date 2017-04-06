@@ -77,7 +77,7 @@ static VvVkP_Graph* create() {
 	*g = (VvVkP_Graph){
 		.stats.begin = NULL, .stats.end = NULL,
 		.steps.begin = NULL, .steps.end = NULL,
-		.second = -1, .layouts = NULL, .rpass = NULL,
+		.second = -1, .layouts = NULL, .rpass = VK_NULL_HANDLE,
 	};
 	return g;
 }
@@ -301,9 +301,9 @@ static VkRenderPass getRP(VvVkP_Graph* g, const VvVk_Binding* vkb, VkResult* rs,
 		depcnt, deps,
 	}, NULL, &(g->rpass));
 	if(r<0) {
-		g->rpass = NULL;
+		g->rpass = VK_NULL_HANDLE;
 		if(rs) *rs = r;
-		return NULL;
+		return VK_NULL_HANDLE;
 	} else return g->rpass;
 }
 

@@ -14,10 +14,14 @@ set(VULKAN_INCLUDE_DIR "" CACHE PATH "Vulkan include directory")
 
 set(LUA_ENABLE ON CACHE BOOL "Enable Lua support")
 set(LUA_INCLUDE_DIR "" CACHE PATH "Lua include directory")
+set(LUA_LIB "lua5.3" CACHE PATH "Lua library")
 set(LUA_EXECUTABLE "lua" CACHE PATH "Lua executable command")
 
 set(X_ENABLE ON CACHE BOOL "Enable X support")
 set(X_INCLUDE_DIR "" CACHE PATH "X include directory")
+if(WIN32 OR CYGWIN)
+	set(X_ENABLE OFF)
+endif()
 
 include_directories(
 	${VULKAN_INCLUDE_DIR}
@@ -45,7 +49,7 @@ set(CMAKE_C_VISIBILITY_PRESET hidden)
 set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 set(CMAKE_C_STANDARD 99)
 
-add_definitions(-DVv_VERSION_MAJOR=0 -DVv_VERSION_MINOR=0 -DVv_VERSION_PATCH=0)
+add_definitions(-DVv_VERSION_MAJOR=0 -DVv_VERSION_MINOR=1 -DVv_VERSION_PATCH=0)
 
 add_subdirectory(include)
 add_subdirectory(src)

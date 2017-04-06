@@ -46,5 +46,5 @@ if((UNIX AND NOT APPLE) OR CYGWIN)
 endif()
 
 if(LUA_ENABLE)
-	target_link_libraries(vivacious lua5.3)
+	target_link_libraries(vivacious ${LUA_LIB})
 endif()
