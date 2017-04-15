@@ -164,7 +164,7 @@ out([[
 #include <stdlib.h>
 #include <string.h>
 
-static void allocate(VvVk_Binding* bind) {
+static void allocate(Vv* V) {
 	void* libvk = _vVopendl("libvulkan.so", "libvulkan.dynlib",
 		"vulkan-1.dll");
 	if(!libvk) return;
@@ -175,6 +175,9 @@ static void allocate(VvVk_Binding* bind) {
 		_vVclosedl(libvk);
 		return;
 	}
+
+	V->vk_binding = malloc(sizeof(VvVk_Binding));
+	VvVk_Binding* bind = V->vk_binding;
 
 	bind->internal = libvk;
 	bind->core = malloc(sizeof(VvVk_Core));
@@ -204,26 +207,30 @@ rep(0, '(PFN_vk`)gipa(NULL, "vk`")', false)
 out([[
 }
 
-static void freebind(VvVk_Binding* bind) {]])
+static void freebind(Vv* V) {]])
 for const,id in pairs(ids) do
 	fout([[
-	free(bind->`section`->`id`);
+	free(V->vk_binding->`section`->`id`);
 ]], {const=const, id=id, section=(id:sub(1,3) == 'vk_') and 'core' or 'ext'})
 end
 out([[
-	free(bind->core);
-	free(bind->ext);
-	_vVclosedl(bind->internal);
+	free(V->vk_binding->core);
+	free(V->vk_binding->ext);
+	_vVclosedl(V->vk_binding->internal);
+	free(V->vk_binding);
+	V->vk_binding = NULL;
 }
 
-static void loadI(VvVk_Binding* bind, VkInstance inst, VkBool32 all) {
+static void loadI(const Vv* V, VkInstance inst, VkBool32 all) {
+	VvVk_Binding* bind = V->vk_binding;
 	PFN_vkGetInstanceProcAddr gipa = bind->core->vk_1_0->GetInstanceProcAddr;
 ]])
 rep(1, '(PFN_vk`)gipa(inst, "vk`")')
 out([[
 }
 
-static void loadD(VvVk_Binding* bind, VkDevice dev, VkBool32 all) {
+static void loadD(const Vv* V, VkDevice dev, VkBool32 all) {
+	VvVk_Binding* bind = V->vk_binding;
 	PFN_vkGetDeviceProcAddr gdpa = bind->core->vk_1_0->GetDeviceProcAddr;
 ]])
 rep(2, '(PFN_vk`)gdpa(dev, "vk`")')

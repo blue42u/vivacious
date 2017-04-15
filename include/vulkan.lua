@@ -154,13 +154,13 @@ _Vv_STRUCT(VvVk_Binding) {
 
 _Vv_STRUCT(Vv_Vulkan) {
 	// Allocate space for the PFNs in a Binding.
-	void (*allocate)(const Vv*, VvVk_Binding*);
+	void (*allocate)(Vv*);
 #ifdef Vv_vk_ENABLED
 #define vVvk_allocate(...) vVcore_FUNC(vk, allocate, __VA_ARGS__)
 #endif
 
 	// Free the space for the PFNs in a Binding.
-	void (*free)(const Vv*, VvVk_Binding*);
+	void (*free)(Vv*);
 #ifdef Vv_vk_ENABLED
 #define vVvk_free(...) vVcore_FUNC(vk, free, __VA_ARGS__)
 #endif
