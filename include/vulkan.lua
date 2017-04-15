@@ -61,7 +61,13 @@ struct VvVk_`ver` {]], {const=const, ver=ver})
 			local cmd = string.match(c.attr.name, 'vk(%w+)')
 			if not cmd then
 				herror('No command name: '..c.attr.name) end
-			fout('\tPFN_vk`cmd` `cmd`;', {cmd=cmd})
+			fout([[
+	PFN_vk`cmd` `cmd`;
+#ifdef Vv_vk_ENABLED
+#define vVvk`mm`_`cmd`(...) \
+(Vv_CHOICE).vk_binding->core->vk_`ver`->`cmd`(__VA_ARGS__)
+#endif
+]], {cmd=cmd, ver=ver, mm=maj..min})
 		end
 	end
 
@@ -85,7 +91,13 @@ struct VvVk_`name` {]], {const=const, name=name})
 			local cmd = string.match(c.attr.name, 'vk(%w+)')
 			if not cmd then
 				herror('No command name: '..c.attr.name) end
-			fout('\tPFN_vk`cmd` `cmd`;', {cmd=cmd})
+			fout([[
+	PFN_vk`cmd` `cmd`;
+#ifdef Vv_vk_ENABLED
+#define vVvk_`cmd`(...) \
+(Vv_CHOICE).vk_binding->ext->`name`->`cmd`(__VA_ARGS__)
+#endif
+]], {cmd=cmd,name=name})
 		end
 	end
 
@@ -104,6 +116,9 @@ for _,t in cpairs(dom.root, {name='feature',attr={api='vulkan'}}) do
 	local ver = maj..'_'..min
 	table.insert(pieces, {ver, string.gsub([[
 	VvVk_`ver`* vk_`ver`;
+#ifdef Vv_vk_ENABLED
+#define vVvk`ver` *(Vv_CHOICE).vk_binding->core->`ver`
+#endif
 ]], '`(%w*)`', {const=const, ver=ver})})
 end
 table.sort(pieces, function(a,b) return a[1] < b[1] end)
@@ -120,6 +135,9 @@ for _,t in cpairs(first(dom.root, {name='extensions'}), {name='extension'}) do
 	local name = string.match(const, 'VK_(.*)')
 	table.insert(pieces, {tonumber(t.attr.number), string.gsub([[
 	VvVk_`name`* `name`;
+#ifdef Vv_vk_ENABLED
+#define vVvk_`name` *(Vv_CHOICE).vk_binding->ext->`name`
+#endif
 ]], '`(%w*)`', {const=const, name=name, numb=t.attr.number})})
 end
 table.sort(pieces, function(a,b) return a[1] < b[1] end)
@@ -136,13 +154,13 @@ _Vv_STRUCT(VvVk_Binding) {
 
 _Vv_STRUCT(Vv_Vulkan) {
 	// Allocate space for the PFNs in a Binding.
-	void (*allocate)(const VvC*, VvVk_Binding*);
+	void (*allocate)(const Vv*, VvVk_Binding*);
 #ifdef Vv_vk_ENABLED
 #define vVvk_allocate(...) vVcore_FUNC(vk, allocate, __VA_ARGS__)
 #endif
 
 	// Free the space for the PFNs in a Binding.
-	void (*free)(const VvC*, VvVk_Binding*);
+	void (*free)(const Vv*, VvVk_Binding*);
 #ifdef Vv_vk_ENABLED
 #define vVvk_free(...) vVcore_FUNC(vk, free, __VA_ARGS__)
 #endif
@@ -150,7 +168,7 @@ _Vv_STRUCT(Vv_Vulkan) {
 	// Load the commands which directly require an instance before use.
 	// If <all> is true, this will also load those which indirectly require
 	// an instance. After this, all command use is limited to <inst>.
-	void (*loadInst)(const VvC*, VkInstance inst, VkBool32 all);
+	void (*loadInst)(const Vv*, VkInstance inst, VkBool32 all);
 #ifdef Vv_vk_ENABLED
 #define vVvk_loadInst(...) vVcore_FUNC(vk, loadInst, __VA_ARGS__)
 #endif
@@ -158,7 +176,7 @@ _Vv_STRUCT(Vv_Vulkan) {
 	// Load the commands which directly require a device before use.
 	// If <all> is true, this will also load those which indirectly require
 	// a device. After this, all command use is limited to <dev>.
-	void (*loadDev)(const VvC*, VkDevice dev, VkBool32 all);
+	void (*loadDev)(const Vv*, VkDevice dev, VkBool32 all);
 #ifdef Vv_vk_ENABLED
 #define vVvk_loadDev(...) vVcore_FUNC(vk, loadDev, __VA_ARGS__)
 #endif

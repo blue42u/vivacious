@@ -16,6 +16,9 @@
 
 #ifdef Vv_ENABLE_X
 
+#define Vv_CHOICE *V
+#define Vv_IMP_wi
+
 #include <vivacious/window.h>
 #include "internal.h"
 #include <stdlib.h>
@@ -30,6 +33,10 @@
 
 #include "xcb.h"
 
+#ifndef Vv_vk_ENABLED
+#error Vv_IMP
+#endif
+
 struct VvWi_Connection {		// For us, VvStates have our data!
 	xcb_connection_t* conn;		// Connection to the X server
 	xcb_screen_t* screen;		// Preferred Screen
@@ -43,7 +50,7 @@ struct VvWi_Window {
 	xcb_window_t id;	// The window's id
 };
 
-static VvWi_Connection* Connect() {
+static VvWi_Connection* Connect(const Vv* V) {
 	VvWi_Connection* wc = malloc(sizeof(VvWi_Connection));
 
 	if(_vVlibxcb(&wc->xcb)) {
@@ -77,7 +84,7 @@ static VvWi_Connection* Connect() {
 	return wc;
 }
 
-static void Disconnect(VvWi_Connection* wc) {
+static void Disconnect(const Vv* V, VvWi_Connection* wc) {
 	if(wc->xcb.ewmh_init_atoms) {	// If we have EWMH support
 		xcb_ewmh_connection_wipe(&wc->ewmh);
 	}
@@ -86,7 +93,7 @@ static void Disconnect(VvWi_Connection* wc) {
 	free(wc);
 }
 
-static VvWi_Window* CreateWindow(VvWi_Connection* wc, int width, int height,
+static VvWi_Window* CreateWindow(const Vv* V, VvWi_Connection* wc, int width, int height,
 	VvWi_EventMask mask) {
 	VvWi_Window* r = malloc(sizeof(VvWi_Window));
 	r->c = wc;
@@ -101,18 +108,18 @@ static VvWi_Window* CreateWindow(VvWi_Connection* wc, int width, int height,
 	return r;
 }
 
-static void DestroyWindow(VvWi_Window* w) {
+static void DestroyWindow(const Vv* V, VvWi_Window* w) {
 	w->c->xcb.destroy_window(w->c->conn, w->id);
 	w->c->xcb.flush(w->c->conn);
 	free(w);
 }
 
-static void ShowWindow(VvWi_Window* w) {
+static void ShowWindow(const Vv* V, VvWi_Window* w) {
 	w->c->xcb.map_window(w->c->conn, w->id);
 	w->c->xcb.flush(w->c->conn);
 }
 
-static void SetTitle(VvWi_Window* w, const char* name) {
+static void SetTitle(const Vv* V, VvWi_Window* w, const char* name) {
 	w->c->xcb.change_property(w->c->conn, XCB_PROP_MODE_REPLACE, w->id,
 		XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8,
 		strlen(name), name);
@@ -120,28 +127,26 @@ static void SetTitle(VvWi_Window* w, const char* name) {
 }
 
 #if defined(Vv_ENABLE_VULKAN) && defined(VK_KHR_xcb_surface)
-static int CreateVkSurface(VvWi_Window* w, void* inst, void* psurf,
-	const VvVk_Binding* vkb) {
+static int CreateVkSurface(const Vv* V, VvWi_Window* w, void* inst,
+	void* psurf) {
 
-	if(!vkb->ext->KHR_xcb_surface ||
-		!vkb->ext->KHR_xcb_surface->CreateXcbSurfaceKHR)
+	if(!&vVvk_KHR_xcb_surface)
 		return VK_ERROR_EXTENSION_NOT_PRESENT;
 	VkXcbSurfaceCreateInfoKHR xsci = {
 		VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR, NULL,
 		0, w->c->conn, w->id,
 	};
-	return vkb->ext->KHR_xcb_surface
-		->CreateXcbSurfaceKHR(inst, &xsci, NULL, psurf);
+	return vVvk_CreateXcbSurfaceKHR(inst, &xsci, NULL, psurf);
 }
 #else
-static int CreateVkSurface(VvWi_Window* w, void* inst, void* psurf,
-	const VvVk_Binding* vkb) {
+static int CreateVkSurface(const Vv* V, VvWi_Window* w, void* inst,
+	void* psurf) {
 
 	return -7;	// VK_ERROR_EXTENSION_NOT_PRESENT
 }
 #endif
 
-static void SetFullscreen(VvWi_Window* w, int en) {
+static void SetFullscreen(const Vv* V, VvWi_Window* w, int en) {
 	if(w->c->xcb.ewmh_init_atoms && w->c->ewmh._NET_WM_STATE_FULLSCREEN) {
 		xcb_atom_t at = 0;
 		if(en) at |= w->c->ewmh._NET_WM_STATE_FULLSCREEN;
@@ -153,7 +158,7 @@ static void SetFullscreen(VvWi_Window* w, int en) {
 	} else fprintf(stderr, "Attempted fullscreen without EWMH!\n");
 }
 
-static void SetWindowSize(VvWi_Window* w, const int ext[2]) {
+static void SetWindowSize(const Vv* V, VvWi_Window* w, const int ext[2]) {
 	uint32_t values[] = { ext[0], ext[1] };
 	w->c->xcb.configure_window(w->c->conn, w->id,
 		XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT,
@@ -161,7 +166,7 @@ static void SetWindowSize(VvWi_Window* w, const int ext[2]) {
 	w->c->xcb.flush(w->c->conn);
 }
 
-static void GetWindowSize(VvWi_Window* w, int ext[2]) {
+static void GetWindowSize(const Vv* V, VvWi_Window* w, int ext[2]) {
 	xcb_get_geometry_cookie_t cookie = w->c->xcb.get_geometry(
 		w->c->conn, w->id);
 	xcb_get_geometry_reply_t* geom = w->c->xcb.get_geometry_reply(
@@ -173,7 +178,7 @@ static void GetWindowSize(VvWi_Window* w, int ext[2]) {
 	}
 }
 
-static void GetScreenSize(VvWi_Connection* wc, int ext[2]) {
+static void GetScreenSize(const Vv* V, VvWi_Connection* wc, int ext[2]) {
 	xcb_get_geometry_cookie_t cookie = wc->xcb.get_geometry(
 		wc->conn, wc->screen->root);
 	xcb_get_geometry_reply_t* geom = wc->xcb.get_geometry_reply(

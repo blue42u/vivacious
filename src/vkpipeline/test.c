@@ -16,6 +16,9 @@
 
 #ifdef Vv_ENABLE_VULKAN
 
+#define Vv_CHOICE *V
+#define Vv_IMP_vkp
+
 #include <vivacious/vkpipeline.h>
 #include "internal.h"
 #include <stdlib.h>
@@ -72,7 +75,7 @@ free((sp)->stats.data), \
 free((sp)->depends.data), \
 free(sp))
 
-static VvVkP_Graph* create() {
+static VvVkP_Graph* create(const Vv* V) {
 	VvVkP_Graph* g = malloc(sizeof(VvVkP_Graph));
 	*g = (VvVkP_Graph){
 		.stats.begin = NULL, .stats.end = NULL,
@@ -82,7 +85,7 @@ static VvVkP_Graph* create() {
 	return g;
 }
 
-static void destroy(VvVkP_Graph* g) {
+static void destroy(const Vv* V, VvVkP_Graph* g) {
 	VvVkP_State* stat = g->stats.begin;
 	while(stat && stat->next) {
 		stat = stat->next;
@@ -103,7 +106,7 @@ static void destroy(VvVkP_Graph* g) {
 	free(g);
 }
 
-static VvVkP_State* addSt(VvVkP_Graph* g, void* udata, int bound) {
+static VvVkP_State* addSt(const Vv* V, VvVkP_Graph* g, void* udata, int bound) {
 	VvVkP_State* sp = malloc(sizeof(VvVkP_State));
 	*sp = (VvVkP_State){
 		.prev = g->stats.end, .next = NULL,
@@ -177,7 +180,7 @@ static void insert(VvVkP_Graph* g, VvVkP_Step* sp) {
 	}
 }
 
-static VvVkP_Step* addSp(VvVkP_Graph* g, void* udata, int second,
+static VvVkP_Step* addSp(const Vv* V, VvVkP_Graph* g, void* udata, int second,
 	int sc, const VvVkP_State** ss,
 	int dc, const VvVkP_Dependency* ds) {
 
@@ -204,7 +207,7 @@ static VvVkP_Step* addSp(VvVkP_Graph* g, void* udata, int second,
 	return sp;
 }
 
-static void rmSp(VvVkP_Graph* g, VvVkP_Step* sp) {
+static void rmSp(const Vv* V, VvVkP_Graph* g, VvVkP_Step* sp) {
 	if(sp == g->steps.begin) g->steps.begin = sp->next;
 	if(sp == g->steps.end) g->steps.end = sp->prev;
 	if(sp->prev) sp->prev->next = sp->next;
@@ -212,7 +215,7 @@ static void rmSp(VvVkP_Graph* g, VvVkP_Step* sp) {
 	FREE_SP(sp);
 }
 
-static void depends(VvVkP_Graph* g, VvVkP_Step* sp,
+static void depends(const Vv* V, VvVkP_Graph* g, VvVkP_Step* sp,
 	int dc, const VvVkP_Dependency* ds) {
 
 	// First, we take the Step out of the list
@@ -232,7 +235,7 @@ static void depends(VvVkP_Graph* g, VvVkP_Step* sp,
 	insert(g, sp);
 }
 
-static VkRenderPass getRP(VvVkP_Graph* g, const VvVk_Binding* vkb, VkResult* rs,
+static VkRenderPass getRP(const Vv* V, VvVkP_Graph* g, const VvVk_Binding* vkb, VkResult* rs,
 	VkDevice dev,
 	uint32_t aCnt, const VkAttachmentDescription* as,
 	VkSubpassDescription (*spass)(int,void**,int,void**)) {
@@ -307,7 +310,7 @@ static VkRenderPass getRP(VvVkP_Graph* g, const VvVk_Binding* vkb, VkResult* rs,
 	} else return g->rpass;
 }
 
-static void** getSts(const VvVkP_Graph* g, int* cnt, uint32_t** spasses) {
+static void** getSts(const Vv* V, const VvVkP_Graph* g, int* cnt, uint32_t** spasses) {
 	*cnt = 0;
 	for(VvVkP_State* st = g->stats.begin; st; st = st->next)
 		(*cnt)++;
@@ -318,7 +321,7 @@ static void** getSts(const VvVkP_Graph* g, int* cnt, uint32_t** spasses) {
 	return out;
 }
 
-static void** getSps(const VvVkP_Graph* g, int* cnt) {
+static void** getSps(const Vv* V, const VvVkP_Graph* g, int* cnt) {
 	*cnt = 0;
 	for(VvVkP_Step* sp = g->steps.begin; sp; sp = sp->next)
 		(*cnt)++;
@@ -329,12 +332,12 @@ static void** getSps(const VvVkP_Graph* g, int* cnt) {
 	return out;
 }
 
-static void rec(const VvVkP_Graph* g, const VvVk_Binding* vk,
+static void rec(const Vv* V, const VvVkP_Graph* g,
 	VkCommandBuffer cbuff, const VkRenderPassBeginInfo* info,
 	VkImage* imgs,
-	void (*set)(const VvVk_Binding*, void*, VkCommandBuffer),
-	void (*uset)(const VvVk_Binding*, void*, VkCommandBuffer),
-	void (*cmd)(const VvVk_Binding*, void*, VkCommandBuffer)) {
+	void (*set)(const Vv*, void*, VkCommandBuffer),
+	void (*uset)(const Vv*, void*, VkCommandBuffer),
+	void (*cmd)(const Vv*, void*, VkCommandBuffer)) {
 
 	int statcnt = 0;
 	for(VvVkP_State* st = g->stats.begin; st; st = st->next)
@@ -349,7 +352,7 @@ static void rec(const VvVkP_Graph* g, const VvVk_Binding* vk,
 	}
 
 	// Enter the RenderPass
-	vk->core->vk_1_0->CmdBeginRenderPass(cbuff, info,
+	vVvk10_CmdBeginRenderPass(cbuff, info,
 		g->second ? VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS
 		: VK_SUBPASS_CONTENTS_INLINE);
 
@@ -358,7 +361,7 @@ static void rec(const VvVkP_Graph* g, const VvVk_Binding* vk,
 		for(int i=0; i < sp->depends.cnt; i++) {
 			VvVkP_Dependency* d = &sp->depends.data[i];
 			if(d->attachmentEnable)
-				vk->core->vk_1_0->CmdPipelineBarrier(cbuff,
+				vVvk10_CmdPipelineBarrier(cbuff,
 					d->srcStage, d->dstStage, d->flags,
 					0, NULL,
 					0, NULL,
@@ -374,7 +377,7 @@ static void rec(const VvVkP_Graph* g, const VvVk_Binding* vk,
 						d->attachmentRange,
 					});
 			else
-				vk->core->vk_1_0->CmdPipelineBarrier(cbuff,
+				vVvk10_CmdPipelineBarrier(cbuff,
 					d->srcStage, d->dstStage, d->flags,
 					1, &(VkMemoryBarrier){
 						VK_STRUCTURE_TYPE_MEMORY_BARRIER,
@@ -396,27 +399,27 @@ static void rec(const VvVkP_Graph* g, const VvVk_Binding* vk,
 			}
 
 			if(shouldbe && !setting[i]) {
-				if(set) set(vk, stats[i]->udata, cbuff);
+				if(set) set(V, stats[i]->udata, cbuff);
 			} else if(!shouldbe && setting[i]) {
-				if(uset) uset(vk, stats[i]->udata, cbuff);
+				if(uset) uset(V, stats[i]->udata, cbuff);
 			}
 			setting[i] = shouldbe;
 		}
 
 		// Now execute the Step
-		if(cmd) cmd(vk, sp->udata, cbuff);
+		if(cmd) cmd(V, sp->udata, cbuff);
 	}
 
 	// Now unset all the extra States
 	if(uset) {
 		for(int i=0; i<statcnt; i++) {
 			if(setting[i])
-				uset(vk, stats[i]->udata, cbuff);
+				uset(V, stats[i]->udata, cbuff);
 		}
 	}
 
 	// Exit the RenderPass
-	vk->core->vk_1_0->CmdEndRenderPass(cbuff);
+	vVvk10_CmdEndRenderPass(cbuff);
 }
 
 VvAPI const Vv_VulkanPipeline vVvkp_test = {

@@ -46,7 +46,7 @@ _Vv_STRUCT(Vv) {
 	const struct Vv_VulkanBoilerplate* vkb;
 	const struct Vv_VulkanMemoryManager* vkm;
 	const struct Vv_VulkanPipeline* vkp;
-}
+};
 
 /*
 	This file also (for now) contains the info on the helper macros.
@@ -60,8 +60,7 @@ _Vv_STRUCT(Vv) {
 	If an implementation wishes to use the helper macros, there is
 	a particular order in which the API layers are layed out, which
 	is to prevent cyclic dependencies. This order is defined here,
-	and can be enabled by defining `Vv_IMP` with the enum constant
-	`Vv_IMP_<shorthand>`.
+	and can be enabled by defining `Vv_IMP_<shorthand>`.
 
 	In either case, `Vv_<shorthand>_ENABLED` will be defined
 	if the helper macros are allowed for that API. By writing implementation
@@ -74,37 +73,25 @@ _Vv_STRUCT(Vv) {
 		`vV<shorthand>` references the API structure.
 		`vV<shorthand>_<function>(...)` (funcs start with l-case)
 			calls the function with Vv_CHOICE as the first arg.
-
-	Most helper macros are based on two generic ones, written here, which
-	allow for fast refactoring of the choice system.
 */
 
-// Generic helper macros
+// Generic helper macros, to save on typing in other places
 #define vVcore_API(SHORTHAND) *(Vv_CHOICE).SHORTHAND
 #define vVcore_FUNC(SHORT, FUNC, ...) \
 vVcore_API(SHORT).FUNC(vVcore_API(SHORT), __VA_ARGS__)
 #define vVcore_FUNCNARGS(SHORT, FUNC) \
 vVcore_API(SHORT).FUNC(vVcore_API(SHORT))
 
-// Layer listings
-_Vv_ENUM(Vv_IMP_ENUM) {
-	Vv_IMP_vk, Vv_IMP_wi, // First layer
-	Vv_IMP_vkb, Vv_IMP_vkm, Vv_IMP_vkp,	// Second layer
-	Vv_IMP_ENUM_END
-};
-
-#ifdef Vv_IMP		// Setup to make writing the layers easier
-#define Vv_IMP_UNDEF_LATER
-#define Vv_IMP Vv_IMP_ENUM_END	// So all APIs are enabled
-#endif // !Vv_IMP
-
-// First layer: vk and wi
-#if Vv_IMP != Vv_IMP_vk && Vv_IMP != Vv_IMP_wi
+// First layer: vk
+#ifndef Vv_IMP_vk
 #define Vv_vk_ENABLED
+
+// Second layer: wi
+#ifndef Vv_IMP_wi
 #define Vv_wi_ENABLED
 
-// Second layer: vkb, vkm and vkp
-#if Vv_IMP != Vv_IMP_vkb && Vv_IMP != Vv_IMP_vkm && Vv_IMP != Vv_IMP_vkp
+// Third layer: vkb, vkm and vkp
+#if !defined(Vv_IMP_vkb) && !defined(Vv_IMP_vkm) && !defined(Vv_IMP_vkp)
 #define Vv_vkb_ENABLED
 #define Vv_vkm_ENABLED
 #define Vv_vkp_ENABLED
@@ -112,12 +99,9 @@ _Vv_ENUM(Vv_IMP_ENUM) {
 // End of layers.
 
 #endif // !vkb && !vkm && !vkp
-#endif // !vk && !wi
-#endif // Vv_IMP
+#endif // !wi
+#endif // !vk
 
-#ifdef Vv_IMP_UNDEF_LATER
-#undef Vv_IMP_UNDEF_LATER
-#undef Vv_IMP
-#endif
+#undef Vv_REAL_IMP
 
 #endif // H_vivacious_core

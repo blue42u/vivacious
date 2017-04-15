@@ -16,6 +16,9 @@
 
 #ifdef Vv_ENABLE_VULKAN
 
+#define Vv_CHOICE *V
+#define Vv_IMP_vkb
+
 #include <vivacious/vkbplate.h>
 #include "internal.h"
 #include <stdlib.h>
@@ -33,7 +36,7 @@ struct VvVkB_InstInfo {
 	const char** exts;
 };
 
-static VvVkB_InstInfo* createInstInfo(const char* name, uint32_t ver) {
+static VvVkB_InstInfo* createInstInfo(const Vv* V, const char* name, uint32_t ver) {
 	VvVkB_InstInfo* ii = malloc(sizeof(VvVkB_InstInfo));
 	*ii = (VvVkB_InstInfo) {
 		.appName = name, .appVer = ver,
@@ -44,11 +47,11 @@ static VvVkB_InstInfo* createInstInfo(const char* name, uint32_t ver) {
 	return ii;
 }
 
-static void setIVer(VvVkB_InstInfo* ii, uint32_t ver) {
+static void setIVer(const Vv* V, VvVkB_InstInfo* ii, uint32_t ver) {
 	ii->apiVer = ver;
 }
 
-static void addLays(VvVkB_InstInfo* ii, const char** names) {
+static void addLays(const Vv* V, VvVkB_InstInfo* ii, const char** names) {
 	int cnt;
 	for(cnt = 0; names[cnt] != NULL; cnt++);
 	if(ii->laycnt == 0) ii->lays = malloc(cnt*sizeof(char*));
@@ -58,7 +61,7 @@ static void addLays(VvVkB_InstInfo* ii, const char** names) {
 	ii->laycnt += cnt;
 }
 
-static void addIExts(VvVkB_InstInfo* ii, const char** names) {
+static void addIExts(const Vv* V, VvVkB_InstInfo* ii, const char** names) {
 	int cnt;
 	for(cnt = 0; names[cnt] != NULL; cnt++);
 	if(ii->extcnt == 0) ii->exts = malloc(cnt*sizeof(char*));
@@ -68,10 +71,10 @@ static void addIExts(VvVkB_InstInfo* ii, const char** names) {
 	ii->extcnt += cnt;
 }
 
-static VkResult createInst(const VvVk_Binding* vk, VvVkB_InstInfo* ii,
+static VkResult createInst(const Vv* V, VvVkB_InstInfo* ii,
 	VkInstance* inst) {
 
-	VkResult r = vk->core->vk_1_0->CreateInstance(&(VkInstanceCreateInfo){
+	VkResult r = vVvk10_CreateInstance(&(VkInstanceCreateInfo){
 		.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
 		.pApplicationInfo = &(VkApplicationInfo){
 			.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
@@ -110,7 +113,7 @@ struct VvVkB_DevInfo {
 	VvVkB_TaskInfo* tasks;
 };
 
-static VvVkB_DevInfo* createDevInfo(uint32_t ver) {
+static VvVkB_DevInfo* createDevInfo(const Vv* V, uint32_t ver) {
 	VvVkB_DevInfo* di = malloc(sizeof(VvVkB_DevInfo));
 	*di = (VvVkB_DevInfo){
 		.ver = ver,
@@ -122,7 +125,7 @@ static VvVkB_DevInfo* createDevInfo(uint32_t ver) {
 	return di;
 }
 
-static void addDExts(VvVkB_DevInfo* di, const char** names) {
+static void addDExts(const Vv* V, VvVkB_DevInfo* di, const char** names) {
 	int cnt;
 	for(cnt = 0; names[cnt] != NULL; cnt++);
 	if(di->extcnt == 0) di->exts = malloc(cnt*sizeof(char*));
@@ -132,25 +135,25 @@ static void addDExts(VvVkB_DevInfo* di, const char** names) {
 	di->extcnt += cnt;
 }
 
-static void setValid(VvVkB_DevInfo* di, VkBool32 (*f)(
+static void setValid(const Vv* V, VvVkB_DevInfo* di, VkBool32 (*f)(
 	void*, VkPhysicalDevice), void* udata) {
 
 	di->validudata = udata;
 	di->valid = f;
 }
 
-static void setComp(VvVkB_DevInfo* di, VkBool32 (*f)(
+static void setComp(const Vv* V, VvVkB_DevInfo* di, VkBool32 (*f)(
 	void*, VkPhysicalDevice, VkPhysicalDevice), void* udata) {
 
 	di->compudata = udata;
 	di->comp = f;
 }
 
-static int getTCount(VvVkB_DevInfo* di) {
+static int getTCount(const Vv* V, VvVkB_DevInfo* di) {
 	return di->taskcnt;
 }
 
-static VvVkB_TaskInfo* nextT(VvVkB_DevInfo* di) {
+static VvVkB_TaskInfo* nextT(const Vv* V, VvVkB_DevInfo* di) {
 	if(di->taskcnt == di->tasksize) {
 		di->tasksize = 2*di->tasksize + 1;
 		di->tasks = realloc(di->tasks,
@@ -160,14 +163,14 @@ static VvVkB_TaskInfo* nextT(VvVkB_DevInfo* di) {
 	return &di->tasks[di->taskcnt-1];
 }
 
-static VkBool32 queuePDev(const VvVk_1_0* vk, VvVkB_DevInfo* di,
+static VkBool32 queuePDev(const Vv* V, VvVkB_DevInfo* di,
 	VkPhysicalDevice pdev, VvVkB_QueueSpec* qs, int** rcnts) {
 
 	uint32_t cnt = 0;
-	vk->GetPhysicalDeviceQueueFamilyProperties(pdev, &cnt, NULL);
+	vVvk10_GetPhysicalDeviceQueueFamilyProperties(pdev, &cnt, NULL);
 	VkQueueFamilyProperties* qfp = malloc(cnt*sizeof(VkQueueFamilyProperties));
 	if(qfp == NULL) printf("NULL qfp!\n");
-	vk->GetPhysicalDeviceQueueFamilyProperties(pdev, &cnt, qfp);
+	vVvk10_GetPhysicalDeviceQueueFamilyProperties(pdev, &cnt, qfp);
 	int* cnts = calloc(cnt, sizeof(int));
 	for(int i=0; i < di->taskcnt; i++) {
 		int found = 0;
@@ -192,37 +195,37 @@ static VkBool32 queuePDev(const VvVk_1_0* vk, VvVkB_DevInfo* di,
 	return VK_TRUE;
 }
 
-static VkBool32 checkPDev(const VvVk_1_0* vk, VvVkB_DevInfo* di,
+static VkBool32 checkPDev(const Vv* V, VvVkB_DevInfo* di,
 	VkInstance inst, VkPhysicalDevice pdev, VvVkB_QueueSpec* qs) {
 
 	VkPhysicalDeviceProperties pdp;
-	vk->GetPhysicalDeviceProperties(pdev, &pdp);
+	vVvk10_GetPhysicalDeviceProperties(pdev, &pdp);
 	if(pdp.apiVersion < di->ver) return VK_FALSE;
 
-	if(!queuePDev(vk, di, pdev, qs, NULL)) return VK_FALSE;
+	if(!queuePDev(V, di, pdev, qs, NULL)) return VK_FALSE;
 
 	// The custom check is last, of course.
 	if(di->valid) return di->valid(di->validudata, pdev);
 	else return VK_TRUE;
 }
 
-static VkBool32 compPDevs(const VvVk_1_0* vk, VvVkB_DevInfo* di,
+static VkBool32 compPDevs(const Vv* V, VvVkB_DevInfo* di,
 	VkInstance inst, VkPhysicalDevice a, VkPhysicalDevice b) {
 
 	if(di->comp) return di->comp(di->compudata, a, b);
 	else return VK_FALSE;
 }
 
-static VkResult choosePDev(const VvVk_1_0* vk, VvVkB_DevInfo* di,
+static VkResult choosePDev(const Vv* V, VvVkB_DevInfo* di,
 	VkInstance inst, VkPhysicalDevice* pdev, VvVkB_QueueSpec* qs,
 	int** cnts) {
 	VkResult r;
 
 	uint32_t pdevcnt = 0;
-	r = vk->EnumeratePhysicalDevices(inst, &pdevcnt, NULL);
+	r = vVvk10_EnumeratePhysicalDevices(inst, &pdevcnt, NULL);
 	if(r<0) return r;
 	VkPhysicalDevice* pdevs = malloc(pdevcnt*sizeof(VkPhysicalDevice));
-	r = vk->EnumeratePhysicalDevices(inst, &pdevcnt, pdevs);
+	r = vVvk10_EnumeratePhysicalDevices(inst, &pdevcnt, pdevs);
 	if(r<0) {
 		free(pdevs);
 		return r;
@@ -231,33 +234,31 @@ static VkResult choosePDev(const VvVk_1_0* vk, VvVkB_DevInfo* di,
 	*pdev = NULL;
 	for(int i=0; i<pdevcnt; i++) {
 		VkPhysicalDevice pd = pdevs[i];
-		if(checkPDev(vk, di, inst, pd, qs)) {
-			if(*pdev == NULL || compPDevs(vk, di, inst, pd, *pdev))
+		if(checkPDev(V, di, inst, pd, qs)) {
+			if(*pdev == NULL || compPDevs(V, di, inst, pd, *pdev))
 				*pdev = pd;
 		}
 	}
 
 	free(pdevs);
 	if(*pdev == NULL) return VK_ERROR_INCOMPATIBLE_DRIVER;
-	return queuePDev(vk, di, *pdev, qs, cnts) ? VK_SUCCESS
+	return queuePDev(V, di, *pdev, qs, cnts) ? VK_SUCCESS
 		: VK_ERROR_INCOMPATIBLE_DRIVER;
 }
 
-static VkResult createDev(const VvVk_Binding* vkb, VvVkB_DevInfo* di,
+static VkResult createDev(const Vv* V, VvVkB_DevInfo* di,
 	VkInstance inst, VkPhysicalDevice* pdev, VkDevice* dev,
 	VvVkB_QueueSpec* qs) {
 
-	const VvVk_1_0* vk = vkb->core->vk_1_0;
-
 	int* fcnts;
-	VkResult r = choosePDev(vk, di, inst, pdev, qs, &fcnts);
+	VkResult r = choosePDev(V, di, inst, pdev, qs, &fcnts);
 	if(r < 0) {
 		free(fcnts);
 		return r;
 	}
 
 	uint32_t fcnt = 0;
-	vk->GetPhysicalDeviceQueueFamilyProperties(*pdev, &fcnt, NULL);
+	vVvk10_GetPhysicalDeviceQueueFamilyProperties(*pdev, &fcnt, NULL);
 
 	int dqcicnt = 0;
 	for(int i=0; i<fcnt; i++) if(fcnts[i] > 0) dqcicnt++;
@@ -284,7 +285,7 @@ static VkResult createDev(const VvVk_Binding* vkb, VvVkB_DevInfo* di,
 		}
 	}
 
-	r = vk->CreateDevice(*pdev, &(VkDeviceCreateInfo){
+	r = vVvk10_CreateDevice(*pdev, &(VkDeviceCreateInfo){
 		.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
 		.enabledExtensionCount = di->extcnt,
 		.ppEnabledExtensionNames = di->exts,

@@ -57,13 +57,13 @@ _Vv_STRUCT(VvVkP_Dependency) {
 
 _Vv_STRUCT(Vv_VulkanPipeline) {
 	// Create a new Graph. Starts out very empty.
-	VvVkP_Graph* (*create)(const VvC*);
+	VvVkP_Graph* (*create)(const Vv*);
 #ifdef Vv_vkp_ENABLED
 #define vVvkp_create() vVcore_FUNCNARGS(vkp, create)
 #endif
 
 	// Destroy a Graph, cleaning up all the little extra bits.
-	void (*destroy)(const VvC*, VvVkP_Graph*);
+	void (*destroy)(const Vv*, VvVkP_Graph*);
 #ifdef Vv_vkp_ENABLED
 #define vVvkp_destroy(...) vVcore_FUNC(vkp, destroy, __VA_ARGS__)
 #endif
@@ -72,7 +72,7 @@ _Vv_STRUCT(Vv_VulkanPipeline) {
 	// during `record`, and is returned by `getStates`. If <spassBound> is
 	// a true value, then the created State is "subpass-bound", which means
 	// that all Steps that use it will occur in one subpass.
-	VvVkP_State* (*addState)(const VvC*, VvVkP_Graph*, void* udata, int spassBound);
+	VvVkP_State* (*addState)(const Vv*, VvVkP_Graph*, void* udata, int spassBound);
 #ifdef Vv_vkp_ENABLED
 #define vVvkp_addState(...) vVcore_FUNC(vkp, addState, __VA_ARGS__)
 #endif
@@ -82,7 +82,7 @@ _Vv_STRUCT(Vv_VulkanPipeline) {
 	// <secondary> indicates whether this Step requires the use of
 	// VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS.
 	// May return NULL if the sets of States or Dependencies are invalid.
-	VvVkP_Step* (*addStep)(const VvC*, VvVkP_Graph*, void* udata, int secondary,
+	VvVkP_Step* (*addStep)(const Vv*, VvVkP_Graph*, void* udata, int secondary,
 		int statecnt, const VvVkP_State** states,
 		int depcnt, const VvVkP_Dependency* depends);
 #ifdef Vv_vkp_ENABLED
@@ -91,14 +91,14 @@ _Vv_STRUCT(Vv_VulkanPipeline) {
 
 	// Add more dependencies to a Step. For adding things into the middle
 	// of the entire pipeline/pass.
-	void (*addDepends)(const VvC*, VvVkP_Graph*, VvVkP_Step*,
+	void (*addDepends)(const Vv*, VvVkP_Graph*, VvVkP_Step*,
 		int depcnt, const VvVkP_Dependency* depends);
 #ifdef Vv_vkp_ENABLED
 #define vVvkp_addDepends(...) vVcore_FUNC(vkp, addDepends, __VA_ARGS__)
 #endif
 
 	// Remove a Step from the Graph. Since its not needed anymore, I see.
-	void (*removeStep)(const VvC*, VvVkP_Graph*, VvVkP_Step*);
+	void (*removeStep)(const Vv*, VvVkP_Graph*, VvVkP_Step*);
 #ifdef Vv_vkp_ENABLED
 #define vVvkp_removeStep(...) vVcore_FUNC(vkp, removeStep, __VA_ARGS__)
 #endif
@@ -108,7 +108,7 @@ _Vv_STRUCT(Vv_VulkanPipeline) {
 	// particular subpass, and returns the description for that subpass.
 	// If NULL is returned, <result> is set to the result from
 	// a call to vkCreateRenderPass, or another suitable error.
-	VkRenderPass (*getRenderPass)(const VvC*, VvVkP_Graph*, const VvVk_Binding*,
+	VkRenderPass (*getRenderPass)(const Vv*, VvVkP_Graph*, const VvVk_Binding*,
 		VkResult* result, VkDevice dev,
 		uint32_t attachCount, const VkAttachmentDescription* attaches,
 		VkSubpassDescription (*spass)(
@@ -123,7 +123,7 @@ _Vv_STRUCT(Vv_VulkanPipeline) {
 	// be filled with the corrosponding subpass indicies for subpass-bound
 	// States. Return value and <spasses> should be freed by applications.
 	// const for multithreading.
-	void** (*getStates)(const VvC*, const VvVkP_Graph*, int* cnt, uint32_t** spasses);
+	void** (*getStates)(const Vv*, const VvVkP_Graph*, int* cnt, uint32_t** spasses);
 #ifdef Vv_vkp_ENABLED
 #define vVvkp_getStates(...) vVcore_FUNC(vkp, getStates, __VA_ARGS__)
 #endif
@@ -131,7 +131,7 @@ _Vv_STRUCT(Vv_VulkanPipeline) {
 	// Copy a list of all the udata's for all the Steps in the Graph.
 	// Return value should be freed by the application.
 	// const for multithreading.
-	void** (*getSteps)(const VvC*, const VvVkP_Graph*, int* cnt);
+	void** (*getSteps)(const Vv*, const VvVkP_Graph*, int* cnt);
 #ifdef Vv_vkp_ENABLED
 #define vVvkp_getSteps(...) vVcore_FUNC(vkp, getSteps, __VA_ARGS__)
 #endif
@@ -143,12 +143,12 @@ _Vv_STRUCT(Vv_VulkanPipeline) {
 	// <attachments> is the array of Images that were used to create
 	// the Framebuffer, used for attachment-based dependencies.
 	// const to allow for multithreading.
-	void (*record)(const VvC*, const VvVkP_Graph*,
+	void (*record)(const Vv*, const VvVkP_Graph*,
 		VkCommandBuffer, const VkRenderPassBeginInfo*,
 		VkImage* attachments,
-		void (*set)(const VvC*, void* udata, VkCommandBuffer),
-		void (*uset)(const VvC*, void* udata, VkCommandBuffer),
-		void (*cmd)(const VvC*, void* udata, VkCommandBuffer));
+		void (*set)(const Vv*, void* udata, VkCommandBuffer),
+		void (*uset)(const Vv*, void* udata, VkCommandBuffer),
+		void (*cmd)(const Vv*, void* udata, VkCommandBuffer));
 #ifdef Vv_vkp_ENABLED
 #define vVvkp_record(...) vVcore_FUNC(vkp, record, __VA_ARGS__)
 #endif

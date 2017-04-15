@@ -45,7 +45,7 @@ _Vv_STRUCT(Vv_VulkanBoilerplate) {
 	// Allocate some space for the InstInfo.
 	// <name> is the reported name of the application, and
 	// <ver> is the reported version.
-	VvVkB_InstInfo* (*createInstInfo)(const VvC*, const char* name,
+	VvVkB_InstInfo* (*createInstInfo)(const Vv*, const char* name,
 		uint32_t ver);
 #ifdef Vv_vkb_ENABLED
 #define vVvkb_createInstInfo(...) vVcore_FUNC(vkb, createInstInfo, __VA_ARGS__)
@@ -53,7 +53,7 @@ _Vv_STRUCT(Vv_VulkanBoilerplate) {
 
 	// Create the Instance, freeing the InstInfo in the process.
 	// Returns the VkResult from vkCreateInstance.
-	VkResult (*createInstance)(const VvC*, VvVkB_InstInfo*,
+	VkResult (*createInstance)(const Vv*, VvVkB_InstInfo*,
 		VkInstance*);
 #ifdef Vv_vkb_ENABLED
 #define vVvkb_createInstance(...) vVcore_FUNC(vkb, createInstance, __VA_ARGS__)
@@ -61,28 +61,28 @@ _Vv_STRUCT(Vv_VulkanBoilerplate) {
 
 	// Set the minimum version of Vulkan to request for the Instance.
 	// Defaults to 0.
-	void (*setInstVersion)(const VvC*, VvVkB_InstInfo*, uint32_t version);
+	void (*setInstVersion)(const Vv*, VvVkB_InstInfo*, uint32_t version);
 #ifdef Vv_vkb_ENABLED
 #define vVvkb_setInstVersion(...) vVcore_FUNC(vkb, setInstVersion, __VA_ARGS__)
 #endif
 
 	// Add some layers to the Instance.
 	// <names> is a pointer to an array of strings with a NULL sentinal.
-	void (*addLayers)(const VvC*, VvVkB_InstInfo*, const char** names);
+	void (*addLayers)(const Vv*, VvVkB_InstInfo*, const char** names);
 #ifdef Vv_vkb_ENABLED
 #define vVvkb_addLayers(...) vVcore_FUNC(vkb, addLayers, __VA_ARGS__)
 #endif
 
 	// Add some extensions to the Instance.
 	// <names> is a pointer to an array of strings with a NULL sentinal.
-	void (*addInstExtensions)(const VvC*, VvVkB_InstInfo*, const char** names);
+	void (*addInstExtensions)(const Vv*, VvVkB_InstInfo*, const char** names);
 #ifdef Vv_vkb_ENABLED
 #define vVvkb_addInstExtensions(...) vVcore_FUNC(vkb, addInstExtensions, __VA_ARGS__)
 #endif
 
 	// Allocate some space for a DevInfo.
 	// <ver> is the minimum allowed API version for the PhysicalDevice.
-	VvVkB_DevInfo* (*createDevInfo)(const VvC*, uint32_t ver);
+	VvVkB_DevInfo* (*createDevInfo)(const Vv*, uint32_t ver);
 #ifdef Vv_vkb_ENABLED
 #define vVvkb_createDevInfo(...) vVcore_FUNC(vkb, createDevInfo, __VA_ARGS__)
 #endif
@@ -91,7 +91,7 @@ _Vv_STRUCT(Vv_VulkanBoilerplate) {
 	// Returns the VkResult from vkCreateDevice.
 	// <queues> should point to an array of a size greater than
 	// or equal to the count returned by getTaskCount.
-	VkResult (*createDevice)(const VvC*, VvVkB_DevInfo*,
+	VkResult (*createDevice)(const Vv*, VvVkB_DevInfo*,
 		VkInstance, VkPhysicalDevice*, VkDevice*,
 		VvVkB_QueueSpec* queues);
 #ifdef Vv_vkb_ENABLED
@@ -100,7 +100,7 @@ _Vv_STRUCT(Vv_VulkanBoilerplate) {
 
 	// Add some extensions to the Device.
 	// <names> is a pointer to an array of strings with a NULL sentinal.
-	void (*addDevExtensions)(const VvC*, VvVkB_DevInfo*, const char** names);
+	void (*addDevExtensions)(const Vv*, VvVkB_DevInfo*, const char** names);
 #ifdef Vv_vkb_ENABLED
 #define vVvkb_addDevExtensions(...) vVcore_FUNC(vkb, addDevExtensions, __VA_ARGS__)
 #endif
@@ -110,7 +110,7 @@ _Vv_STRUCT(Vv_VulkanBoilerplate) {
 	// <func> should return VK_TRUE if the given PhysicalDevice is usable
 	// by the application, VK_FALSE otherwise. <udata> is passed as the
 	// first argument to <func>.
-	void (*setValidity)(const VvC*, VvVkB_DevInfo*, VkBool32 (*func)(
+	void (*setValidity)(const Vv*, VvVkB_DevInfo*, VkBool32 (*func)(
 		void*, VkPhysicalDevice), void* udata);
 #ifdef Vv_vkb_ENABLED
 #define vVvkb_setValidity(...) vVcore_FUNC(vkb, setValidity, __VA_ARGS__)
@@ -121,21 +121,21 @@ _Vv_STRUCT(Vv_VulkanBoilerplate) {
 	// <udata> is passed as the first argument to <func>.
 	// <func> should return VK_TRUE if <a> is "better" than <b>,
 	// VK_FALSE otherwise.
-	void (*setComparison)(const VvC*, VvVkB_DevInfo*, VkBool32 (*func)(
+	void (*setComparison)(const Vv*, VvVkB_DevInfo*, VkBool32 (*func)(
 		void*, VkPhysicalDevice a, VkPhysicalDevice b), void* udata);
 #ifdef Vv_vkb_ENABLED
 #define vVvkb_setComparison(...) vVcore_FUNC(vkb, setComparison, __VA_ARGS__)
 #endif
 
 	// Get the number of tasks in the DevInfo (so far).
-	int (*getTaskCount)(const VvC*, VvVkB_DevInfo*);
+	int (*getTaskCount)(const Vv*, VvVkB_DevInfo*);
 #ifdef Vv_vkb_ENABLED
 #define vVvkb_getTaskCount(...) vVcore_FUNC(vkb, getTaskCount, __VA_ARGS__)
 #endif
 
 	// Add a new task. The final index of the task will be the result of
 	// getTaskCount just before calling newTask.
-	VvVkB_TaskInfo* (*newTask)(const VvC*, VvVkB_DevInfo*);
+	VvVkB_TaskInfo* (*newTask)(const Vv*, VvVkB_DevInfo*);
 #ifdef Vv_vkb_ENABLED
 #define vVvkb_newTask(...) vVcore_FUNC(vkb, newTask, __VA_ARGS__)
 #endif
