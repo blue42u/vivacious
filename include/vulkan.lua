@@ -136,22 +136,34 @@ _Vv_STRUCT(VvVk_Binding) {
 
 _Vv_STRUCT(Vv_Vulkan) {
 	// Allocate space for the PFNs in a Binding.
-	void (*allocate)(VvVk_Binding*);
+	void (*allocate)(const VvC*, VvVk_Binding*);
+#ifdef Vv_vk_ENABLED
+#define vVvk_allocate(...) vVcore_FUNC(vk, allocate, __VA_ARGS__)
+#endif
 
 	// Free the space for the PFNs in a Binding.
-	void (*free)(VvVk_Binding*);
+	void (*free)(const VvC*, VvVk_Binding*);
+#ifdef Vv_vk_ENABLED
+#define vVvk_free(...) vVcore_FUNC(vk, free, __VA_ARGS__)
+#endif
 
 	// Load the commands which directly require an instance before use.
 	// If <all> is true, this will also load those which indirectly require
 	// an instance. After this, all command use is limited to <inst>.
-	void (*loadInst)(VvVk_Binding*, VkInstance inst, VkBool32 all);
+	void (*loadInst)(const VvC*, VkInstance inst, VkBool32 all);
+#ifdef Vv_vk_ENABLED
+#define vVvk_loadInst(...) vVcore_FUNC(vk, loadInst, __VA_ARGS__)
+#endif
 
 	// Load the commands which directly require a device before use.
 	// If <all> is true, this will also load those which indirectly require
 	// a device. After this, all command use is limited to <dev>.
-	void (*loadDev)(VvVk_Binding*, VkDevice dev, VkBool32 all);
+	void (*loadDev)(const VvC*, VkDevice dev, VkBool32 all);
+#ifdef Vv_vk_ENABLED
+#define vVvk_loadDev(...) vVcore_FUNC(vk, loadDev, __VA_ARGS__)
+#endif
 };
-extern const Vv_Vulkan vVvk_lib;
+extern const Vv_Vulkan vVvk_Lib;
 
 #endif // H_vivacious_vulkan
 ]])
