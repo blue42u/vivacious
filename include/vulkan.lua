@@ -117,9 +117,9 @@ for _,t in cpairs(dom.root, {name='feature',attr={api='vulkan'}}) do
 	table.insert(pieces, {ver, string.gsub([[
 	VvVk_`ver`* vk_`ver`;
 #ifdef Vv_vk_ENABLED
-#define vVvk`ver` *(Vv_CHOICE).vk_binding->core->`ver`
+#define vVvk`mm` *(Vv_CHOICE).vk_binding->core->vk_`ver`
 #endif
-]], '`(%w*)`', {const=const, ver=ver})})
+]], '`(%w*)`', {const=const, ver=ver, mm=maj..min})})
 end
 table.sort(pieces, function(a,b) return a[1] < b[1] end)
 for i,v in ipairs(pieces) do pieces[i] = v[2] end
@@ -156,13 +156,13 @@ _Vv_STRUCT(Vv_Vulkan) {
 	// Allocate space for the PFNs in a Binding.
 	void (*allocate)(Vv*);
 #ifdef Vv_vk_ENABLED
-#define vVvk_allocate(...) vVcore_FUNC(vk, allocate, __VA_ARGS__)
+#define vVvk_allocate() vVcore_FUNCNARGS(vk, allocate)
 #endif
 
 	// Free the space for the PFNs in a Binding.
 	void (*free)(Vv*);
 #ifdef Vv_vk_ENABLED
-#define vVvk_free(...) vVcore_FUNC(vk, free, __VA_ARGS__)
+#define vVvk_free() vVcore_FUNCNARGS(vk, free)
 #endif
 
 	// Load the commands which directly require an instance before use.
@@ -181,7 +181,7 @@ _Vv_STRUCT(Vv_Vulkan) {
 #define vVvk_loadDev(...) vVcore_FUNC(vk, loadDev, __VA_ARGS__)
 #endif
 };
-extern const Vv_Vulkan vVvk_Lib;
+extern const Vv_Vulkan vVvk_Default;
 
 #endif // H_vivacious_vulkan
 ]])

@@ -113,6 +113,6 @@ _Vv_STRUCT(Vv_Window) {
 #endif
 };
 
-extern const Vv_Window vVwi_X;
+extern const Vv_Window vVwi_Default;
 
 #endif // H_vivacious_window

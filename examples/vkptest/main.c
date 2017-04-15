@@ -15,7 +15,11 @@
 ***************************************************************************/
 
 #include "common.h"
+#include <vivacious/window.h>
 #include <time.h>
+
+Vv V = {.vk=&vVvk_Default, .vkb=&vVvkb_Default, .vkp=&vVvkp_Default,
+	.wi=&vVwi_Default};
 
 VkRenderPass rpass;
 
@@ -24,18 +28,18 @@ typedef struct {
 	uint32_t id;
 } UData;
 
-void enter(const VvVk_Binding* vkb, void* udata, VkCommandBuffer cb) {
+void enter(const Vv* Vp, void* udata, VkCommandBuffer cb) {
 	UData* ud = udata;
 	printf("Setting State %s!\n", ud->name);
-	vk->CmdPushConstants(cb, playout,
+	vVvk10_CmdPushConstants(cb, playout,
 		VK_SHADER_STAGE_VERTEX_BIT,
 		0, sizeof(uint32_t), &ud->id);
 }
 
-void inside(const VvVk_Binding* vkb, void* udata, VkCommandBuffer cb) {
+void inside(const Vv* Vp, void* udata, VkCommandBuffer cb) {
 	UData* ud = udata;
 	printf("Executing Step %s!\n", ud->name);
-	vk->CmdDraw(cb, 3, 1, 0, ud->id);
+	vVvk10_CmdDraw(cb, 3, 1, 0, ud->id);
 }
 
 static VkAttachmentReference arefs[] = {
@@ -60,7 +64,7 @@ VkSubpassDescription spass(int spcnt, void** steps, int stcnt, void** states) {
 		_deps[i].srcStage = STAGE; \
 		_deps[i].dstStage = STAGE; \
 	} \
-	vkp.addStep(g, &DATA, 0, \
+	vVvkp_addStep(g, &DATA, 0, \
 		sizeof(_stats)/sizeof(VvVkP_State*), _stats, \
 		sizeof(_deps)/sizeof(VvVkP_Dependency), _deps); \
 })
@@ -74,11 +78,11 @@ int main() {
 	VkResult r;
 
 	// Create the vV Graph for this
-	VvVkP_Graph* g = vkp.create(sizeof(UData));
+	VvVkP_Graph* g = vVvkp_create();
 
 	VvVkP_State* stats[] = {
-		vkp.addState(g, &(UData){ "1", 0 }, 0),
-		vkp.addState(g, &(UData){ "2", 1 }, 0),
+		vVvkp_addState(g, &(UData){ "1", 0 }, 0),
+		vVvkp_addState(g, &(UData){ "2", 1 }, 0),
 	};
 
 	VvVkP_Step* steps[4];
@@ -87,15 +91,15 @@ int main() {
 	steps[1] = addSp(((UData){"1:2", 1}), { stats[0] }, { steps[0] });
 	steps[3] = addSp(((UData){"2:2", 1}), { stats[1] }, { steps[2] });
 
-	vkp.addDepends(g, steps[2],
+	vVvkp_addDepends(g, steps[2],
 		2, (VvVkP_Dependency[]){
 			{steps[0],STAGE,STAGE},
 			{steps[1],STAGE,STAGE}
 		});
-	//vkp.removeStep(g, steps[3]);
+	//vVvkp_removeStep(g, steps[3]);
 
 	// Get the RenderPass
-	rpass = vkp.getRenderPass(g, &vkbind, &r, dev,
+	rpass = vVvkp_getRenderPass(g, &r, dev,
 		1, (VkAttachmentDescription[]){
 			{
 				.format = format,
@@ -113,16 +117,16 @@ int main() {
 
 	// Record the CommandBuffers
 	for(int i=0; i<imageCount; i++) {
-		r = vk->BeginCommandBuffer(cbs[i], &(VkCommandBufferBeginInfo){
+		r = vVvk10_BeginCommandBuffer(cbs[i], &(VkCommandBufferBeginInfo){
 			VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, NULL,
 			.pInheritanceInfo = NULL,
 		});
 		if(r<0) error("starting CommandBuffer", r);
 
-		vk->CmdBindPipeline(cbs[i], VK_PIPELINE_BIND_POINT_GRAPHICS,
+		vVvk10_CmdBindPipeline(cbs[i], VK_PIPELINE_BIND_POINT_GRAPHICS,
 			pipeline);
 
-		vkp.record(g, &vkbind, cbs[i], &(VkRenderPassBeginInfo){
+		vVvkp_record(g, cbs[i], &(VkRenderPassBeginInfo){
 			VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO, NULL,
 			.renderPass = rpass, .framebuffer = fbuffs[i],
 			.renderArea = { .offset = {0,0}, .extent = extent, },
@@ -131,14 +135,14 @@ int main() {
 			},
 		}, &images[i], enter, NULL, inside);
 
-		vk->EndCommandBuffer(cbs[i]);
+		vVvk10_EndCommandBuffer(cbs[i]);
 
-		r = vk->BeginCommandBuffer(cbi[i], &(VkCommandBufferBeginInfo){
+		r = vVvk10_BeginCommandBuffer(cbi[i], &(VkCommandBufferBeginInfo){
 			VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, NULL,
 			.pInheritanceInfo = NULL,
 		});
 		if(r<0) error("starting CommandBuffer", r);
-		vk->CmdPipelineBarrier(cbi[i],
+		vVvk10_CmdPipelineBarrier(cbi[i],
 			VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
 			VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
 			0,
@@ -155,7 +159,7 @@ int main() {
 				images[i],
 				{ VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1, },
 			} });
-		vk->EndCommandBuffer(cbi[i]);
+		vVvk10_EndCommandBuffer(cbi[i]);
 	}
 
 	VkSemaphore draw, pres;
@@ -163,16 +167,16 @@ int main() {
 		VkSemaphoreCreateInfo sci = {
 			VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO, NULL,
 		};
-		r = vk->CreateSemaphore(dev, &sci, NULL, &draw);
+		r = vVvk10_CreateSemaphore(dev, &sci, NULL, &draw);
 		if(r<0) error("creating semaphore", r);
-		r = vk->CreateSemaphore(dev, &sci, NULL, &pres);
+		r = vVvk10_CreateSemaphore(dev, &sci, NULL, &pres);
 		if(r<0) error("creating semaphore", r);
 	}
 
 	VkFence fences[imageCount];
 	int used[imageCount];
 	for(int i=0; i<imageCount; i++) {
-		vk->CreateFence(dev, &(VkFenceCreateInfo){
+		vVvk10_CreateFence(dev, &(VkFenceCreateInfo){
 			VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, NULL,
 			.flags = VK_FENCE_CREATE_SIGNALED_BIT,
 		}, NULL, &fences[i]);
@@ -182,18 +186,18 @@ int main() {
 	time_t start = time(NULL);
 	while(difftime(time(NULL), start) < 3) {
 		uint32_t index;
-		r = vkc->AcquireNextImageKHR(dev, schain, UINT64_MAX,
+		r = vVvk_AcquireNextImageKHR(dev, schain, UINT64_MAX,
 			draw, NULL, &index);
 		if(r<0) error("acquiring image", r);
 
-		r = vk->WaitForFences(dev, 1, &fences[index],
+		r = vVvk10_WaitForFences(dev, 1, &fences[index],
 			VK_TRUE, UINT64_MAX);
 		if(r<0) error("waiting for a fence", r);
 
-		r = vk->ResetFences(dev, 1, &fences[index]);
+		r = vVvk10_ResetFences(dev, 1, &fences[index]);
 		if(r<0) error("resetting a fence", r);
 
-		r = vk->QueueSubmit(q, 1, (VkSubmitInfo[]){ {
+		r = vVvk10_QueueSubmit(q, 1, (VkSubmitInfo[]){ {
 			VK_STRUCTURE_TYPE_SUBMIT_INFO, NULL,
 			.waitSemaphoreCount = 1, .pWaitSemaphores = &draw,
 			.pWaitDstStageMask = (VkPipelineStageFlags[]){
@@ -209,7 +213,7 @@ int main() {
 
 		used[index] = 1;
 
-		vkc->QueuePresentKHR(q, (VkPresentInfoKHR[]){ {
+		vVvk_QueuePresentKHR(q, (VkPresentInfoKHR[]){ {
 			VK_STRUCTURE_TYPE_PRESENT_INFO_KHR, NULL,
 			.waitSemaphoreCount = 1, .pWaitSemaphores = &pres,
 			.swapchainCount = 1, .pSwapchains = &schain,
@@ -219,18 +223,18 @@ int main() {
 		if(r<0) error("presenting", r);
 	}
 
-	r = vk->WaitForFences(dev, imageCount, fences, VK_TRUE, UINT64_MAX);
+	r = vVvk10_WaitForFences(dev, imageCount, fences, VK_TRUE, UINT64_MAX);
 	if(r<0) error("waiting for fences", r);
 
-	vk->DestroySemaphore(dev, draw, NULL);
-	vk->DestroySemaphore(dev, pres, NULL);
+	vVvk10_DestroySemaphore(dev, draw, NULL);
+	vVvk10_DestroySemaphore(dev, pres, NULL);
 	for(int i=0; i<imageCount; i++)
-		vk->DestroyFence(dev, fences[i], NULL);
+		vVvk10_DestroyFence(dev, fences[i], NULL);
 
 	cleanupPipeline();
 	cleanupFBuff();
 
-	vkp.destroy(g);
+	vVvkp_destroy(g);
 
 	cleanupCb();
 	cleanupSChain();

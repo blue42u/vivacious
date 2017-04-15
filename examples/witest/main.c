@@ -14,37 +14,38 @@
    limitations under the License.
 ***************************************************************************/
 
+#define Vv_CHOICE V
 #include <vivacious/window.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-#define wi vVwi_X		// Should really be _test
+Vv V = {.wi=&vVwi_Default};
 
 int main() {
-	VvWi_Connection* con = wi.connect();
+	VvWi_Connection* con = vVwi_connect();
 
 	int size[2];
-	wi.getScreenSize(con, size);
+	vVwi_getScreenSize(con, size);
 	printf("Screen dimensions: %dx%d\n", size[0], size[1]);
 
-	VvWi_Window* win = wi.createWindow(con, size[0] / 2, size[1] / 2, 0);
-	wi.showWindow(win);
-	wi.setTitle(win, "Test Window");
+	VvWi_Window* win = vVwi_createWindow(con, size[0] / 2, size[1] / 2, 0);
+	vVwi_showWindow(win);
+	vVwi_setTitle(win, "Test Window");
 
-	wi.getWindowSize(win, size);
+	vVwi_getWindowSize(win, size);
 	printf("Window dimensions: %dx%d\n", size[0], size[1]);
 	size[0] = 100;
 	size[1] = 100;
-	wi.setWindowSize(win, size);
-	wi.getWindowSize(win, size);
+	vVwi_setWindowSize(win, size);
+	vVwi_getWindowSize(win, size);
 	printf("New window dimensions: %dx%d\n", size[0], size[1]);
 
-	wi.setFullscreen(win, 1);
-	wi.getWindowSize(win, size);
+	vVwi_setFullscreen(win, 1);
+	vVwi_getWindowSize(win, size);
 	printf("Fullscreen window dimensions: %dx%d\n", size[0], size[1]);
 
-	wi.destroyWindow(win);
-	wi.disconnect(con);
+	vVwi_destroyWindow(win);
+	vVwi_disconnect(con);
 
 	return 0;
 }

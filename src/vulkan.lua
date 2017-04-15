@@ -237,7 +237,7 @@ rep(2, '(PFN_vk`)gdpa(dev, "vk`")')
 out([[
 }
 
-VvAPI const Vv_Vulkan vVvk_lib = {
+VvAPI const Vv_Vulkan vVvk_Default = {
 	.allocate = allocate,
 	.free = freebind,
 	.loadInst = loadI,

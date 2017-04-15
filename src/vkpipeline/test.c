@@ -235,7 +235,7 @@ static void depends(const Vv* V, VvVkP_Graph* g, VvVkP_Step* sp,
 	insert(g, sp);
 }
 
-static VkRenderPass getRP(const Vv* V, VvVkP_Graph* g, const VvVk_Binding* vkb, VkResult* rs,
+static VkRenderPass getRP(const Vv* V, VvVkP_Graph* g, VkResult* rs,
 	VkDevice dev,
 	uint32_t aCnt, const VkAttachmentDescription* as,
 	VkSubpassDescription (*spass)(int,void**,int,void**)) {
@@ -296,8 +296,8 @@ static VkRenderPass getRP(const Vv* V, VvVkP_Graph* g, const VvVk_Binding* vkb, 
 
 	// Make the RenderPass
 	g->dev = dev;
-	g->drpass = vkb->core->vk_1_0->DestroyRenderPass;
-	VkResult r = vkb->core->vk_1_0->CreateRenderPass(dev, &(VkRenderPassCreateInfo){
+	g->drpass = vVvk10->DestroyRenderPass;
+	VkResult r = vVvk10_CreateRenderPass(dev, &(VkRenderPassCreateInfo){
 		VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO, NULL, 0,
 		aCnt, as,
 		1, &sd,
@@ -422,7 +422,7 @@ static void rec(const Vv* V, const VvVkP_Graph* g,
 	vVvk10_CmdEndRenderPass(cbuff);
 }
 
-VvAPI const Vv_VulkanPipeline vVvkp_test = {
+VvAPI const Vv_VulkanPipeline vVvkp_Default = {
 	.create = create, .destroy = destroy,
 	.addState = addSt,
 	.addStep = addSp, .removeStep = rmSp, .addDepends = depends,

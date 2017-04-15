@@ -141,7 +141,6 @@ _Vv_STRUCT(Vv_VulkanBoilerplate) {
 #endif
 };
 
-// TEST test, test Test test.
-extern const Vv_VulkanBoilerplate vVvkb_Test;
+extern const Vv_VulkanBoilerplate vVvkb_Default;
 
 #endif // H_vivacious_vkbplate

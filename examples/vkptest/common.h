@@ -17,25 +17,20 @@
 #ifndef H_common
 #define H_common
 
+#define Vv_CHOICE V
 #include <vivacious/vkpipeline.h>
 #include <vivacious/vkbplate.h>
 #include <vivacious/vkmemory.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-#define vkp vVvkp_test		// Choose our imp.
-#define vkb vVvkb_test		// Helpers for the test
-#define vkm vVvkm_test
-#define vVvk vVvk_lib
+extern Vv V;
 
 // Stuff from debug.c
-void startDebug(const VvVk_Binding*, VkInstance);
+void startDebug(VkInstance);
 void endDebug(VkInstance);
 void error(const char* m, VkResult r);
 
-extern VvVk_Binding vkbind;
-extern VvVk_1_0* vk;
-extern VvVk_KHR_swapchain* vkc;
 extern VkInstance inst;
 extern VkPhysicalDevice pdev;
 extern VkDevice dev;

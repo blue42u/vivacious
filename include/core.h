@@ -76,11 +76,11 @@ _Vv_STRUCT(Vv) {
 */
 
 // Generic helper macros, to save on typing in other places
-#define vVcore_API(SHORTHAND) *(Vv_CHOICE).SHORTHAND
+#define vVcore_API(SHORTHAND) (*(Vv_CHOICE).SHORTHAND)
 #define vVcore_FUNC(SHORT, FUNC, ...) \
-vVcore_API(SHORT).FUNC(vVcore_API(SHORT), __VA_ARGS__)
+vVcore_API(SHORT).FUNC(&(Vv_CHOICE), __VA_ARGS__)
 #define vVcore_FUNCNARGS(SHORT, FUNC) \
-vVcore_API(SHORT).FUNC(vVcore_API(SHORT))
+vVcore_API(SHORT).FUNC(&(Vv_CHOICE))
 
 // First layer: vk
 #ifndef Vv_IMP_vk

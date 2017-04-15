@@ -108,7 +108,7 @@ _Vv_STRUCT(Vv_VulkanPipeline) {
 	// particular subpass, and returns the description for that subpass.
 	// If NULL is returned, <result> is set to the result from
 	// a call to vkCreateRenderPass, or another suitable error.
-	VkRenderPass (*getRenderPass)(const Vv*, VvVkP_Graph*, const VvVk_Binding*,
+	VkRenderPass (*getRenderPass)(const Vv*, VvVkP_Graph*,
 		VkResult* result, VkDevice dev,
 		uint32_t attachCount, const VkAttachmentDescription* attaches,
 		VkSubpassDescription (*spass)(
@@ -154,7 +154,6 @@ _Vv_STRUCT(Vv_VulkanPipeline) {
 #endif
 };
 
-// Test TEST, test test Test.
-extern const Vv_VulkanPipeline vVvkp_Test;
+extern const Vv_VulkanPipeline vVvkp_Default;
 
 #endif // H_vivacious_vkpipeline

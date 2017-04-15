@@ -17,23 +17,17 @@
 #ifndef H_common
 #define H_common
 
+#define Vv_CHOICE V
 #include <vivacious/vulkan.h>
 
 #include <stdio.h>	// Since this is a test, after all.
 #include <stdlib.h>
 
-#define vkapi vVvk_lib	// Define a nice constant for the implementation.
-
 // A wrapper for vfprintf to print to stderr, then exit's with 1.
 void error(const char*, ...);
 
-// The actual Vulkan binding, for those extra bits.
-extern VvVk_Binding vkb;
-
-// The pieces of Vulkan this test uses commonly.
-extern VvVk_1_0* vk;
-extern VvVk_KHR_surface* vks;
-extern VvVk_KHR_swapchain* vkc;
+// The Vv structure
+extern Vv V;
 
 // Standard common pieces.
 struct CBuffs {

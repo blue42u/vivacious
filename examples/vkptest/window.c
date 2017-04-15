@@ -17,32 +17,27 @@
 #include "common.h"
 #include <vivacious/window.h>
 
-#define winapi vVwi_X
-
 static VvWi_Connection* conn;
 static VvWi_Window* win;
 
 VkSurfaceKHR surf;
 
-static VvVk_KHR_surface* vks;
-
 void setupWin() {
-	vks = vkbind.ext->KHR_surface;
-	conn = winapi.connect();
+	conn = vVwi_connect();
 
 	int ext[2] = {0,0};
-	winapi.getScreenSize(conn, ext);
+	vVwi_getScreenSize(conn, ext);
 
-	win = winapi.createWindow(conn, ext[0], ext[1], 0);
-	winapi.setTitle(win, "Example Vulkan Thing!");
-	winapi.showWindow(win);
+	win = vVwi_createWindow(conn, ext[0], ext[1], 0);
+	vVwi_setTitle(win, "Example Vulkan Thing!");
+	vVwi_showWindow(win);
 
-	VkResult r = winapi.createVkSurface(win, inst, &surf, &vkbind);
+	VkResult r = vVwi_createVkSurface(win, inst, &surf);
 	if(r<0) error("Error creating surface", r);
 }
 
 void cleanupWin() {
-	vks->DestroySurfaceKHR(inst, surf, NULL);
-	winapi.destroyWindow(win);
-	winapi.disconnect(conn);
+	vVvk_DestroySurfaceKHR(inst, surf, NULL);
+	vVwi_destroyWindow(win);
+	vVwi_disconnect(conn);
 }

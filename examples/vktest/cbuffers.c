@@ -31,15 +31,15 @@ void loadCBuffs() {
 			com.simages[i],
 			{ VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 },
 		};
-		vk->BeginCommandBuffer(com.cb[i].readyRend, &cbbi);
-		vk->CmdPipelineBarrier(com.cb[i].readyRend,
+		vVvk10_BeginCommandBuffer(com.cb[i].readyRend, &cbbi);
+		vVvk10_CmdPipelineBarrier(com.cb[i].readyRend,
 			VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
 			VK_PIPELINE_STAGE_TRANSFER_BIT,
 			0,
 			0, NULL,
 			0, NULL,
 			1, &imb1);
-		vk->EndCommandBuffer(com.cb[i].readyRend);
+		vVvk10_EndCommandBuffer(com.cb[i].readyRend);
 
 
 		VkImageMemoryBarrier imb2 = {
@@ -51,15 +51,15 @@ void loadCBuffs() {
 			com.simages[i],
 			{ VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 },
 		};
-		vk->BeginCommandBuffer(com.cb[i].readyPres, &cbbi);
-		vk->CmdPipelineBarrier(com.cb[i].readyPres,
+		vVvk10_BeginCommandBuffer(com.cb[i].readyPres, &cbbi);
+		vVvk10_CmdPipelineBarrier(com.cb[i].readyPres,
 			VK_PIPELINE_STAGE_TRANSFER_BIT,
 			VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
 			0,
 			0, NULL,
 			0, NULL,
 			1, &imb2);
-		vk->EndCommandBuffer(com.cb[i].readyPres);
+		vVvk10_EndCommandBuffer(com.cb[i].readyPres);
 	}
 }
 
@@ -70,7 +70,7 @@ void createCBuffs() {
 		VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO, NULL,
 		0, com.qfam,
 	};
-	VkResult r = vk->CreateCommandPool(com.dev, &cpci, NULL, &pool);
+	VkResult r = vVvk10_CreateCommandPool(com.dev, &cpci, NULL, &pool);
 	if(r<0) error("Error creating command pool: %d!\n", r);
 
 	com.cbuffs = malloc(com.simagecnt*sizeof(struct CBuffs));
@@ -80,16 +80,16 @@ void createCBuffs() {
 		pool, VK_COMMAND_BUFFER_LEVEL_PRIMARY,
 		com.simagecnt*sizeof(struct CBuffs)/sizeof(VkCommandBuffer),
 	};
-	r = vk->AllocateCommandBuffers(com.dev, &cbai, com.cbuffs);
+	r = vVvk10_AllocateCommandBuffers(com.dev, &cbai, com.cbuffs);
 
 	loadCBuffs();
 }
 
 void destroyCBuffs() {
-	vk->FreeCommandBuffers(com.dev, pool,
+	vVvk10_FreeCommandBuffers(com.dev, pool,
 		com.simagecnt*sizeof(struct CBuffs)/sizeof(VkCommandBuffer),
 		com.cbuffs);
-	vk->DestroyCommandPool(com.dev, pool, NULL);
+	vVvk10_DestroyCommandPool(com.dev, pool, NULL);
 	free(com.cbuffs);
 }
 

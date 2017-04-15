@@ -16,9 +16,6 @@
 
 #include "common.h"
 
-VvVk_Binding vkbind;
-VvVk_1_0* vk;
-VvVk_KHR_swapchain* vkc;
 VkInstance inst;
 VkPhysicalDevice pdev;
 VkDevice dev;
@@ -28,13 +25,11 @@ uint32_t qfam;
 void setupVk() {
 	VkResult r;
 
-	vVvk.allocate(&vkbind);
-	vk = vkbind.core->vk_1_0;
-	vkc = vkbind.ext->KHR_swapchain;
+	vVvk_allocate();
 
-	VvVkB_InstInfo* ii = vkb.createInstInfo("VkP test!", 0);
-	vkb.setInstVersion(ii, VK_MAKE_VERSION(1,0,0));
-	vkb.addLayers(ii, (const char*[]){
+	VvVkB_InstInfo* ii = vVvkb_createInstInfo("VkP test!", 0);
+	vVvkb_setInstVersion(ii, VK_MAKE_VERSION(1,0,0));
+	vVvkb_addLayers(ii, (const char*[]){
 		"VK_LAYER_LUNARG_core_validation",
 		"VK_LAYER_LUNARG_parameter_validation",
 		"VK_LAYER_LUNARG_object_tracker",
@@ -44,38 +39,38 @@ void setupVk() {
 		"VK_LAYER_LUNARG_swapchain",
 		NULL
 	});
-	vkb.addInstExtensions(ii, (const char*[]){
+	vVvkb_addInstExtensions(ii, (const char*[]){
 		"VK_EXT_debug_report",
 		"VK_KHR_surface",
 		"VK_KHR_xcb_surface",
 		NULL
 	});
-	r = vkb.createInstance(&vkbind, ii, &inst);
+	r = vVvkb_createInstance(ii, &inst);
 	if(r < 0) error("Cannot create instance", r);
 
-	vVvk.loadInst(&vkbind, inst, VK_FALSE);
+	vVvk_loadInst(inst, VK_FALSE);
 
-	VvVkB_DevInfo* di = vkb.createDevInfo(VK_MAKE_VERSION(1,0,0));
-	vkb.addDevExtensions(di, (const char*[]){
+	VvVkB_DevInfo* di = vVvkb_createDevInfo(VK_MAKE_VERSION(1,0,0));
+	vVvkb_addDevExtensions(di, (const char*[]){
 		"VK_KHR_swapchain",
 		NULL
 	});
-	*vkb.newTask(di) = (VvVkB_TaskInfo){.flags = VK_QUEUE_GRAPHICS_BIT};
-	if(vkb.getTaskCount(di) != 1) error("Odd thing with VkB", 0);
+	*vVvkb_newTask(di) = (VvVkB_TaskInfo){.flags = VK_QUEUE_GRAPHICS_BIT};
+	if(vVvkb_getTaskCount(di) != 1) error("Odd thing with VkB", 0);
 	VvVkB_QueueSpec qs;
-	r = vkb.createDevice(&vkbind, di, inst, &pdev, &dev, &qs);
+	r = vVvkb_createDevice(di, inst, &pdev, &dev, &qs);
 	if(r < 0) error("Cannot create device", r);
 
-	vVvk.loadDev(&vkbind, dev, VK_TRUE);
+	vVvk_loadDev(dev, VK_TRUE);
 
-	vk->GetDeviceQueue(dev, qs.family, qs.index, &q);
+	vVvk10_GetDeviceQueue(dev, qs.family, qs.index, &q);
 	qfam = qs.family;
 }
 
 void cleanupVk() {
-	vk->DestroyDevice(dev, NULL);
-	vk->DestroyInstance(inst, NULL);
-	vVvk.free(&vkbind);
+	vVvk10_DestroyDevice(dev, NULL);
+	vVvk10_DestroyInstance(inst, NULL);
+	vVvk_free();
 }
 
 VkCommandPool cpool;
@@ -83,7 +78,7 @@ VkCommandBuffer* cbs;
 VkCommandBuffer* cbi;
 
 void setupCb() {
-	VkResult r = vk->CreateCommandPool(dev, &(VkCommandPoolCreateInfo){
+	VkResult r = vVvk10_CreateCommandPool(dev, &(VkCommandPoolCreateInfo){
 		.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
 		.queueFamilyIndex = qfam,
 	}, NULL, &cpool);
@@ -91,7 +86,7 @@ void setupCb() {
 
 	cbs = malloc(imageCount*sizeof(VkCommandBuffer));
 
-	r = vk->AllocateCommandBuffers(dev, &(VkCommandBufferAllocateInfo){
+	r = vVvk10_AllocateCommandBuffers(dev, &(VkCommandBufferAllocateInfo){
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
 		.commandPool = cpool,
 		.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
@@ -101,7 +96,7 @@ void setupCb() {
 
 	cbi = malloc(imageCount*sizeof(VkCommandBuffer));
 
-	r = vk->AllocateCommandBuffers(dev, &(VkCommandBufferAllocateInfo){
+	r = vVvk10_AllocateCommandBuffers(dev, &(VkCommandBufferAllocateInfo){
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
 		.commandPool = cpool,
 		.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
@@ -111,9 +106,9 @@ void setupCb() {
 }
 
 void cleanupCb() {
-	vk->FreeCommandBuffers(dev, cpool, imageCount, cbs);
+	vVvk10_FreeCommandBuffers(dev, cpool, imageCount, cbs);
 	free(cbs);
-	vk->FreeCommandBuffers(dev, cpool, imageCount, cbi);
+	vVvk10_FreeCommandBuffers(dev, cpool, imageCount, cbi);
 	free(cbi);
-	vk->DestroyCommandPool(dev, cpool, NULL);
+	vVvk10_DestroyCommandPool(dev, cpool, NULL);
 }

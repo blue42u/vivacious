@@ -61,8 +61,8 @@ _Vv_STRUCT(Vv_VulkanMemoryManager) {
 	VkResult (*mapBuffer)(const Vv*, VvVkM_Pool*, VkBuffer, void**);
 	VkResult (*mapImage)(const Vv*, VvVkM_Pool*, VkImage, void**);
 #ifdef Vv_vkm_ENABLED
-#define vVvkm_mapBuffer(...) vVcore_FUNC(vkm, mapImage, __VA_ARGS__)
-#define vVvkm_mapImage(...) vVcore_FUNC(vkm, mapBuffer, __VA_ARGS__)
+#define vVvkm_mapBuffer(...) vVcore_FUNC(vkm, mapBuffer, __VA_ARGS__)
+#define vVvkm_mapImage(...) vVcore_FUNC(vkm, mapImage, __VA_ARGS__)
 #endif
 
 	// Unmap the memory for a resource.
@@ -101,7 +101,6 @@ _Vv_STRUCT(Vv_VulkanMemoryManager) {
 #endif
 };
 
-// TEST test, test Test test.
-extern const Vv_VulkanMemoryManager vVvkm_Test;
+extern const Vv_VulkanMemoryManager vVvkm_Default;
 
 #endif // H_vivacious_vkmemory

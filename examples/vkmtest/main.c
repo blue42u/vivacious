@@ -14,14 +14,13 @@
    limitations under the License.
 ***************************************************************************/
 
+#define Vv_CHOICE V
 #include <vivacious/vkmemory.h>
 #include <vivacious/vkbplate.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-#define vkm vVvkm_test		// Choose our imp.
-#define vkb vVvkb_test		// Helpers for the test
-#define vVvk vVvk_lib
+Vv V = {.vk=&vVvk_Default, .vkb=&vVvkb_Default, .vkm=&vVvkm_Default};
 
 // Stuff from debug.c
 void startDebug(const VvVk_Binding*, VkInstance);
@@ -33,8 +32,6 @@ void error(const char* m, VkResult r) {
 	exit(1);
 }
 
-VvVk_Binding vkbind;
-VvVk_1_0* vk;
 VkInstance inst;
 VkPhysicalDevice pdev;
 VkDevice dev;
@@ -44,12 +41,11 @@ uint32_t qfam;
 void setupVk() {
 	VkResult r;
 
-	vVvk.allocate(&vkbind);
-	vk = vkbind.core->vk_1_0;
+	vVvk_allocate();
 
-	VvVkB_InstInfo* ii = vkb.createInstInfo("VkM test!", 0);
-	vkb.setInstVersion(ii, VK_MAKE_VERSION(1,0,0));
-	vkb.addLayers(ii, (const char*[]){
+	VvVkB_InstInfo* ii = vVvkb_createInstInfo("VkM test!", 0);
+	vVvkb_setInstVersion(ii, VK_MAKE_VERSION(1,0,0));
+	vVvkb_addLayers(ii, (const char*[]){
 		"VK_LAYER_LUNARG_core_validation",
 		"VK_LAYER_LUNARG_parameter_validation",
 		"VK_LAYER_LUNARG_object_tracker",
@@ -57,32 +53,32 @@ void setupVk() {
 		"VK_LAYER_GOOGLE_unique_objects",
 		NULL
 	});
-	vkb.addInstExtensions(ii, (const char*[]){
+	vVvkb_addInstExtensions(ii, (const char*[]){
 		"VK_EXT_debug_report",
 		NULL
 	});
-	r = vkb.createInstance(&vkbind, ii, &inst);
+	r = vVvkb_createInstance(ii, &inst);
 	if(r < 0) error("Cannot create instance", r);
 
-	vVvk.loadInst(&vkbind, inst, VK_FALSE);
+	vVvk_loadInst(inst, VK_FALSE);
 
-	VvVkB_DevInfo* di = vkb.createDevInfo(VK_MAKE_VERSION(1,0,0));
-	*vkb.newTask(di) = (VvVkB_TaskInfo){.flags = VK_QUEUE_TRANSFER_BIT};
-	if(vkb.getTaskCount(di) != 1) error("Odd thing with VkB", 0);
+	VvVkB_DevInfo* di = vVvkb_createDevInfo(VK_MAKE_VERSION(1,0,0));
+	*vVvkb_newTask(di) = (VvVkB_TaskInfo){.flags = VK_QUEUE_TRANSFER_BIT};
+	if(vVvkb_getTaskCount(di) != 1) error("Odd thing with VkB", 0);
 	VvVkB_QueueSpec qs;
-	r = vkb.createDevice(&vkbind, di, inst, &pdev, &dev, &qs);
+	r = vVvkb_createDevice(di, inst, &pdev, &dev, &qs);
 	if(r < 0) error("Cannot create device", r);
 
-	vVvk.loadDev(&vkbind, dev, VK_TRUE);
+	vVvk_loadDev(dev, VK_TRUE);
 
-	vk->GetDeviceQueue(dev, qs.family, qs.index, &q);
+	vVvk10_GetDeviceQueue(dev, qs.family, qs.index, &q);
 	qfam = qs.family;
 }
 
 void cleanupVk() {
-	vk->DestroyDevice(dev, NULL);
-	vk->DestroyInstance(inst, NULL);
-	vVvk.free(&vkbind);
+	vVvk10_DestroyDevice(dev, NULL);
+	vVvk10_DestroyInstance(inst, NULL);
+	vVvk_free();
 }
 
 VkCommandPool cpool;
@@ -93,14 +89,14 @@ struct {
 } cb;
 
 void setupCb() {
-	VkResult r = vk->CreateCommandPool(dev, &(VkCommandPoolCreateInfo){
+	VkResult r = vVvk10_CreateCommandPool(dev, &(VkCommandPoolCreateInfo){
 		.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
 		.queueFamilyIndex = qfam,
 	}, NULL, &cpool);
 	if(r < 0) error("Could not create CommandPool", r);
 
 	VkCommandBuffer cbuffs[3];
-	r = vk->AllocateCommandBuffers(dev, &(VkCommandBufferAllocateInfo){
+	r = vVvk10_AllocateCommandBuffers(dev, &(VkCommandBufferAllocateInfo){
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
 		.commandPool = cpool,
 		.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
@@ -114,9 +110,9 @@ void setupCb() {
 }
 
 void cleanupCb() {
-	vk->FreeCommandBuffers(dev, cpool, 3,
+	vVvk10_FreeCommandBuffers(dev, cpool, 3,
 		(VkCommandBuffer[]){ cb.cpTo, cb.cpFrom, cb.fill });
-	vk->DestroyCommandPool(dev, cpool, NULL);
+	vVvk10_DestroyCommandPool(dev, cpool, NULL);
 }
 
 struct {
@@ -130,7 +126,7 @@ typedef struct {
 } BuffData;
 
 void setupBuff() {
-	VkResult r = vk->CreateBuffer(dev, &(VkBufferCreateInfo){
+	VkResult r = vVvk10_CreateBuffer(dev, &(VkBufferCreateInfo){
 		.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
 		.size = sizeof(BuffData),
 		.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT
@@ -139,7 +135,7 @@ void setupBuff() {
 	}, NULL, &bf.host);
 	if(r < 0) error("Count not create Buffer `host`", r);
 
-	r = vk->CreateBuffer(dev, &(VkBufferCreateInfo){
+	r = vVvk10_CreateBuffer(dev, &(VkBufferCreateInfo){
 		.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
 		.size = sizeof(BuffData),
 		.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT
@@ -150,8 +146,8 @@ void setupBuff() {
 }
 
 void cleanupBuff() {
-	vk->DestroyBuffer(dev, bf.host, NULL);
-	vk->DestroyBuffer(dev, bf.device, NULL);
+	vVvk10_DestroyBuffer(dev, bf.host, NULL);
+	vVvk10_DestroyBuffer(dev, bf.device, NULL);
 }
 
 void fillCb() {
@@ -159,24 +155,24 @@ void fillCb() {
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
 	};
 
-	vk->BeginCommandBuffer(cb.cpTo, &cbbi);
-	vk->CmdCopyBuffer(cb.cpTo, bf.host, bf.device,
+	vVvk10_BeginCommandBuffer(cb.cpTo, &cbbi);
+	vVvk10_CmdCopyBuffer(cb.cpTo, bf.host, bf.device,
 		1, (VkBufferCopy[]){ {0, 0, sizeof(BuffData)} });
-	vk->EndCommandBuffer(cb.cpTo);
+	vVvk10_EndCommandBuffer(cb.cpTo);
 
-	vk->BeginCommandBuffer(cb.cpFrom, &cbbi);
-	vk->CmdCopyBuffer(cb.cpFrom, bf.device, bf.host,
+	vVvk10_BeginCommandBuffer(cb.cpFrom, &cbbi);
+	vVvk10_CmdCopyBuffer(cb.cpFrom, bf.device, bf.host,
 		1, (VkBufferCopy[]){ {0, 0, sizeof(BuffData)} });
-	vk->EndCommandBuffer(cb.cpFrom);
+	vVvk10_EndCommandBuffer(cb.cpFrom);
 
-	vk->BeginCommandBuffer(cb.fill, &cbbi);
-	vk->CmdUpdateBuffer(cb.fill, bf.device, 0,
+	vVvk10_BeginCommandBuffer(cb.fill, &cbbi);
+	vVvk10_CmdUpdateBuffer(cb.fill, bf.device, 0,
 		sizeof(BuffData), &(BuffData){
 			.a = -17,
 			.b = "Hello, world!",
 			.c = 372,
 		});
-	vk->EndCommandBuffer(cb.fill);
+	vVvk10_EndCommandBuffer(cb.fill);
 }
 
 int main() {
@@ -184,42 +180,42 @@ int main() {
 	setupCb();
 	setupBuff();
 
-	VvVkM_Pool* pool = vkm.create(&vkbind, pdev, dev);
+	VvVkM_Pool* pool = vVvkm_create(pdev, dev);
 
-	vkm.registerBuffer(pool, bf.host, 0,
+	vVvkm_registerBuffer(pool, bf.host, 0,
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
-	vkm.registerBuffer(pool, bf.device, 0,
+	vVvkm_registerBuffer(pool, bf.device, 0,
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-	VkResult r = vkm.bind(pool);
+	VkResult r = vVvkm_bind(pool);
 	if(r < 0) error("Could not bind pool", r);
 
 	fillCb();
 
 	BuffData* bd;
-	r = vkm.mapBuffer(pool, bf.host, (void**) &bd);
+	r = vVvkm_mapBuffer(pool, bf.host, (void**) &bd);
 	if(r < 0) error("Could not map memory", r);
 
 	// Macro it up to reduce repetition.
 	#define FLUSH() \
-	r = vk->FlushMappedMemoryRanges(dev, 1, (VkMappedMemoryRange[]){ \
-		vkm.getRangeBuffer(pool, bf.host), \
+	r = vVvk10_FlushMappedMemoryRanges(dev, 1, (VkMappedMemoryRange[]){ \
+		vVvkm_getRangeBuffer(pool, bf.host), \
 	}); \
 	if(r < 0) error("Could not flush memory", r);
 
 	#define INVALIDATE() \
-	r = vk->InvalidateMappedMemoryRanges(dev, 1, (VkMappedMemoryRange[]){ \
-		vkm.getRangeBuffer(pool, bf.host), \
+	r = vVvk10_InvalidateMappedMemoryRanges(dev, 1, (VkMappedMemoryRange[]){ \
+		vVvkm_getRangeBuffer(pool, bf.host), \
 	}); \
 	if(r < 0) error("Could not invalidate memory", r);
 
 	// This is just a test, so we're going to take this slow.
 	#define SUBMIT(N) \
-	vk->QueueSubmit(q, 1, &(VkSubmitInfo){ \
+	vVvk10_QueueSubmit(q, 1, &(VkSubmitInfo){ \
 		.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO, \
 		.commandBufferCount = 1, \
 		.pCommandBuffers = &cb. N, \
 	}, NULL); \
-	vk->QueueWaitIdle(q);
+	vVvk10_QueueWaitIdle(q);
 
 	// Main body of the test
 	printf("Copying data into and back from the card...\n");
@@ -242,7 +238,7 @@ int main() {
 	printf("Data: %d '%s' %d\n", bd->a, bd->b, bd->c);
 
 	// Cleanup
-	vkm.destroy(pool);
+	vVvkm_destroy(pool);
 	cleanupBuff();
 	cleanupCb();
 	cleanupVk();

@@ -15,6 +15,7 @@
 ***************************************************************************/
 
 #include "common.h"
+#include <vivacious/window.h>
 #include <stdarg.h>
 
 void error(const char* format, ...) {
@@ -25,20 +26,14 @@ void error(const char* format, ...) {
 	exit(1);
 }
 
-VvVk_1_0* vk;
-VvVk_KHR_surface* vks;
-VvVk_KHR_swapchain* vkc;
-VvVk_Binding vkb;
+Vv V = {.vk = &vVvk_Default, .wi=&vVwi_Default};
 
 struct Common com;
 
 void loadVulkan() {
-	vkapi.allocate(&vkb);
-	vk = vkb.core->vk_1_0;
-	vks = vkb.ext->KHR_surface;
-	vkc = vkb.ext->KHR_swapchain;
+	vVvk_allocate();
 }
 
 void unloadVulkan() {
-	vkapi.free(&vkb);
+	vVvk_free();
 }

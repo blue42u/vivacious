@@ -40,25 +40,25 @@ void createInst() {
 		sizeof(lays)/sizeof(char*), lays,
 		sizeof(exts)/sizeof(char*), exts
 	};
-	VkResult r = vk->CreateInstance(&ico, NULL, &com.inst);
+	VkResult r = vVvk10_CreateInstance(&ico, NULL, &com.inst);
 	if(r<0) error("Error creating instance: %d!\n", r);
-	vkapi.loadInst(&vkb, com.inst, VK_FALSE);
+	vVvk_loadInst(com.inst, VK_FALSE);
 }
 
 void createDev() {
 	uint32_t cnt = 0;
-	VkResult r = vk->EnumeratePhysicalDevices(com.inst, &cnt, NULL);
+	VkResult r = vVvk10_EnumeratePhysicalDevices(com.inst, &cnt, NULL);
 	if(r<0) error("Error enum'ing PDevs: %d!\n", r);
 	VkPhysicalDevice* pdevs = malloc(cnt*sizeof(VkPhysicalDevice));
-	r = vk->EnumeratePhysicalDevices(com.inst, &cnt, pdevs);
+	r = vVvk10_EnumeratePhysicalDevices(com.inst, &cnt, pdevs);
 	if(r<0) error("Error enum'ing PDevs: %d!\n", r);
 
 	for(int i=0; i<cnt; i++) {
 		uint32_t qcnt = 0;
-		vk->GetPhysicalDeviceQueueFamilyProperties(pdevs[i],
+		vVvk10_GetPhysicalDeviceQueueFamilyProperties(pdevs[i],
 			&qcnt, NULL);
 		VkQueueFamilyProperties* qfps = malloc(qcnt*sizeof(VkQueueFamilyProperties));
-		vk->GetPhysicalDeviceQueueFamilyProperties(pdevs[i],
+		vVvk10_GetPhysicalDeviceQueueFamilyProperties(pdevs[i],
 			&qcnt, qfps);
 
 		uint32_t qfam = -1;
@@ -72,7 +72,7 @@ void createDev() {
 		if(qfam == -1) continue;
 
 		VkBool32 supported;
-		vks->GetPhysicalDeviceSurfaceSupportKHR(pdevs[i],
+		vVvk_GetPhysicalDeviceSurfaceSupportKHR(pdevs[i],
 			0, com.surf, &supported);
 		if(!supported) continue;
 
@@ -82,7 +82,7 @@ void createDev() {
 	free(pdevs);
 
 	VkPhysicalDeviceProperties pdp;
-	vk->GetPhysicalDeviceProperties(com.pdev, &pdp);
+	vVvk10_GetPhysicalDeviceProperties(com.pdev, &pdp);
 	printf("Vk version loaded: %d.%d.%d!\n",
 		VK_VERSION_MAJOR(pdp.apiVersion),
 		VK_VERSION_MINOR(pdp.apiVersion),
@@ -100,17 +100,17 @@ void createDev() {
 		sizeof(dexts)/sizeof(char*), dexts,
 		NULL
 	};
-	r = vk->CreateDevice(com.pdev, &dci, NULL, &com.dev);
+	r = vVvk10_CreateDevice(com.pdev, &dci, NULL, &com.dev);
 	if(r<0) error("Error creating device: %d!\n", r);
-	vkapi.loadDev(&vkb, com.dev, VK_TRUE);
+	vVvk_loadDev(com.dev, VK_TRUE);
 
-	vk->GetDeviceQueue(com.dev, com.qfam, 0, &com.queue);
+	vVvk10_GetDeviceQueue(com.dev, com.qfam, 0, &com.queue);
 }
 
 void destroyDev() {
-	vk->DestroyDevice(com.dev, NULL);
+	vVvk10_DestroyDevice(com.dev, NULL);
 }
 
 void destroyInst() {
-	vk->DestroyInstance(com.inst, NULL);
+	vVvk10_DestroyInstance(com.inst, NULL);
 }
