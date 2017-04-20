@@ -44,13 +44,13 @@ _Vv_STRUCT(Vv_Window) {
 	// Connect to the system's window manager.
 	VvWi_Connection* (*connect)(const Vv*);
 #ifdef Vv_wi_ENABLED
-#define vVwi_connect() vVcore_FUNCNARGS(wi, connect)
+#define vVwi_connect() _vVcore_FUNCNARGS(wi, connect)
 #endif
 
 	// Disconnect, and destroy the connection.
 	void (*disconnect)(const Vv*, VvWi_Connection*);
 #ifdef Vv_wi_ENABLED
-#define vVwi_disconnect(...) vVcore_FUNC(wi, disconnect, __VA_ARGS__)
+#define vVwi_disconnect(...) _vVcore_FUNC(wi, disconnect, __VA_ARGS__)
 #endif
 
 	// Create a new window for the screen. May or may not be visible
@@ -58,25 +58,25 @@ _Vv_STRUCT(Vv_Window) {
 	VvWi_Window* (*createWindow)(const Vv*, VvWi_Connection*, int width,
 		int height, VvWi_EventMask events);
 #ifdef Vv_wi_ENABLED
-#define vVwi_createWindow(...) vVcore_FUNC(wi, createWindow, __VA_ARGS__)
+#define vVwi_createWindow(...) _vVcore_FUNC(wi, createWindow, __VA_ARGS__)
 #endif
 
 	// Close/Destroy a window. After this, the window is invalid.
 	void (*destroyWindow)(const Vv*, VvWi_Window*);
 #ifdef Vv_wi_ENABLED
-#define vVwi_destroyWindow(...) vVcore_FUNC(wi, destroyWindow, __VA_ARGS__)
+#define vVwi_destroyWindow(...) _vVcore_FUNC(wi, destroyWindow, __VA_ARGS__)
 #endif
 
 	// Show a window on the screen, if its not shown already.
 	void (*showWindow)(const Vv*, VvWi_Window*);
 #ifdef Vv_wi_ENABLED
-#define vVwi_showWindow(...) vVcore_FUNC(wi, showWindow, __VA_ARGS__)
+#define vVwi_showWindow(...) _vVcore_FUNC(wi, showWindow, __VA_ARGS__)
 #endif
 
 	// Set the window's title.
 	void (*setTitle)(const Vv*, VvWi_Window*, const char* name);
 #ifdef Vv_wi_ENABLED
-#define vVwi_setTitle(...) vVcore_FUNC(wi, setTitle, __VA_ARGS__)
+#define vVwi_setTitle(...) _vVcore_FUNC(wi, setTitle, __VA_ARGS__)
 #endif
 
 	// Create a VkSurface based on a Window. Returns a VkResult, and
@@ -84,32 +84,32 @@ _Vv_STRUCT(Vv_Window) {
 	int (*createVkSurface)(const Vv*, VvWi_Window*, void* inst,
 		void* psurf);
 #ifdef Vv_wi_ENABLED
-#define vVwi_createVkSurface(...) vVcore_FUNC(wi, createVkSurface, __VA_ARGS__)
+#define vVwi_createVkSurface(...) _vVcore_FUNC(wi, createVkSurface, __VA_ARGS__)
 #endif
 
 	// Make a window fullscreen if <enable> is a true value, otherwise
 	// make the window windowed.
 	void (*setFullscreen)(const Vv*, VvWi_Window*, int enable);
 #ifdef Vv_wi_ENABLED
-#define vVwi_setFullscreen(...) vVcore_FUNC(wi, setFullscreen, __VA_ARGS__)
+#define vVwi_setFullscreen(...) _vVcore_FUNC(wi, setFullscreen, __VA_ARGS__)
 #endif
 
 	// Set the size of a window.
 	void (*setWindowSize)(const Vv*, VvWi_Window*, const int[2]);
 #ifdef Vv_wi_ENABLED
-#define vVwi_setWindowSize(...) vVcore_FUNC(wi, setWindowSize, __VA_ARGS__)
+#define vVwi_setWindowSize(...) _vVcore_FUNC(wi, setWindowSize, __VA_ARGS__)
 #endif
 
 	// Get the size of a window.
 	void (*getWindowSize)(const Vv*, VvWi_Window*, int[2]);
 #ifdef Vv_wi_ENABLED
-#define vVwi_getWindowSize(...) vVcore_FUNC(wi, getWindowSize, __VA_ARGS__)
+#define vVwi_getWindowSize(...) _vVcore_FUNC(wi, getWindowSize, __VA_ARGS__)
 #endif
 
 	// Get the size of the screen.
 	void (*getScreenSize)(const Vv*, VvWi_Connection*, int[2]);
 #ifdef Vv_wi_ENABLED
-#define vVwi_getScreenSize(...) vVcore_FUNC(wi, getScreenSize, __VA_ARGS__)
+#define vVwi_getScreenSize(...) _vVcore_FUNC(wi, getScreenSize, __VA_ARGS__)
 #endif
 };
 

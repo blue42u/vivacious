@@ -28,13 +28,13 @@ _Vv_STRUCT(Vv_VulkanMemoryManager) {
 	// Create a new Pool, setup for the card being used.
 	VvVkM_Pool* (*create)(const Vv*, VkPhysicalDevice, VkDevice);
 #ifdef Vv_vkm_ENABLED
-#define vVvkm_create(...) vVcore_FUNC(vkm, create, __VA_ARGS__)
+#define vVvkm_create(...) _vVcore_FUNC(vkm, create, __VA_ARGS__)
 #endif
 
 	// Destroy a Pool, freeing any device memory accociated with it.
 	void (*destroy)(const Vv*, VvVkM_Pool*);
 #ifdef Vv_vkm_ENABLED
-#define vVvkm_destroy(...) vVcore_FUNC(vkm, destroy, __VA_ARGS__)
+#define vVvkm_destroy(...) _vVcore_FUNC(vkm, destroy, __VA_ARGS__)
 #endif
 
 	// Register a resource, to batch the allocation and binding process.
@@ -46,31 +46,31 @@ _Vv_STRUCT(Vv_VulkanMemoryManager) {
 	void (*registerImage)(const Vv*, VvVkM_Pool*, VkImage,
 		VkMemoryPropertyFlags ideal, VkMemoryPropertyFlags required);
 #ifdef Vv_vkm_ENABLED
-#define vVvkm_registerBuffer(...) vVcore_FUNC(vkm, registerBuffer, __VA_ARGS__)
-#define vVvkm_registerImage(...) vVcore_FUNC(vkm, registerImage, __VA_ARGS__)
+#define vVvkm_registerBuffer(...) _vVcore_FUNC(vkm, registerBuffer, __VA_ARGS__)
+#define vVvkm_registerImage(...) _vVcore_FUNC(vkm, registerImage, __VA_ARGS__)
 #endif
 
 	// Bind any resources that are currently registered. Returns an error
 	// if any errors in allocation and binding are incountered.
 	VkResult (*bind)(const Vv*, VvVkM_Pool*);
 #ifdef Vv_vkm_ENABLED
-#define vVvkm_bind(...) vVcore_FUNC(vkm, bind, __VA_ARGS__)
+#define vVvkm_bind(...) _vVcore_FUNC(vkm, bind, __VA_ARGS__)
 #endif
 
 	// Map the memory for a resource.
 	VkResult (*mapBuffer)(const Vv*, VvVkM_Pool*, VkBuffer, void**);
 	VkResult (*mapImage)(const Vv*, VvVkM_Pool*, VkImage, void**);
 #ifdef Vv_vkm_ENABLED
-#define vVvkm_mapBuffer(...) vVcore_FUNC(vkm, mapBuffer, __VA_ARGS__)
-#define vVvkm_mapImage(...) vVcore_FUNC(vkm, mapImage, __VA_ARGS__)
+#define vVvkm_mapBuffer(...) _vVcore_FUNC(vkm, mapBuffer, __VA_ARGS__)
+#define vVvkm_mapImage(...) _vVcore_FUNC(vkm, mapImage, __VA_ARGS__)
 #endif
 
 	// Unmap the memory for a resource.
 	void (*unmapBuffer)(const Vv*, VvVkM_Pool*, VkBuffer);
 	void (*unmapImage)(const Vv*, VvVkM_Pool*, VkImage);
 #ifdef Vv_vkm_ENABLED
-#define vVvkm_unmapBuffer(...) vVcore_FUNC(vkm, unmapBuffer, __VA_ARGS__)
-#define vVvkm_unmapImage(...) vVcore_FUNC(vkm, unmapImage, __VA_ARGS__)
+#define vVvkm_unmapBuffer(...) _vVcore_FUNC(vkm, unmapBuffer, __VA_ARGS__)
+#define vVvkm_unmapImage(...) _vVcore_FUNC(vkm, unmapImage, __VA_ARGS__)
 #endif
 
 	// Get the memory range for a resource. Can be used either to map
@@ -78,8 +78,8 @@ _Vv_STRUCT(Vv_VulkanMemoryManager) {
 	VkMappedMemoryRange (*getRangeBuffer)(const Vv*, VvVkM_Pool*, VkBuffer);
 	VkMappedMemoryRange (*getRangeImage)(const Vv*, VvVkM_Pool*, VkImage);
 #ifdef Vv_vkm_ENABLED
-#define vVvkm_getRangeBuffer(...) vVcore_FUNC(vkm, getRangeBuffer, __VA_ARGS__)
-#define vVvkm_getRangeImage(...) vVcore_FUNC(vkm, getRangeImage, __VA_ARGS__)
+#define vVvkm_getRangeBuffer(...) _vVcore_FUNC(vkm, getRangeBuffer, __VA_ARGS__)
+#define vVvkm_getRangeImage(...) _vVcore_FUNC(vkm, getRangeImage, __VA_ARGS__)
 #endif
 
 	// Possibly unbind a resource, and register it so a later `bind`
@@ -88,16 +88,16 @@ _Vv_STRUCT(Vv_VulkanMemoryManager) {
 	void (*unbindBuffer)(const Vv*, VvVkM_Pool*, VkBuffer);
 	void (*unbindImage)(const Vv*, VvVkM_Pool*, VkImage);
 #ifdef Vv_vkm_ENABLED
-#define vVvkm_unbindBuffer(...) vVcore_FUNC(vkm, unbindBuffer, __VA_ARGS__)
-#define vVvkm_unbindImage(...) vVcore_FUNC(vkm, unbindImage, __VA_ARGS__)
+#define vVvkm_unbindBuffer(...) _vVcore_FUNC(vkm, unbindBuffer, __VA_ARGS__)
+#define vVvkm_unbindImage(...) _vVcore_FUNC(vkm, unbindImage, __VA_ARGS__)
 #endif
 
 	// Destroy a resource, deallocating its memory if needed.
 	void (*destroyBuffer)(const Vv*, VvVkM_Pool*, VkBuffer);
 	void (*destroyImage)(const Vv*, VvVkM_Pool*, VkImage);
 #ifdef Vv_vkm_ENABLED
-#define vVvkm_destroyBuffer(...) vVcore_FUNC(vkm, destroyBuffer, __VA_ARGS__)
-#define vVvkm_destroyImage(...) vVcore_FUNC(vkm, destroyImage, __VA_ARGS__)
+#define vVvkm_destroyBuffer(...) _vVcore_FUNC(vkm, destroyBuffer, __VA_ARGS__)
+#define vVvkm_destroyImage(...) _vVcore_FUNC(vkm, destroyImage, __VA_ARGS__)
 #endif
 };
 

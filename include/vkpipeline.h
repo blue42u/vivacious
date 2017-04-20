@@ -59,13 +59,13 @@ _Vv_STRUCT(Vv_VulkanPipeline) {
 	// Create a new Graph. Starts out very empty.
 	VvVkP_Graph* (*create)(const Vv*);
 #ifdef Vv_vkp_ENABLED
-#define vVvkp_create() vVcore_FUNCNARGS(vkp, create)
+#define vVvkp_create() _vVcore_FUNCNARGS(vkp, create)
 #endif
 
 	// Destroy a Graph, cleaning up all the little extra bits.
 	void (*destroy)(const Vv*, VvVkP_Graph*);
 #ifdef Vv_vkp_ENABLED
-#define vVvkp_destroy(...) vVcore_FUNC(vkp, destroy, __VA_ARGS__)
+#define vVvkp_destroy(...) _vVcore_FUNC(vkp, destroy, __VA_ARGS__)
 #endif
 
 	// Add a State to the Graph. <udata> is passed to the State handlers
@@ -74,7 +74,7 @@ _Vv_STRUCT(Vv_VulkanPipeline) {
 	// that all Steps that use it will occur in one subpass.
 	VvVkP_State* (*addState)(const Vv*, VvVkP_Graph*, void* udata, int spassBound);
 #ifdef Vv_vkp_ENABLED
-#define vVvkp_addState(...) vVcore_FUNC(vkp, addState, __VA_ARGS__)
+#define vVvkp_addState(...) _vVcore_FUNC(vkp, addState, __VA_ARGS__)
 #endif
 
 	// Add a Step to the Graph, complete with some dependancies.
@@ -86,7 +86,7 @@ _Vv_STRUCT(Vv_VulkanPipeline) {
 		int statecnt, const VvVkP_State** states,
 		int depcnt, const VvVkP_Dependency* depends);
 #ifdef Vv_vkp_ENABLED
-#define vVvkp_addStep(...) vVcore_FUNC(vkp, addStep, __VA_ARGS__)
+#define vVvkp_addStep(...) _vVcore_FUNC(vkp, addStep, __VA_ARGS__)
 #endif
 
 	// Add more dependencies to a Step. For adding things into the middle
@@ -94,13 +94,13 @@ _Vv_STRUCT(Vv_VulkanPipeline) {
 	void (*addDepends)(const Vv*, VvVkP_Graph*, VvVkP_Step*,
 		int depcnt, const VvVkP_Dependency* depends);
 #ifdef Vv_vkp_ENABLED
-#define vVvkp_addDepends(...) vVcore_FUNC(vkp, addDepends, __VA_ARGS__)
+#define vVvkp_addDepends(...) _vVcore_FUNC(vkp, addDepends, __VA_ARGS__)
 #endif
 
 	// Remove a Step from the Graph. Since its not needed anymore, I see.
 	void (*removeStep)(const Vv*, VvVkP_Graph*, VvVkP_Step*);
 #ifdef Vv_vkp_ENABLED
-#define vVvkp_removeStep(...) vVcore_FUNC(vkp, removeStep, __VA_ARGS__)
+#define vVvkp_removeStep(...) _vVcore_FUNC(vkp, removeStep, __VA_ARGS__)
 #endif
 
 	// Get the VkRenderPass from the Graph. When <spass> is called,
@@ -115,7 +115,7 @@ _Vv_STRUCT(Vv_VulkanPipeline) {
 			int stepCnt, void** steps,
 			int stateCnt, void** states));
 #ifdef Vv_vkp_ENABLED
-#define vVvkp_getRenderPass(...) vVcore_FUNC(vkp, getRenderPass, __VA_ARGS__)
+#define vVvkp_getRenderPass(...) _vVcore_FUNC(vkp, getRenderPass, __VA_ARGS__)
 #endif
 
 	// Copy a list of all the udata's for all the States in the Graph. This
@@ -125,7 +125,7 @@ _Vv_STRUCT(Vv_VulkanPipeline) {
 	// const for multithreading.
 	void** (*getStates)(const Vv*, const VvVkP_Graph*, int* cnt, uint32_t** spasses);
 #ifdef Vv_vkp_ENABLED
-#define vVvkp_getStates(...) vVcore_FUNC(vkp, getStates, __VA_ARGS__)
+#define vVvkp_getStates(...) _vVcore_FUNC(vkp, getStates, __VA_ARGS__)
 #endif
 
 	// Copy a list of all the udata's for all the Steps in the Graph.
@@ -133,7 +133,7 @@ _Vv_STRUCT(Vv_VulkanPipeline) {
 	// const for multithreading.
 	void** (*getSteps)(const Vv*, const VvVkP_Graph*, int* cnt);
 #ifdef Vv_vkp_ENABLED
-#define vVvkp_getSteps(...) vVcore_FUNC(vkp, getSteps, __VA_ARGS__)
+#define vVvkp_getSteps(...) _vVcore_FUNC(vkp, getSteps, __VA_ARGS__)
 #endif
 
 	// Record an invokation of the VkRenderPass returned by `getRenderPass`.
@@ -150,7 +150,7 @@ _Vv_STRUCT(Vv_VulkanPipeline) {
 		void (*uset)(const Vv*, void* udata, VkCommandBuffer),
 		void (*cmd)(const Vv*, void* udata, VkCommandBuffer));
 #ifdef Vv_vkp_ENABLED
-#define vVvkp_record(...) vVcore_FUNC(vkp, record, __VA_ARGS__)
+#define vVvkp_record(...) _vVcore_FUNC(vkp, record, __VA_ARGS__)
 #endif
 };
 

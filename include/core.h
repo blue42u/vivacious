@@ -64,7 +64,7 @@ _Vv_STRUCT(Vv) {
 
 	In either case, `Vv_<shorthand>_ENABLED` will be defined
 	if the helper macros are allowed for that API. By writing implementation
-	code using the helper macros, and defining `Vv_IMP` correctly, it is
+	code using the helper macros, and defining the correct `Vv_IMP_*`, it is
 	possible to ensure (at compile-time) that the implementation will not
 	cause a cyclic dependency between APIs.
 
@@ -75,33 +75,42 @@ _Vv_STRUCT(Vv) {
 			calls the function with Vv_CHOICE as the first arg.
 */
 
+/*
+	API map, with layer groupings:
+	[Layer contents](Layer shorthand)
+
+	                 [Vk]
+                   _______|________
+	          |                |
+	[VkB,VkM,VkP](VkCore)     [Wi]
+*/
+
 // Generic helper macros, to save on typing in other places
-#define vVcore_API(SHORTHAND) (*(Vv_CHOICE).SHORTHAND)
-#define vVcore_FUNC(SHORT, FUNC, ...) \
-vVcore_API(SHORT).FUNC(&(Vv_CHOICE), __VA_ARGS__)
-#define vVcore_FUNCNARGS(SHORT, FUNC) \
-vVcore_API(SHORT).FUNC(&(Vv_CHOICE))
+#define _vVcore_API(SHORTHAND) (*(Vv_CHOICE).SHORTHAND)
+#define _vVcore_FUNC(SHORT, FUNC, ...) \
+_vVcore_API(SHORT).FUNC(&(Vv_CHOICE), __VA_ARGS__)
+#define _vVcore_FUNCNARGS(SHORT, FUNC) \
+_vVcore_API(SHORT).FUNC(&(Vv_CHOICE))
 
-// First layer: vk
-#ifndef Vv_IMP_vk
+// Layer Vk
+#if !defined(Vv_IMP_vk)
 #define Vv_vk_ENABLED
+#define _Vv_LAYER_vk_ENABLED
+#endif // !IMP_vk
 
-// Second layer: wi
-#ifndef Vv_IMP_wi
+// Layer Wi
+#if defined(_Vv_LAYER_vk_ENABLED) && !defined(Vv_IMP_wi)
 #define Vv_wi_ENABLED
+#define _Vv_LAYER_wi_ENABLED
+#endif // LAY_vk && !IMP_wi
 
-// Third layer: vkb, vkm and vkp
-#if !defined(Vv_IMP_vkb) && !defined(Vv_IMP_vkm) && !defined(Vv_IMP_vkp)
+// Layer VkCore
+#if defined(_Vv_LAYER_vk_ENABLED) && !defined(Vv_IMP_vkb) \
+	&& !defined(Vv_IMP_vkm) && !defined(Vv_IMP_vkp)
+#define _Vv_LAYER_vkcore_ENABLED
 #define Vv_vkb_ENABLED
 #define Vv_vkm_ENABLED
 #define Vv_vkp_ENABLED
-
-// End of layers.
-
-#endif // !vkb && !vkm && !vkp
-#endif // !wi
-#endif // !vk
-
-#undef Vv_REAL_IMP
+#endif // LAY_vk && !IMP_vkb && !IMP_vkm && !IMP_vkp
 
 #endif // H_vivacious_core
