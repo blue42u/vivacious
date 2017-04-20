@@ -15,12 +15,11 @@
 ***************************************************************************/
 
 #define Vv_CHOICE V
-#include <vivacious/vkmemory.h>
-#include <vivacious/vkbplate.h>
+#include <vivacious/vivacious.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-Vv V = {.vk=&vVvk_Default, .vkb=&vVvkb_Default, .vkm=&vVvkm_Default};
+Vv V;
 
 // Stuff from debug.c
 void startDebug(const VvVk_Binding*, VkInstance);
@@ -176,6 +175,8 @@ void fillCb() {
 }
 
 int main() {
+	V = vV_Default;
+
 	setupVk();
 	setupCb();
 	setupBuff();

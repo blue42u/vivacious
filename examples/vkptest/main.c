@@ -15,11 +15,10 @@
 ***************************************************************************/
 
 #include "common.h"
-#include <vivacious/window.h>
+#include <vivacious/vivacious.h>
 #include <time.h>
 
-Vv V = {.vk=&vVvk_Default, .vkb=&vVvkb_Default, .vkp=&vVvkp_Default,
-	.wi=&vVwi_Default};
+Vv V;
 
 VkRenderPass rpass;
 
@@ -70,6 +69,8 @@ VkSubpassDescription spass(int spcnt, void** steps, int stcnt, void** states) {
 })
 
 int main() {
+	V = vV_Default;
+
 	setupVk();
 	setupWin();
 	setupSChain();

@@ -422,7 +422,7 @@ static void rec(const Vv* V, const VvVkP_Graph* g,
 	vVvk10_CmdEndRenderPass(cbuff);
 }
 
-VvAPI const Vv_VulkanPipeline vVvkp_Default = {
+VvAPI const Vv_VulkanPipeline vVvkp_Test = {
 	.create = create, .destroy = destroy,
 	.addState = addSt,
 	.addStep = addSp, .removeStep = rmSp, .addDepends = depends,

@@ -14,27 +14,19 @@
    limitations under the License.
 ***************************************************************************/
 
-#include "common.h"
+#ifndef H_libvivacious
+#define H_libvivacious
+
 #include <vivacious/vivacious.h>
-#include <stdarg.h>
 
-void error(const char* format, ...) {
-	va_list list;
-	va_start(list, format);
-	vfprintf(stderr, format, list);
-	va_end(list);
-	exit(1);
-}
+extern const Vv_Vulkan vVvk_Libdl;
 
-Vv V;
+extern const Vv_Window vVwi_X;
 
-struct Common com;
+extern const Vv_VulkanBoilerplate vVvkb_Test;
 
-void loadVulkan() {
-	V = vV_Default;
-	vVvk_allocate();
-}
+extern const Vv_VulkanMemoryManager vVvkm_Test;
 
-void unloadVulkan() {
-	vVvk_free();
-}
+extern const Vv_VulkanPipeline vVvkp_Test;
+
+#endif // H_libvivacious

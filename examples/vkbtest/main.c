@@ -15,11 +15,11 @@
 ***************************************************************************/
 
 #define Vv_CHOICE V
-#include <vivacious/vkbplate.h>
+#include <vivacious/vivacious.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-Vv V = {.vkb=&vVvkb_Default, .vk=&vVvk_Default};
+Vv V;
 
 // Stuff from debug.c
 void startDebug(VkInstance);
@@ -99,6 +99,7 @@ void shutdownVk() {
 }
 
 int main() {
+	V = vV_Default;
 	setupVk();
 	// Do stuff
 	shutdownVk();

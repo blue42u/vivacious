@@ -190,7 +190,7 @@ static void GetScreenSize(const Vv* V, VvWi_Connection* wc, int ext[2]) {
 	}
 }
 
-VvAPI const Vv_Window vVwi_Default = {	// TMP
+VvAPI const Vv_Window vVwi_X = {
 	.connect=Connect, .disconnect=Disconnect,
 	.createWindow=CreateWindow, .destroyWindow=DestroyWindow,
 	.showWindow=ShowWindow, .setTitle=SetTitle,

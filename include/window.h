@@ -112,7 +112,6 @@ _Vv_STRUCT(Vv_Window) {
 #define vVwi_getScreenSize(...) _vVcore_FUNC(wi, getScreenSize, __VA_ARGS__)
 #endif
 };
-
-extern const Vv_Window vVwi_Default;
+const Vv_Window* vVwi_Default(const Vv*);
 
 #endif // H_vivacious_window

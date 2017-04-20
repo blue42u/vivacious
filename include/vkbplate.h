@@ -140,7 +140,6 @@ _Vv_STRUCT(Vv_VulkanBoilerplate) {
 #define vVvkb_newTask(...) _vVcore_FUNC(vkb, newTask, __VA_ARGS__)
 #endif
 };
-
-extern const Vv_VulkanBoilerplate vVvkb_Default;
+const Vv_VulkanBoilerplate* vVvkb_Default(const Vv*);
 
 #endif // H_vivacious_vkbplate

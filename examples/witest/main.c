@@ -15,13 +15,15 @@
 ***************************************************************************/
 
 #define Vv_CHOICE V
-#include <vivacious/window.h>
+#include <vivacious/vivacious.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-Vv V = {.wi=&vVwi_Default};
+Vv V;
 
 int main() {
+	V = vV_Default;
+
 	VvWi_Connection* con = vVwi_connect();
 
 	int size[2];

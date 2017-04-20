@@ -237,7 +237,7 @@ static void destroyImage(const Vv* V, VvVkM_Pool* pool, VkImage i) {
 	destroyGeneral(V, pool, ind);
 }
 
-VvAPI const Vv_VulkanMemoryManager vVvkm_Default = {
+VvAPI const Vv_VulkanMemoryManager vVvkm_Test = {
 	.create = create,
 	.destroy = destroy,
 

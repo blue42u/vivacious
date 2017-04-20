@@ -14,27 +14,15 @@
    limitations under the License.
 ***************************************************************************/
 
-#include "common.h"
-#include <vivacious/vivacious.h>
-#include <stdarg.h>
+#ifdef Vv_ENABLE_VULKAN
 
-void error(const char* format, ...) {
-	va_list list;
-	va_start(list, format);
-	vfprintf(stderr, format, list);
-	va_end(list);
-	exit(1);
+#include <vivacious/vkbplate.h>
+#include "internal.h"
+
+extern const Vv_VulkanBoilerplate vVvkb_Test;
+
+VvAPI const Vv_VulkanBoilerplate* vVvkb_Default(const Vv* V) {
+	return &vVvkb_Test;
 }
 
-Vv V;
-
-struct Common com;
-
-void loadVulkan() {
-	V = vV_Default;
-	vVvk_allocate();
-}
-
-void unloadVulkan() {
-	vVvk_free();
-}
+#endif

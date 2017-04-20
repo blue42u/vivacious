@@ -237,11 +237,15 @@ rep(2, '(PFN_vk`)gdpa(dev, "vk`")')
 out([[
 }
 
-VvAPI const Vv_Vulkan vVvk_Default = {
+VvAPI const Vv_Vulkan vVvk_Libdl = {
 	.allocate = allocate,
 	.free = freebind,
 	.loadInst = loadI,
 	.loadDev = loadD,
+};
+
+VvAPI const Vv_Vulkan* vVvk_Default(const Vv* V) {
+	return &vVvk_Libdl;
 };
 ]])
 

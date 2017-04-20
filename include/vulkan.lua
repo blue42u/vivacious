@@ -181,7 +181,7 @@ _Vv_STRUCT(Vv_Vulkan) {
 #define vVvk_loadDev(...) _vVcore_FUNC(vk, loadDev, __VA_ARGS__)
 #endif
 };
-extern const Vv_Vulkan vVvk_Default;
+const Vv_Vulkan* vVvk_Default(const Vv*);
 
 #endif // H_vivacious_vulkan
 ]])
