@@ -14,14 +14,22 @@
    limitations under the License.
 ***************************************************************************/
 
-#include <vivacious/window.h>
+#include <libvivacious.h>
 #include "internal.h"
 
 #ifdef Vv_ENABLE_X
-extern const Vv_Window vVwi_X;
+extern const Vv_Window libVv_wi_x;
 #endif // Vv_ENABLE_X
 
-VvAPI const Vv_Window* vVwi_Default(const Vv* V) {
+VvAPI const struct libVv_Window libVv_wi = {
+#ifdef Vv_ENABLE_X
+	.x = &libVv_wi_x,
+#else
+	.x = NULL,
+#endif
+};
+
+VvAPI const Vv_Window* vVwi(const Vv* V) {
 	// For now, just use X
-	return &vVwi_X;
+	return libVv_wi.x;
 }

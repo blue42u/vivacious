@@ -22,7 +22,7 @@
 Vv V;
 
 int main() {
-	V = vV_Default;
+	V = vV();
 
 	VvWi_Connection* con = vVwi_connect();
 

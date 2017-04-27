@@ -69,7 +69,7 @@ VkSubpassDescription spass(int spcnt, void** steps, int stcnt, void** states) {
 })
 
 int main() {
-	V = vV_Default;
+	V = vV();
 
 	setupVk();
 	setupWin();

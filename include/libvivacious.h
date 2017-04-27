@@ -19,14 +19,24 @@
 
 #include <vivacious/vivacious.h>
 
-extern const Vv_Vulkan vVvk_Libdl;
+extern const struct libVv_Vulkan {
+	const Vv_Vulkan* libdl;
+} libVv_vk;
 
-extern const Vv_Window vVwi_X;
+extern const struct libVv_Window {
+	const Vv_Window* x;
+} libVv_wi;
 
-extern const Vv_VulkanBoilerplate vVvkb_Test;
+extern const struct libVv_VulkanBoilerplate {
+	const Vv_VulkanBoilerplate* test;
+} libVv_vkb;
 
-extern const Vv_VulkanMemoryManager vVvkm_Test;
+extern const struct libVv_VulkanMemoryManager {
+	const Vv_VulkanMemoryManager* test;
+} libVv_vkm;
 
-extern const Vv_VulkanPipeline vVvkp_Test;
+extern const struct libVv_VulkanPipeline {
+	const Vv_VulkanPipeline* test;
+} libVv_vkp;
 
 #endif // H_libvivacious

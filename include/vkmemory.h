@@ -100,6 +100,6 @@ _Vv_STRUCT(Vv_VulkanMemoryManager) {
 #define vVvkm_destroyImage(...) _vVcore_FUNC(vkm, destroyImage, __VA_ARGS__)
 #endif
 };
-const Vv_VulkanMemoryManager* vVvkm_Default(const Vv*);
+const Vv_VulkanMemoryManager* vVvkm(const Vv*);
 
 #endif // H_vivacious_vkmemory

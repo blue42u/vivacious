@@ -31,7 +31,7 @@ Vv V;
 struct Common com;
 
 void loadVulkan() {
-	V = vV_Default;
+	V = vV();
 	vVvk_allocate();
 }
 

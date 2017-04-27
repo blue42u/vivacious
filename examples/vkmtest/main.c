@@ -175,7 +175,7 @@ void fillCb() {
 }
 
 int main() {
-	V = vV_Default;
+	V = vV();
 
 	setupVk();
 	setupCb();

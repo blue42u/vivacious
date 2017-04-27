@@ -16,13 +16,17 @@
 
 #ifdef Vv_ENABLE_VULKAN
 
-#include <vivacious/vkmemory.h>
+#include <libvivacious.h>
 #include "internal.h"
 
-extern const Vv_VulkanMemoryManager vVvkm_Test;
+extern const Vv_VulkanMemoryManager libVv_vkm_test;
 
-VvAPI const Vv_VulkanMemoryManager* vVvkm_Default(const Vv* V) {
-	return &vVvkm_Test;
+VvAPI const struct libVv_VulkanMemoryManager libVv_vkm = {
+	.test = &libVv_vkm_test,
+};
+
+VvAPI const Vv_VulkanMemoryManager* vVvkm(const Vv* V) {
+	return &libVv_vkm_test;
 }
 
 #endif

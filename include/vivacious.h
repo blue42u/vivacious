@@ -23,13 +23,13 @@
 #include <vivacious/vkmemory.h>
 #include <vivacious/vkpipeline.h>
 
-#define vV_Default ({ \
+#define vV() ({ \
 	Vv V; \
-	V.vk = vVvk_Default(&V); V.vk_binding = NULL; \
-	V.wi = vVwi_Default(&V); \
-	V.vkb = vVvkb_Default(&V); \
-	V.vkm = vVvkm_Default(&V); \
-	V.vkp = vVvkp_Default(&V); \
+	V.vk = vVvk(&V); V.vk_binding = NULL; \
+	V.wi = vVwi(&V); \
+	V.vkb = vVvkb(&V); \
+	V.vkm = vVvkm(&V); \
+	V.vkp = vVvkp(&V); \
 	V; \
 })
 

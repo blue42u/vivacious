@@ -237,15 +237,21 @@ rep(2, '(PFN_vk`)gdpa(dev, "vk`")')
 out([[
 }
 
-VvAPI const Vv_Vulkan vVvk_Libdl = {
+#include <libvivacious.h>
+
+static const Vv_Vulkan libVv_vk_libdl = {
 	.allocate = allocate,
 	.free = freebind,
 	.loadInst = loadI,
 	.loadDev = loadD,
 };
 
-VvAPI const Vv_Vulkan* vVvk_Default(const Vv* V) {
-	return &vVvk_Libdl;
+VvAPI const struct libVv_Vulkan libVv_vk = {
+	.libdl = &libVv_vk_libdl,
+};
+
+VvAPI const Vv_Vulkan* vVvk(const Vv* V) {
+	return &libVv_vk_libdl;
 };
 ]])
 

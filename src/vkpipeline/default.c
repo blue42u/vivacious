@@ -16,13 +16,17 @@
 
 #ifdef Vv_ENABLE_VULKAN
 
-#include <vivacious/vkpipeline.h>
+#include <libvivacious.h>
 #include "internal.h"
 
-extern const Vv_VulkanPipeline vVvkp_Test;
+extern const Vv_VulkanPipeline libVv_vkp_test;
 
-VvAPI const Vv_VulkanPipeline* vVvkp_Default(const Vv* V) {
-	return &vVvkp_Test;
+VvAPI const struct libVv_VulkanPipeline libVv_vkp = {
+	.test = &libVv_vkp_test,
+};
+
+VvAPI const Vv_VulkanPipeline* vVvkp(const Vv* V) {
+	return &libVv_vkp_test;
 }
 
 #endif

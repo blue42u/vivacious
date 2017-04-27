@@ -302,7 +302,7 @@ static VkResult createDev(const Vv* V, VvVkB_DevInfo* di,
 	return r;
 }
 
-VvAPI const Vv_VulkanBoilerplate vVvkb_Test = {
+const Vv_VulkanBoilerplate libVv_vkb_test = {
 	.createInstInfo = createInstInfo,
 	.createInstance = createInst,
 	.setInstVersion = setIVer,

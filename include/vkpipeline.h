@@ -153,6 +153,6 @@ _Vv_STRUCT(Vv_VulkanPipeline) {
 #define vVvkp_record(...) _vVcore_FUNC(vkp, record, __VA_ARGS__)
 #endif
 };
-const Vv_VulkanPipeline* vVvkp_Default(const Vv*);
+const Vv_VulkanPipeline* vVvkp(const Vv*);
 
 #endif // H_vivacious_vkpipeline

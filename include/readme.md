@@ -1,106 +1,101 @@
-## Terminology and Overall Structure
+## Overview
 
-The vV API is broken up into many smaller pieces, which can (and often
-do) build on each other. Each of these pieces is called simply an *API*,
-which consists of the functions defined by the API (called *commands*)
-along with the opaque and transparent types used by the commands.
+The Vivacious API, due to its layered nature, is a collection of smaller
+specifications, each of which has a particular purpose. These smaller pieces
+can and do depend on each other, but the possible dependencies are limited
+to prevent cyclic dependencies. Each of these smaller pieces is called an
+*API*, and encapsulates the functions that the API provides.
 
-The commands in an API are not part of the symbol table for a vV library.
-Instead, each API defines one or more *implementations*, which are filled
-const globals of the main API structure (rationale 4).
+These APIs contain no actual code, they are merely specifications. Thus it is
+up to the implementing library to provide *implementations*, filled versions of
+the API structure. This allows for the application to decide at runtime which
+implementation it would wish to use, as well as create and use its own.
 
-## Naming scheme
+It should be noted that the Vivacious API is implemented by *libvivacious*,
+which we will use to term the library itself.
 
-Every symbol in vV must begin with a prefix classifying it uniquely into
-the specific API from which it comes. Every API should thus have a
-shortened form of the name for the prefix. This is the *shorthand* name
-for the API, and should have two forms. The first follows CamelCase rules,
-and starts with a capital, we call this `<Sh>`. The second is all lowercase,
-we call this `<sh>`. This is to prevent capitalization conflicts with the
-vV (or Vv) part of the prefix.
+## API Names
 
-Every type should have the prefix `Vv<Sh>_`, with the exception being
-the API structure itself, which should have the form `Vv_<api>`. Every
-implementation of the API should have the form `vV<sh>_<imp>` (rationale 3),
-where `<imp>` is a unique identifier for the implemention, as seen below.
+Every API has a number of names used to refer to it, these are:
+- Full Name, a Camel Case descriptive name for the API. Ex: GiantRobotManager
+- Shorthand, a short sequence of lowercase characters (usually an acronym)
+  which also uniquely identify the API. Ex: grobm
+- Capital Shorthand, a version of the Shorthand preserving case. Ex: GRobM
+- Header, the name used for the header's filename. Ex: grobotman.h
+These names are used for the C naming scheme, although the only one to remember
+to use the API is the Capital Shorthand (and the Shorthand). For the purposes
+of this document, the Capital Shorthand is referenced by `<Sh>`, Shorthand by
+`<sh>`, and Full Name by `<API>`.
 
-## Header Conventions
+## C Naming Scheme
 
-Every API should be defined in a single header in this directory or a
-subdirectory, which is entirely under a proper define fence. The name of
-the constant used should be `H_vivacious_<path>`, where `<path>` is the
-header's filepath without extension from this directory with "_" as the
-delimiter.
+Every symbol defined by vV headers includes a prefix to uniquely identify it
+both as a part of Vivacious and as part of a specific API. This prefix takes
+the form `vV<sh>_`, if the symbol is part of an API, and `vV_` if not. Private
+symbols (usually macros) are prefixed with `_vV_`. Types use capitalization, so
+the prefixes become `Vv<Sh>_`, `Vv_` and `_Vv_` respectively.
 
-E.g. The header `foo/bar/test.h` would use `H_vivacious_foo_bar_test`.
+A small exception is that the API structure itself is not prefixed as part of
+the API, which means that the name of the structure must be `vV_<API>`. This
+may be changed in the future. Sooner rather than later.
 
-## Guidelines for API structure.
+There is one header file that is not part of the Vivacious API, libvivacious.h,
+which provides access to the implementations available in libvivacious. These
+implementations are available as `*libVv_<sh>.<implementation>`.
 
-Every API in vV has a single `Vv_<api>` structure type that acts as the
-interface that applications use. This structure should only contain
-function pointers (commands) and const pointers to other structures with
-identical restrictions.
+The C headers also define a collection of macros (and a type) referred to as the
+"helper macros". The type consists of pointers to each API structure, called
+(since its not part of any API) `Vv`. This structure allows APIs to depend on
+one another, and a const pointer to `Vv` should be the first argument to any
+API function. The macros are wrappers of an API's functions, and take the form
+```
+#define vV<sh>_<func>(...) (Vv_CHOICE).<sh>.<func>(&(Vv_CHOICE), ...)
+```
+where `Vv_CHOICE` is an application-defined macro which, when expanded, becomes
+a reference to the `Vv` structure to use.
 
-Any structures that are defined by an API should be typedef'd in such a
-way as to allow the struct identifier to be dropped (rationale 1).
-Any opaque types that are defined by an API should be handled similarly,
-i.e. a handle type will be "created" by `typedef struct <name> <name>;`.
+The helper macros be further limited by defining `Vv_IMP_<sh>`, which disables
+the definition of helper macros for APIs which cannot be depended on by the API.
+This is intended to aid in the creation of implementations, since the code can
+use the helper macros and ensure valid inter-API dependency.
 
-Sometimes APIs will have *integrations* with one another, which are
-commands that operate on types another API has defined. A API which
-requires types from a second API is said to *depend* on that API. If the
-dependant requires transparent types, then the dependant's header should
-additionally include the dependee's header. If the dependant only requires
-opaque types, then the integrations should simply include the struct
-identifier with the type in question.
+## Overall Guidelines
 
-Every integration needs to have a way to access the dependee API. This can
-be done with a "setter" on an opaque type, or with a `const struct Vv_<api>*`
-parameter on the command itself.
+Each Vivacious API should be entirely contained in a single header file, with a
+name based on the Full Name of the API. Any other headers that need to be
+included may also be included by the API's header.
 
-Examples:
-1. An API has a command `FishSauce(VvFish, struct VvSauce*)`, where `VvSauce`
-   is a handle defined by another API.
+Every API should define a single `Vv_<API>` structure, as described earlier.
 
-## Exceptions (mostly caused by external library support)
+The first argument to any API's functions should be a `const Vv*`, to allow
+access to other APIs.
 
-Some APIs in vV include outside headers, and supply the library's
-functions as commands in the API. This creates types that are not
-defined with vV protocols, which can create issues particularly with
-integrations. The rule for dealing with most such problems is this:
-**The type in question should be referenced as the most compatible base type.**
-For instance, this means that the "handle" types defined by Vulkan would
-be referenced as `void*`, and in OpenGL would be `uint32_t` or `short`.
-Most external types used in integrations may be opaque by nature, which
-would mean heavy use of `void*`.
+All types defined by an API should be able to be used both with and without
+the `struct` identifier (rationale 1).
 
-## Implementations
+If a function uses another API's type, then it should use the `struct`
+identifier (if its an opaque handle and the other API has not been included)
+to prevent warnings. This applies even if the other API is an external library.
 
-The header which defines an API should also define the globals that form the
-vV implementations of the API. These statements will thus be of the form
-`extern const Vv_<api> vV<sh>_<imp>;`.
+Finally, the standard way to obtain implementations is to use the result of
+the function `vV<sh>(const Vv*)`. In addition, the macro `vV()` from
+vivacious.h returns a `Vv` structure filled in this way.
 
-## Maintenance
+## Changing an API
 
-Sometimes the APIs require updating. Any new commands should be placed at
+When changing an existing API, any new commands should be placed at
 the end of the structure, allowing older compatible versions to still
 access older commands. Any larger changes should be batched for the next
 major version of vV, as dictated by Semver.
 
 If updating an API makes it become dependant, or otherwise requires the
 addition of a new include, it should be added. If the update removes a
-dependancy, or the need for an include, it should not be removed
-(rationale 2).
-
-There might be cases where a new implementation for an API is added. As
-required by Semver, these should incur minor version updates for vV. There
-should be little reason to remove an implementation, but should the need
-arise, the operation will require a major version update.
+dependency, or the need for an include, it should not be removed (rationale 2).
 
 ### Rationale
 
 1. There have been many arguments in the past about the presence or absence
-   of the struct identifier. Personally, I would perfer to leave it off.
+   of the struct identifier. Personally, I would prefer to leave it off.
    To make vV compatible, the typedef'd name is the same as the struct name.
    This way, either way will work equally well on the application's end.
 
@@ -110,19 +105,12 @@ arise, the operation will require a major version update.
    that front, includes are not allowed to be removed. Thus, choose wisely
    when adding integrations to an API.
 
-3. The reason to use the shorthand in the implementation name is to allow the
-   implementation call to rest comfertably on the same line as the return
-   variable. For instance, a line of code like
-   ```C
-   const Vv_MyCoolFish* mcfapi = vV_loadMyCoolFish_EvenCooler();
-   ```
-   is lengthy and redundant, compared to the very similar
-   ```C
-   const Vv_MyCoolFish* mcfapi = vVmcf_EvenCooler();
-   ```
-   which still provides all the information and uniqueness needed, without the
-   extra bulk.
+### API map
+Put here because it doesn't really fit anywhere else yet.
+        API map, with layer groupings:
+        [Layer contents](Layer shorthand)
 
-4. Earlier versions of this document defined implementations to be functions
-   that return const pointers to filled API structures. This was changed to
-   provide the same functionality, while removing a pointer dereference.
+                         [Vk]
+                   _______|________
+                  |                |
+        [VkB,VkM,VkP](VkCore)     [Wi]

@@ -99,7 +99,7 @@ void shutdownVk() {
 }
 
 int main() {
-	V = vV_Default;
+	V = vV();
 	setupVk();
 	// Do stuff
 	shutdownVk();

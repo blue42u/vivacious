@@ -48,43 +48,6 @@ _Vv_STRUCT(Vv) {
 	const struct Vv_VulkanPipeline* vkp;
 };
 
-/*
-	This file also (for now) contains the info on the helper macros.
-	To activate, define `Vv_CHOICE` to reference a Vv structure
-	(not pointer to) at any point in which the helper macros are used.
-	So applications can put an `extern Vv` in a common header, and
-	implementations can use the same name for the first argument.
-
-	`Vv_CHOICE` may be evaluated multiple times in any one macro.
-
-	If an implementation wishes to use the helper macros, there is
-	a particular order in which the API layers are layed out, which
-	is to prevent cyclic dependencies. This order is defined here,
-	and can be enabled by defining `Vv_IMP_<shorthand>`.
-
-	In either case, `Vv_<shorthand>_ENABLED` will be defined
-	if the helper macros are allowed for that API. By writing implementation
-	code using the helper macros, and defining the correct `Vv_IMP_*`, it is
-	possible to ensure (at compile-time) that the implementation will not
-	cause a cyclic dependency between APIs.
-
-	The helper macros are defined in their APIs headers, and the available
-	helper macros for an API are as follows:
-		`vV<shorthand>` references the API structure.
-		`vV<shorthand>_<function>(...)` (funcs start with l-case)
-			calls the function with Vv_CHOICE as the first arg.
-*/
-
-/*
-	API map, with layer groupings:
-	[Layer contents](Layer shorthand)
-
-	                 [Vk]
-                   _______|________
-	          |                |
-	[VkB,VkM,VkP](VkCore)     [Wi]
-*/
-
 // Generic helper macros, to save on typing in other places
 #define _vVcore_API(SHORTHAND) (*(Vv_CHOICE).SHORTHAND)
 #define _vVcore_FUNC(SHORT, FUNC, ...) \
