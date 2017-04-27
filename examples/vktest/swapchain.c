@@ -28,20 +28,20 @@ static VkPresentModeKHR choosePM(uint32_t cnt, VkPresentModeKHR* pms) {
 
 void createSChain() {
 	VkSurfaceCapabilitiesKHR sc;
-	VkResult r = vks->GetPhysicalDeviceSurfaceCapabilitiesKHR(com.pdev,
+	VkResult r = vVvk_GetPhysicalDeviceSurfaceCapabilitiesKHR(com.pdev,
 		com.surf, &sc);
 	if(r<0) error("Error getting surface caps: %d!\n", r);
 
 	uint32_t cnt = 0;
 
-	vks->GetPhysicalDeviceSurfaceFormatsKHR(com.pdev, com.surf, &cnt, NULL);
+	vVvk_GetPhysicalDeviceSurfaceFormatsKHR(com.pdev, com.surf, &cnt, NULL);
 	VkSurfaceFormatKHR* sfs = malloc(cnt*sizeof(VkSurfaceFormatKHR));
-	vks->GetPhysicalDeviceSurfaceFormatsKHR(com.pdev, com.surf, &cnt, sfs);
+	vVvk_GetPhysicalDeviceSurfaceFormatsKHR(com.pdev, com.surf, &cnt, sfs);
 
-	vks->GetPhysicalDeviceSurfacePresentModesKHR(com.pdev, com.surf,
+	vVvk_GetPhysicalDeviceSurfacePresentModesKHR(com.pdev, com.surf,
 		&cnt, NULL);
 	VkPresentModeKHR* pms = malloc(cnt*sizeof(VkPresentModeKHR));
-	vks->GetPhysicalDeviceSurfacePresentModesKHR(com.pdev, com.surf,
+	vVvk_GetPhysicalDeviceSurfacePresentModesKHR(com.pdev, com.surf,
 		&cnt, pms);
 	VkPresentModeKHR pm = choosePM(cnt, pms);
 	free(pms);
@@ -57,21 +57,21 @@ void createSChain() {
 		pm, VK_TRUE,
 		NULL,
 	};
-	r = vkc->CreateSwapchainKHR(com.dev, &sci, NULL, &com.schain);
+	r = vVvk_CreateSwapchainKHR(com.dev, &sci, NULL, &com.schain);
 	if(r<0) error("Error creating swapchain: %d!\n", r);
 
 	free(sfs);
 
-	r = vkc->GetSwapchainImagesKHR(com.dev, com.schain,
+	r = vVvk_GetSwapchainImagesKHR(com.dev, com.schain,
 		&com.simagecnt, NULL);
 	if(r<0) error("Error getting swapchain images: %d!\n", r);
 	com.simages = malloc(com.simagecnt*sizeof(VkImage));
-	r = vkc->GetSwapchainImagesKHR(com.dev, com.schain,
+	r = vVvk_GetSwapchainImagesKHR(com.dev, com.schain,
 		&com.simagecnt, com.simages);
 	if(r<0) error("Error getting swapchain images: %d!\n", r);
 }
 
 void destroySChain() {
 	free(com.simages);
-	vkc->DestroySwapchainKHR(com.dev, com.schain, NULL);
+	vVvk_DestroySwapchainKHR(com.dev, com.schain, NULL);
 }

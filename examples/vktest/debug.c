@@ -76,11 +76,9 @@ VkBool32 debugFunc(
 	return VK_FALSE;
 }
 
-static const VvVk_EXT_debug_report* vkdr;
 static VkDebugReportCallbackEXT drc;
 
 void startDebug() {
-	vkdr = vkb.ext->EXT_debug_report;
 	VkDebugReportCallbackCreateInfoEXT drcci = {
 		VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT,
 		NULL,
@@ -92,9 +90,9 @@ void startDebug() {
 		debugFunc,
 		NULL
 	};
-	vkdr->CreateDebugReportCallbackEXT(com.inst, &drcci, NULL, &drc);
+	vVvk_CreateDebugReportCallbackEXT(com.inst, &drcci, NULL, &drc);
 }
 
 void endDebug() {
-	vkdr->DestroyDebugReportCallbackEXT(com.inst, drc, NULL);
+	vVvk_DestroyDebugReportCallbackEXT(com.inst, drc, NULL);
 }

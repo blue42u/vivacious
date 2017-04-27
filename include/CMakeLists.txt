@@ -7,6 +7,7 @@ set(CPS
 	vkbplate.h
 	vkmemory.h
 	vkpipeline.h
+	vivacious.h
 )
 set(ODEPS
 	vk.xml
@@ -34,5 +35,12 @@ foreach(C ${CPS})
 		MAIN_DEPENDENCY ${C})
 	set(DEPS ${DEPS} ${OUTPUT}/${C})
 endforeach()
+
+add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/include/libvivacious.h
+	COMMAND ${CMAKE_COMMAND} -E copy libvivacious.h
+		${CMAKE_BINARY_DIR}/include/libvivacious.h
+	WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+	MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/libvivacious.h)
+set(DEPS ${DEPS} ${CMAKE_BINARY_DIR}/include/libvivacious.h)
 
 add_custom_target(include DEPENDS ${DEPS})

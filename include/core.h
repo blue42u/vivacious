@@ -39,4 +39,41 @@ struct name
 typedef enum name name; \
 enum name
 
+// The structure that holds every choice.
+_Vv_STRUCT(Vv) {
+	const struct Vv_Vulkan* vk; struct VvVk_Binding* vk_binding;
+	const struct Vv_Window* wi;
+	const struct Vv_VulkanBoilerplate* vkb;
+	const struct Vv_VulkanMemoryManager* vkm;
+	const struct Vv_VulkanPipeline* vkp;
+};
+
+// Generic helper macros, to save on typing in other places
+#define _vVcore_API(SHORTHAND) (*(Vv_CHOICE).SHORTHAND)
+#define _vVcore_FUNC(SHORT, FUNC, ...) \
+_vVcore_API(SHORT).FUNC(&(Vv_CHOICE), __VA_ARGS__)
+#define _vVcore_FUNCNARGS(SHORT, FUNC) \
+_vVcore_API(SHORT).FUNC(&(Vv_CHOICE))
+
+// Layer Vk
+#if !defined(Vv_IMP_vk)
+#define Vv_vk_ENABLED
+#define _Vv_LAYER_vk_ENABLED
+#endif // !IMP_vk
+
+// Layer Wi
+#if defined(_Vv_LAYER_vk_ENABLED) && !defined(Vv_IMP_wi)
+#define Vv_wi_ENABLED
+#define _Vv_LAYER_wi_ENABLED
+#endif // LAY_vk && !IMP_wi
+
+// Layer VkCore
+#if defined(_Vv_LAYER_vk_ENABLED) && !defined(Vv_IMP_vkb) \
+	&& !defined(Vv_IMP_vkm) && !defined(Vv_IMP_vkp)
+#define _Vv_LAYER_vkcore_ENABLED
+#define Vv_vkb_ENABLED
+#define Vv_vkm_ENABLED
+#define Vv_vkp_ENABLED
+#endif // LAY_vk && !IMP_vkb && !IMP_vkm && !IMP_vkp
+
 #endif // H_vivacious_core

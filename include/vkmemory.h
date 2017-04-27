@@ -26,49 +26,80 @@ _Vv_TYPEDEF(VvVkM_Pool);
 
 _Vv_STRUCT(Vv_VulkanMemoryManager) {
 	// Create a new Pool, setup for the card being used.
-	VvVkM_Pool* (*create)(const VvVk_Binding*, VkPhysicalDevice, VkDevice);
+	VvVkM_Pool* (*create)(const Vv*, VkPhysicalDevice, VkDevice);
+#ifdef Vv_vkm_ENABLED
+#define vVvkm_create(...) _vVcore_FUNC(vkm, create, __VA_ARGS__)
+#endif
 
 	// Destroy a Pool, freeing any device memory accociated with it.
-	void (*destroy)(VvVkM_Pool*);
+	void (*destroy)(const Vv*, VvVkM_Pool*);
+#ifdef Vv_vkm_ENABLED
+#define vVvkm_destroy(...) _vVcore_FUNC(vkm, destroy, __VA_ARGS__)
+#endif
 
 	// Register a resource, to batch the allocation and binding process.
 	// This can allow the implementation to better optimize allocation.
 	// The actual flags used for `ideal` are `ideal | required`. In other
 	// words, the required flags are always present and required.
-	void (*registerBuffer)(VvVkM_Pool*, VkBuffer,
+	void (*registerBuffer)(const Vv*, VvVkM_Pool*, VkBuffer,
 		VkMemoryPropertyFlags ideal, VkMemoryPropertyFlags required);
-	void (*registerImage)(VvVkM_Pool*, VkImage,
+	void (*registerImage)(const Vv*, VvVkM_Pool*, VkImage,
 		VkMemoryPropertyFlags ideal, VkMemoryPropertyFlags required);
+#ifdef Vv_vkm_ENABLED
+#define vVvkm_registerBuffer(...) _vVcore_FUNC(vkm, registerBuffer, __VA_ARGS__)
+#define vVvkm_registerImage(...) _vVcore_FUNC(vkm, registerImage, __VA_ARGS__)
+#endif
 
 	// Bind any resources that are currently registered. Returns an error
 	// if any errors in allocation and binding are incountered.
-	VkResult (*bind)(VvVkM_Pool*);
+	VkResult (*bind)(const Vv*, VvVkM_Pool*);
+#ifdef Vv_vkm_ENABLED
+#define vVvkm_bind(...) _vVcore_FUNC(vkm, bind, __VA_ARGS__)
+#endif
 
 	// Map the memory for a resource.
-	VkResult (*mapBuffer)(VvVkM_Pool*, VkBuffer, void**);
-	VkResult (*mapImage)(VvVkM_Pool*, VkImage, void**);
+	VkResult (*mapBuffer)(const Vv*, VvVkM_Pool*, VkBuffer, void**);
+	VkResult (*mapImage)(const Vv*, VvVkM_Pool*, VkImage, void**);
+#ifdef Vv_vkm_ENABLED
+#define vVvkm_mapBuffer(...) _vVcore_FUNC(vkm, mapBuffer, __VA_ARGS__)
+#define vVvkm_mapImage(...) _vVcore_FUNC(vkm, mapImage, __VA_ARGS__)
+#endif
 
 	// Unmap the memory for a resource.
-	void (*unmapBuffer)(VvVkM_Pool*, VkBuffer);
-	void (*unmapImage)(VvVkM_Pool*, VkImage);
+	void (*unmapBuffer)(const Vv*, VvVkM_Pool*, VkBuffer);
+	void (*unmapImage)(const Vv*, VvVkM_Pool*, VkImage);
+#ifdef Vv_vkm_ENABLED
+#define vVvkm_unmapBuffer(...) _vVcore_FUNC(vkm, unmapBuffer, __VA_ARGS__)
+#define vVvkm_unmapImage(...) _vVcore_FUNC(vkm, unmapImage, __VA_ARGS__)
+#endif
 
 	// Get the memory range for a resource. Can be used either to map
 	// the memory manually, or to flush or invalidate the resource.
-	VkMappedMemoryRange (*getRangeBuffer)(VvVkM_Pool*, VkBuffer);
-	VkMappedMemoryRange (*getRangeImage)(VvVkM_Pool*, VkImage);
+	VkMappedMemoryRange (*getRangeBuffer)(const Vv*, VvVkM_Pool*, VkBuffer);
+	VkMappedMemoryRange (*getRangeImage)(const Vv*, VvVkM_Pool*, VkImage);
+#ifdef Vv_vkm_ENABLED
+#define vVvkm_getRangeBuffer(...) _vVcore_FUNC(vkm, getRangeBuffer, __VA_ARGS__)
+#define vVvkm_getRangeImage(...) _vVcore_FUNC(vkm, getRangeImage, __VA_ARGS__)
+#endif
 
 	// Possibly unbind a resource, and register it so a later `bind`
 	// will place it in a (better?) place. May also no-op. Imp-dependant.
 	// Assume the contents of the resource are undefined after `bind`.
-	void (*unbindBuffer)(VvVkM_Pool*, VkBuffer);
-	void (*unbindImage)(VvVkM_Pool*, VkImage);
+	void (*unbindBuffer)(const Vv*, VvVkM_Pool*, VkBuffer);
+	void (*unbindImage)(const Vv*, VvVkM_Pool*, VkImage);
+#ifdef Vv_vkm_ENABLED
+#define vVvkm_unbindBuffer(...) _vVcore_FUNC(vkm, unbindBuffer, __VA_ARGS__)
+#define vVvkm_unbindImage(...) _vVcore_FUNC(vkm, unbindImage, __VA_ARGS__)
+#endif
 
 	// Destroy a resource, deallocating its memory if needed.
-	void (*destroyBuffer)(VvVkM_Pool*, VkBuffer);
-	void (*destroyImage)(VvVkM_Pool*, VkImage);
+	void (*destroyBuffer)(const Vv*, VvVkM_Pool*, VkBuffer);
+	void (*destroyImage)(const Vv*, VvVkM_Pool*, VkImage);
+#ifdef Vv_vkm_ENABLED
+#define vVvkm_destroyBuffer(...) _vVcore_FUNC(vkm, destroyBuffer, __VA_ARGS__)
+#define vVvkm_destroyImage(...) _vVcore_FUNC(vkm, destroyImage, __VA_ARGS__)
+#endif
 };
-
-// TEST test, test Test test.
-extern const Vv_VulkanMemoryManager vVvkm_test;
+const Vv_VulkanMemoryManager* vVvkm(const Vv*);
 
 #endif // H_vivacious_vkmemory

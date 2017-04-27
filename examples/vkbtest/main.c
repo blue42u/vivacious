@@ -14,15 +14,15 @@
    limitations under the License.
 ***************************************************************************/
 
-#include <vivacious/vkbplate.h>
+#define Vv_CHOICE V
+#include <vivacious/vivacious.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-#define vkb vVvkb_test		// Choose our imp.
-#define vVvk vVvk_lib
+Vv V;
 
 // Stuff from debug.c
-void startDebug(const VvVk_Binding*, VkInstance);
+void startDebug(VkInstance);
 void endDebug(VkInstance);
 
 void error(const char* m, VkResult r) {
@@ -31,15 +31,12 @@ void error(const char* m, VkResult r) {
 	exit(1);
 }
 
-VvVk_1_0* vk;
-
 VkBool32 valid(void* udata, VkPhysicalDevice pdev) {
 	VkPhysicalDeviceProperties pdp;
-	vk->GetPhysicalDeviceProperties(pdev, &pdp);
+	vVvk10_GetPhysicalDeviceProperties(pdev, &pdp);
 	return pdp.limits.maxImageArrayLayers >= 2;
 }
 
-VvVk_Binding bind;
 VkInstance inst;
 VkPhysicalDevice pdev;
 VkDevice dev;
@@ -51,58 +48,58 @@ const VvVkB_TaskInfo intasks[] = {
 VkQueue qs[sizeof(intasks)/sizeof(VvVkB_TaskInfo)];
 
 void setupVk() {
-	vVvk.allocate(&bind);
-	vk = bind.core->vk_1_0;
-	VvVkB_InstInfo* ii = vkb.createInstInfo("VkBoilerplate Test",
+	vVvk_allocate();
+	VvVkB_InstInfo* ii = vVvkb_createInstInfo("VkBoilerplate Test",
 		VK_MAKE_VERSION(1,0,0));
 
-	vkb.setInstVersion(ii, VK_MAKE_VERSION(1,0,0));
-	vkb.addLayers(ii, (const char*[]){
+	vVvkb_setInstVersion(ii, VK_MAKE_VERSION(1,0,0));
+	vVvkb_addLayers(ii, (const char*[]){
 		"VK_LAYER_LUNARG_core_validation",
 		"VK_LAYER_LUNARG_parameter_validation",
 		"VK_LAYER_LUNARG_object_tracker",
 		"VK_LAYER_GOOGLE_threading",
 		"VK_LAYER_GOOGLE_unique_objects",
 		NULL });
-	vkb.addInstExtensions(ii, (const char*[]){
+	vVvkb_addInstExtensions(ii, (const char*[]){
 		"VK_KHR_surface", "VK_KHR_xcb_surface",
 		"VK_EXT_debug_report", NULL });
 
-	VkResult r = vkb.createInstance(&bind, ii, &inst);
+	VkResult r = vVvkb_createInstance(ii, &inst);
 	if(r<0) error("Could not create instance", r);
-	vVvk.loadInst(&bind, inst, VK_FALSE);
-	startDebug(&bind, inst);
+	vVvk_loadInst(inst, VK_FALSE);
+	startDebug(inst);
 
-	VvVkB_DevInfo* di = vkb.createDevInfo(VK_MAKE_VERSION(1,0,0));
-	vkb.addDevExtensions(di, (const char*[]){
+	VvVkB_DevInfo* di = vVvkb_createDevInfo(VK_MAKE_VERSION(1,0,0));
+	vVvkb_addDevExtensions(di, (const char*[]){
 		"VK_KHR_swapchain", NULL });
-	vkb.setValidity(di, valid, NULL);
+	vVvkb_setValidity(di, valid, NULL);
 
 	for(int i=0; i<sizeof(intasks)/sizeof(VvVkB_TaskInfo); i++) {
-		*vkb.newTask(di) = intasks[i];
+		*vVvkb_newTask(di) = intasks[i];
 	}
 
 	VvVkB_QueueSpec* qspecs = malloc(
-		vkb.getTaskCount(di)*sizeof(VvVkB_QueueSpec));
-	r = vkb.createDevice(&bind, di, inst, &pdev, &dev, qspecs);
+		vVvkb_getTaskCount(di)*sizeof(VvVkB_QueueSpec));
+	r = vVvkb_createDevice(di, inst, &pdev, &dev, qspecs);
 	if(r<0) error("Could not create device", r);
-	vVvk.loadDev(&bind, dev, VK_TRUE);
+	vVvk_loadDev(dev, VK_TRUE);
 
 	for(int i=0; i<sizeof(intasks)/sizeof(VvVkB_TaskInfo); i++) {
-		vk->GetDeviceQueue(dev, qspecs[i].family,
+		vVvk10_GetDeviceQueue(dev, qspecs[i].family,
 			qspecs[i].index, &qs[i]);
 	}
 	free(qspecs);
 }
 
 void shutdownVk() {
-	vk->DestroyDevice(dev, NULL);
+	vVvk10_DestroyDevice(dev, NULL);
 	endDebug(inst);
-	vk->DestroyInstance(inst, NULL);
-	vVvk.free(&bind);
+	vVvk10_DestroyInstance(inst, NULL);
+	vVvk_free();
 }
 
 int main() {
+	V = vV();
 	setupVk();
 	// Do stuff
 	shutdownVk();

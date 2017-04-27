@@ -46,17 +46,17 @@ int main() {
 		0, 1, 0, 1,
 	};
 	for(int im=0; im<com.simagecnt; im++) {
-		vk->BeginCommandBuffer(com.cb[im].blue, &cbbi);
-		vk->CmdClearColorImage(com.cb[im].blue, com.simages[im],
+		vVvk10_BeginCommandBuffer(com.cb[im].blue, &cbbi);
+		vVvk10_CmdClearColorImage(com.cb[im].blue, com.simages[im],
 			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &blue,
 			1, &isr);
-		vk->EndCommandBuffer(com.cb[im].blue);
+		vVvk10_EndCommandBuffer(com.cb[im].blue);
 
-		vk->BeginCommandBuffer(com.cb[im].red, &cbbi);
-		vk->CmdClearColorImage(com.cb[im].red, com.simages[im],
+		vVvk10_BeginCommandBuffer(com.cb[im].red, &cbbi);
+		vVvk10_CmdClearColorImage(com.cb[im].red, com.simages[im],
 			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &red,
 			1, &isr);
-		vk->EndCommandBuffer(com.cb[im].red);
+		vVvk10_EndCommandBuffer(com.cb[im].red);
 	}
 
 //	BREAK
@@ -66,8 +66,8 @@ int main() {
 	VkSemaphoreCreateInfo sci = {
 		VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO, NULL, 0,
 	};
-	vk->CreateSemaphore(com.dev, &sci, NULL, &donePres);
-	vk->CreateSemaphore(com.dev, &sci, NULL, &doneRend);
+	vVvk10_CreateSemaphore(com.dev, &sci, NULL, &donePres);
+	vVvk10_CreateSemaphore(com.dev, &sci, NULL, &doneRend);
 
 	uint32_t im;
 	VkPresentInfoKHR pi = {
@@ -78,7 +78,7 @@ int main() {
 	};
 
 	for(int i=0; i<100; i++) {
-		vkc->AcquireNextImageKHR(com.dev, com.schain, UINT64_MAX,
+		vVvk_AcquireNextImageKHR(com.dev, com.schain, UINT64_MAX,
 			donePres, NULL, &im);
 
 		VkCommandBuffer cbs[] = {
@@ -93,14 +93,14 @@ int main() {
 			3, cbs,
 			1, &doneRend,
 		};
-		vk->QueueSubmit(com.queue, 1, &si, NULL);
+		vVvk10_QueueSubmit(com.queue, 1, &si, NULL);
 
-		vkc->QueuePresentKHR(com.queue, &pi);
+		vVvk_QueuePresentKHR(com.queue, &pi);
 	}
 
-	vk->QueueWaitIdle(com.queue);
-	vk->DestroySemaphore(com.dev, donePres, NULL);
-	vk->DestroySemaphore(com.dev, doneRend, NULL);
+	vVvk10_QueueWaitIdle(com.queue);
+	vVvk10_DestroySemaphore(com.dev, donePres, NULL);
+	vVvk10_DestroySemaphore(com.dev, doneRend, NULL);
 
 	destroyCBuffs();
 	destroySChain();

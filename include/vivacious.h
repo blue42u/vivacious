@@ -14,27 +14,23 @@
    limitations under the License.
 ***************************************************************************/
 
-#include "common.h"
-#include <vivacious/vivacious.h>
-#include <stdarg.h>
+#ifndef H_vivacious_vivacious
+#define H_vivacious_vivacious
 
-void error(const char* format, ...) {
-	va_list list;
-	va_start(list, format);
-	vfprintf(stderr, format, list);
-	va_end(list);
-	exit(1);
-}
+#include <vivacious/vulkan.h>
+#include <vivacious/window.h>
+#include <vivacious/vkbplate.h>
+#include <vivacious/vkmemory.h>
+#include <vivacious/vkpipeline.h>
 
-Vv V;
+#define vV() ({ \
+	Vv V; \
+	V.vk = vVvk(&V); V.vk_binding = NULL; \
+	V.wi = vVwi(&V); \
+	V.vkb = vVvkb(&V); \
+	V.vkm = vVvkm(&V); \
+	V.vkp = vVvkp(&V); \
+	V; \
+})
 
-struct Common com;
-
-void loadVulkan() {
-	V = vV();
-	vVvk_allocate();
-}
-
-void unloadVulkan() {
-	vVvk_free();
-}
+#endif // H_vivacious_vivacious

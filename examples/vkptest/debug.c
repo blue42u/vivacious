@@ -14,7 +14,7 @@
    limitations under the License.
 ***************************************************************************/
 
-#include <vivacious/vulkan.h>
+#include "common.h"
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -81,8 +81,7 @@ VkBool32 debugFunc(
 static const VvVk_EXT_debug_report* vkdr;
 static VkDebugReportCallbackEXT drc;
 
-void startDebug(const VvVk_Binding* vkb, VkInstance inst) {
-	vkdr = vkb->ext->EXT_debug_report;
+void startDebug(VkInstance inst) {
 	VkDebugReportCallbackCreateInfoEXT drcci = {
 		VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT,
 		NULL,
@@ -94,11 +93,11 @@ void startDebug(const VvVk_Binding* vkb, VkInstance inst) {
 		debugFunc,
 		NULL
 	};
-	vkdr->CreateDebugReportCallbackEXT(inst, &drcci, NULL, &drc);
+	vVvk_CreateDebugReportCallbackEXT(inst, &drcci, NULL, &drc);
 }
 
 void endDebug(VkInstance inst) {
-	vkdr->DestroyDebugReportCallbackEXT(inst, drc, NULL);
+	vVvk_DestroyDebugReportCallbackEXT(inst, drc, NULL);
 }
 
 typedef struct {

@@ -5,9 +5,13 @@ set(SRC
 	cpdl.c
 	window/x.c
 	window/xcb.c
+	window/default.c
 	vkbplate/test.c
+	vkbplate/default.c
 	vkmemory/test.c
+	vkmemory/default.c
 	vkpipeline/test.c
+	vkpipeline/default.c
 )
 set(LUA
 	vulkan.lua

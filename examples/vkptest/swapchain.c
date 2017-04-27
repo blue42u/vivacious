@@ -22,8 +22,6 @@ VkImage* images;
 VkExtent2D extent;
 VkSwapchainKHR schain;
 
-static VvVk_KHR_surface* vks;
-
 static VkPresentModeKHR choosePM(uint32_t cnt, VkPresentModeKHR* pms) {
 	for(int i=0; i<cnt; i++)
 		if(pms[i] == VK_PRESENT_MODE_IMMEDIATE_KHR) return pms[i];
@@ -35,27 +33,25 @@ static VkPresentModeKHR choosePM(uint32_t cnt, VkPresentModeKHR* pms) {
 }
 
 void setupSChain() {
-	vks = vkbind.ext->KHR_surface;
-
 	VkBool32 supported;
-	VkResult r = vks->GetPhysicalDeviceSurfaceSupportKHR(pdev, qfam, surf,
+	VkResult r = vVvk_GetPhysicalDeviceSurfaceSupportKHR(pdev, qfam, surf,
 		&supported);
 	if(r<0) error("reading surface support", r);
 	if(!supported) error("surface not supported", 0);
 
 	VkSurfaceCapabilitiesKHR sc;
-	r = vks->GetPhysicalDeviceSurfaceCapabilitiesKHR(pdev, surf, &sc);
+	r = vVvk_GetPhysicalDeviceSurfaceCapabilitiesKHR(pdev, surf, &sc);
 	if(r<0) error("getting surface caps", r);
 
 	uint32_t cnt = 0;
 
-	vks->GetPhysicalDeviceSurfaceFormatsKHR(pdev, surf, &cnt, NULL);
+	vVvk_GetPhysicalDeviceSurfaceFormatsKHR(pdev, surf, &cnt, NULL);
 	VkSurfaceFormatKHR* sfs = malloc(cnt*sizeof(VkSurfaceFormatKHR));
-	vks->GetPhysicalDeviceSurfaceFormatsKHR(pdev, surf, &cnt, sfs);
+	vVvk_GetPhysicalDeviceSurfaceFormatsKHR(pdev, surf, &cnt, sfs);
 
-	vks->GetPhysicalDeviceSurfacePresentModesKHR(pdev, surf, &cnt, NULL);
+	vVvk_GetPhysicalDeviceSurfacePresentModesKHR(pdev, surf, &cnt, NULL);
 	VkPresentModeKHR* pms = malloc(cnt*sizeof(VkPresentModeKHR));
-	vks->GetPhysicalDeviceSurfacePresentModesKHR(pdev, surf, &cnt, pms);
+	vVvk_GetPhysicalDeviceSurfacePresentModesKHR(pdev, surf, &cnt, pms);
 	VkPresentModeKHR pm = choosePM(cnt, pms);
 	free(pms);
 
@@ -72,19 +68,19 @@ void setupSChain() {
 		pm, VK_TRUE,
 		NULL,
 	};
-	r = vkc->CreateSwapchainKHR(dev, &sci, NULL, &schain);
+	r = vVvk_CreateSwapchainKHR(dev, &sci, NULL, &schain);
 	if(r<0) error("creating swapchain", r);
 
 	free(sfs);
 
-	r = vkc->GetSwapchainImagesKHR(dev, schain, &imageCount, NULL);
+	r = vVvk_GetSwapchainImagesKHR(dev, schain, &imageCount, NULL);
 	if(r<0) error("getting swapchain image count", r);
 	images = malloc(imageCount*sizeof(VkImage));
-	r = vkc->GetSwapchainImagesKHR(dev, schain, &imageCount, images);
+	r = vVvk_GetSwapchainImagesKHR(dev, schain, &imageCount, images);
 	if(r<0) error("getting swapchain images", r);
 }
 
 void cleanupSChain() {
 	free(images);
-	vkc->DestroySwapchainKHR(dev, schain, NULL);
+	vVvk_DestroySwapchainKHR(dev, schain, NULL);
 }
