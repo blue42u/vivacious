@@ -36,25 +36,25 @@ void createInst() {
 		sizeof(lays)/sizeof(char*), lays,
 		sizeof(exts)/sizeof(char*), exts
 	};
-	VkResult r = vVvk10_CreateInstance(&ico, NULL, &com.inst);
+	VkResult r = vVvk_CreateInstance(&ico, NULL, &com.inst);
 	if(r<0) error("Error creating instance: %d!\n", r);
 	vVvk_loadInst(com.inst, VK_FALSE);
 }
 
 void createDev() {
 	uint32_t cnt = 0;
-	VkResult r = vVvk10_EnumeratePhysicalDevices(com.inst, &cnt, NULL);
+	VkResult r = vVvk_EnumeratePhysicalDevices(com.inst, &cnt, NULL);
 	if(r<0) error("Error enum'ing PDevs: %d!\n", r);
 	VkPhysicalDevice* pdevs = malloc(cnt*sizeof(VkPhysicalDevice));
-	r = vVvk10_EnumeratePhysicalDevices(com.inst, &cnt, pdevs);
+	r = vVvk_EnumeratePhysicalDevices(com.inst, &cnt, pdevs);
 	if(r<0) error("Error enum'ing PDevs: %d!\n", r);
 
 	for(int i=0; i<cnt; i++) {
 		uint32_t qcnt = 0;
-		vVvk10_GetPhysicalDeviceQueueFamilyProperties(pdevs[i],
+		vVvk_GetPhysicalDeviceQueueFamilyProperties(pdevs[i],
 			&qcnt, NULL);
 		VkQueueFamilyProperties* qfps = malloc(qcnt*sizeof(VkQueueFamilyProperties));
-		vVvk10_GetPhysicalDeviceQueueFamilyProperties(pdevs[i],
+		vVvk_GetPhysicalDeviceQueueFamilyProperties(pdevs[i],
 			&qcnt, qfps);
 
 		uint32_t qfam = -1;
@@ -78,7 +78,7 @@ void createDev() {
 	free(pdevs);
 
 	VkPhysicalDeviceProperties pdp;
-	vVvk10_GetPhysicalDeviceProperties(com.pdev, &pdp);
+	vVvk_GetPhysicalDeviceProperties(com.pdev, &pdp);
 	printf("Vk version loaded: %d.%d.%d!\n",
 		VK_VERSION_MAJOR(pdp.apiVersion),
 		VK_VERSION_MINOR(pdp.apiVersion),
@@ -96,17 +96,17 @@ void createDev() {
 		sizeof(dexts)/sizeof(char*), dexts,
 		NULL
 	};
-	r = vVvk10_CreateDevice(com.pdev, &dci, NULL, &com.dev);
+	r = vVvk_CreateDevice(com.pdev, &dci, NULL, &com.dev);
 	if(r<0) error("Error creating device: %d!\n", r);
 	vVvk_loadDev(com.dev, VK_TRUE);
 
-	vVvk10_GetDeviceQueue(com.dev, com.qfam, 0, &com.queue);
+	vVvk_GetDeviceQueue(com.dev, com.qfam, 0, &com.queue);
 }
 
 void destroyDev() {
-	vVvk10_DestroyDevice(com.dev, NULL);
+	vVvk_DestroyDevice(com.dev, NULL);
 }
 
 void destroyInst() {
-	vVvk10_DestroyInstance(com.inst, NULL);
+	vVvk_DestroyInstance(com.inst, NULL);
 }

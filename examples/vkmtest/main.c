@@ -22,7 +22,7 @@
 Vv V;
 
 // Stuff from debug.c
-void startDebug(const VvVk_Binding*, VkInstance);
+void startDebug(VkInstance);
 void endDebug(VkInstance);
 
 void error(const char* m, VkResult r) {
@@ -40,40 +40,42 @@ uint32_t qfam;
 void setupVk() {
 	VkResult r;
 
-	vVvk_allocate();
+	vVvk_load();
 
-	VvVkB_InstInfo* ii = vVvkb_createInstInfo("VkM test!", 0);
-	vVvkb_setInstVersion(ii, VK_MAKE_VERSION(1,0,0));
-	vVvkb_addLayers(ii, (const char*[]){
-		"VK_LAYER_LUNARG_standard_validation",
-		NULL
-	});
-	vVvkb_addInstExtensions(ii, (const char*[]){
-		"VK_EXT_debug_report",
-		NULL
-	});
-	r = vVvkb_createInstance(ii, &inst);
+	VvVkB_InstInfo ii = VvVkB_InstInfo(
+		Vv_ARRAY(layers, ((const char*[]){
+			"VK_LAYER_LUNARG_standard_validation",
+		})),
+		Vv_ARRAY(extensions, ((const char*[]){
+			"VK_EXT_debug_report",
+		})),
+		.name = "VkM test!", .version=0,
+		.vkversion=VK_API_VERSION_1_0,
+	);
+	r = vVvkb_createInstance(&ii, &inst);
 	if(r < 0) error("Cannot create instance", r);
-
 	vVvk_loadInst(inst, VK_FALSE);
 
-	VvVkB_DevInfo* di = vVvkb_createDevInfo(VK_MAKE_VERSION(1,0,0));
-	*vVvkb_newTask(di) = (VvVkB_TaskInfo){.flags = VK_QUEUE_TRANSFER_BIT};
-	if(vVvkb_getTaskCount(di) != 1) error("Odd thing with VkB", 0);
+	VvVkB_DevInfo di = VvVkB_DevInfo(
+		Vv_ARRAY(tasks, ((VvVkB_TaskInfo[]){
+			{.flags = VK_QUEUE_TRANSFER_BIT}
+		})),
+		.version=VK_API_VERSION_1_0,
+	);
 	VvVkB_QueueSpec qs;
-	r = vVvkb_createDevice(di, inst, &pdev, &dev, &qs);
+	r = vVvkb_createDevice(&di, inst, &dev, &pdev, &qs);
 	if(r < 0) error("Cannot create device", r);
 
 	vVvk_loadDev(dev, VK_TRUE);
 
-	vVvk10_GetDeviceQueue(dev, qs.family, qs.index, &q);
+	vVvk_GetDeviceQueue(dev, qs.family, qs.index, &q);
 	qfam = qs.family;
 }
 
 void cleanupVk() {
-	vVvk10_DestroyDevice(dev, NULL);
-	vVvk10_DestroyInstance(inst, NULL);
-	vVvk_free();
+	vVvk_DestroyDevice(dev, NULL);
+	vVvk_DestroyInstance(inst, NULL);
+	vVvk_unload();
 }
 
 VkCommandPool cpool;
@@ -84,14 +86,14 @@ struct {
 } cb;
 
 void setupCb() {
-	VkResult r = vVvk10_CreateCommandPool(dev, &(VkCommandPoolCreateInfo){
+	VkResult r = vVvk_CreateCommandPool(dev, &(VkCommandPoolCreateInfo){
 		.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
 		.queueFamilyIndex = qfam,
 	}, NULL, &cpool);
 	if(r < 0) error("Could not create CommandPool", r);
 
 	VkCommandBuffer cbuffs[3];
-	r = vVvk10_AllocateCommandBuffers(dev, &(VkCommandBufferAllocateInfo){
+	r = vVvk_AllocateCommandBuffers(dev, &(VkCommandBufferAllocateInfo){
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
 		.commandPool = cpool,
 		.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
@@ -105,9 +107,9 @@ void setupCb() {
 }
 
 void cleanupCb() {
-	vVvk10_FreeCommandBuffers(dev, cpool, 3,
+	vVvk_FreeCommandBuffers(dev, cpool, 3,
 		(VkCommandBuffer[]){ cb.cpTo, cb.cpFrom, cb.fill });
-	vVvk10_DestroyCommandPool(dev, cpool, NULL);
+	vVvk_DestroyCommandPool(dev, cpool, NULL);
 }
 
 struct {
@@ -121,7 +123,7 @@ typedef struct {
 } BuffData;
 
 void setupBuff() {
-	VkResult r = vVvk10_CreateBuffer(dev, &(VkBufferCreateInfo){
+	VkResult r = vVvk_CreateBuffer(dev, &(VkBufferCreateInfo){
 		.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
 		.size = sizeof(BuffData),
 		.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT
@@ -130,7 +132,7 @@ void setupBuff() {
 	}, NULL, &bf.host);
 	if(r < 0) error("Count not create Buffer `host`", r);
 
-	r = vVvk10_CreateBuffer(dev, &(VkBufferCreateInfo){
+	r = vVvk_CreateBuffer(dev, &(VkBufferCreateInfo){
 		.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
 		.size = sizeof(BuffData),
 		.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT
@@ -141,8 +143,8 @@ void setupBuff() {
 }
 
 void cleanupBuff() {
-	vVvk10_DestroyBuffer(dev, bf.host, NULL);
-	vVvk10_DestroyBuffer(dev, bf.device, NULL);
+	vVvk_DestroyBuffer(dev, bf.host, NULL);
+	vVvk_DestroyBuffer(dev, bf.device, NULL);
 }
 
 void fillCb() {
@@ -150,24 +152,24 @@ void fillCb() {
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
 	};
 
-	vVvk10_BeginCommandBuffer(cb.cpTo, &cbbi);
-	vVvk10_CmdCopyBuffer(cb.cpTo, bf.host, bf.device,
+	vVvk_BeginCommandBuffer(cb.cpTo, &cbbi);
+	vVvk_CmdCopyBuffer(cb.cpTo, bf.host, bf.device,
 		1, (VkBufferCopy[]){ {0, 0, sizeof(BuffData)} });
-	vVvk10_EndCommandBuffer(cb.cpTo);
+	vVvk_EndCommandBuffer(cb.cpTo);
 
-	vVvk10_BeginCommandBuffer(cb.cpFrom, &cbbi);
-	vVvk10_CmdCopyBuffer(cb.cpFrom, bf.device, bf.host,
+	vVvk_BeginCommandBuffer(cb.cpFrom, &cbbi);
+	vVvk_CmdCopyBuffer(cb.cpFrom, bf.device, bf.host,
 		1, (VkBufferCopy[]){ {0, 0, sizeof(BuffData)} });
-	vVvk10_EndCommandBuffer(cb.cpFrom);
+	vVvk_EndCommandBuffer(cb.cpFrom);
 
-	vVvk10_BeginCommandBuffer(cb.fill, &cbbi);
-	vVvk10_CmdUpdateBuffer(cb.fill, bf.device, 0,
+	vVvk_BeginCommandBuffer(cb.fill, &cbbi);
+	vVvk_CmdUpdateBuffer(cb.fill, bf.device, 0,
 		sizeof(BuffData), &(BuffData){
 			.a = -17,
 			.b = "Hello, world!",
 			.c = 372,
 		});
-	vVvk10_EndCommandBuffer(cb.fill);
+	vVvk_EndCommandBuffer(cb.fill);
 }
 
 int main() {
@@ -192,27 +194,27 @@ int main() {
 	r = vVvkm_mapBuffer(pool, bf.host, (void**) &bd);
 	if(r < 0) error("Could not map memory", r);
 
+	VkMappedMemoryRange mmr = {VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE};
+
 	// Macro it up to reduce repetition.
 	#define FLUSH() \
-	r = vVvk10_FlushMappedMemoryRanges(dev, 1, (VkMappedMemoryRange[]){ \
-		vVvkm_getRangeBuffer(pool, bf.host), \
-	}); \
+	vVvkm_getRangeBuffer(pool, bf.host, &mmr); \
+	r = vVvk_FlushMappedMemoryRanges(dev, 1, &mmr); \
 	if(r < 0) error("Could not flush memory", r);
 
 	#define INVALIDATE() \
-	r = vVvk10_InvalidateMappedMemoryRanges(dev, 1, (VkMappedMemoryRange[]){ \
-		vVvkm_getRangeBuffer(pool, bf.host), \
-	}); \
+	vVvkm_getRangeBuffer(pool, bf.host, &mmr); \
+	r = vVvk_InvalidateMappedMemoryRanges(dev, 1, &mmr); \
 	if(r < 0) error("Could not invalidate memory", r);
 
 	// This is just a test, so we're going to take this slow.
 	#define SUBMIT(N) \
-	vVvk10_QueueSubmit(q, 1, &(VkSubmitInfo){ \
+	vVvk_QueueSubmit(q, 1, &(VkSubmitInfo){ \
 		.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO, \
 		.commandBufferCount = 1, \
 		.pCommandBuffers = &cb. N, \
 	}, NULL); \
-	vVvk10_QueueWaitIdle(q);
+	vVvk_QueueWaitIdle(q);
 
 	// Main body of the test
 	printf("Copying data into and back from the card...\n");

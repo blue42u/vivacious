@@ -33,7 +33,7 @@ void error(const char* m, VkResult r) {
 
 VkBool32 valid(void* udata, VkPhysicalDevice pdev) {
 	VkPhysicalDeviceProperties pdp;
-	vVvk10_GetPhysicalDeviceProperties(pdev, &pdp);
+	vVvk_GetPhysicalDeviceProperties(pdev, &pdp);
 	return pdp.limits.maxImageArrayLayers >= 2;
 }
 
@@ -41,57 +41,57 @@ VkInstance inst;
 VkPhysicalDevice pdev;
 VkDevice dev;
 
-const VvVkB_TaskInfo intasks[] = {
-	{.flags = VK_QUEUE_GRAPHICS_BIT, .family = 1, .priority = 1.0},
-	{.flags = VK_QUEUE_TRANSFER_BIT, .family = 2, .priority = 0.5}
-};
-VkQueue qs[sizeof(intasks)/sizeof(VvVkB_TaskInfo)];
-
 void setupVk() {
-	vVvk_allocate();
-	VvVkB_InstInfo* ii = vVvkb_createInstInfo("VkBoilerplate Test",
-		VK_MAKE_VERSION(1,0,0));
+	vVvk_load();
 
-	vVvkb_setInstVersion(ii, VK_MAKE_VERSION(1,0,0));
-	vVvkb_addLayers(ii, (const char*[]){
-		"VK_LAYER_LUNARG_standard_validation",
-		NULL });
-	vVvkb_addInstExtensions(ii, (const char*[]){
+	const char* iexts[] = {
 		"VK_KHR_surface", "VK_KHR_xcb_surface",
-		"VK_EXT_debug_report", NULL });
-
-	VkResult r = vVvkb_createInstance(ii, &inst);
+		"VK_EXT_debug_report",
+	};
+	const char* ilays[] = {
+		"VK_LAYER_LUNARG_standard_validation",
+	};
+	VvVkB_InstInfo ii = VvVkB_InstInfo(
+		Vv_ARRAY(extensions, iexts),
+		Vv_ARRAY(layers, ilays),
+		.name = "VkBoilerplate Test", .version=VK_MAKE_VERSION(1,0,0)
+	);
+	VkResult r = vVvkb_createInstance(&ii, &inst);
 	if(r<0) error("Could not create instance", r);
 	vVvk_loadInst(inst, VK_FALSE);
 	startDebug(inst);
 
-	VvVkB_DevInfo* di = vVvkb_createDevInfo(VK_MAKE_VERSION(1,0,0));
-	vVvkb_addDevExtensions(di, (const char*[]){
-		"VK_KHR_swapchain", NULL });
-	vVvkb_setValidity(di, valid, NULL);
-
-	for(int i=0; i<sizeof(intasks)/sizeof(VvVkB_TaskInfo); i++) {
-		*vVvkb_newTask(di) = intasks[i];
-	}
-
-	VvVkB_QueueSpec* qspecs = malloc(
-		vVvkb_getTaskCount(di)*sizeof(VvVkB_QueueSpec));
-	r = vVvkb_createDevice(di, inst, &pdev, &dev, qspecs);
+	const char* dexts[] = {
+		"VK_KHR_swapchain",
+	};
+	VvVkB_TaskInfo intasks[] = {
+		{.flags = VK_QUEUE_GRAPHICS_BIT, .family = 1, .priority = 1.0},
+		{.flags = VK_QUEUE_TRANSFER_BIT, .family = 2, .priority = 0.5}
+	};
+	VkQueue qs[Vv_LEN(intasks)];
+	VvVkB_DevInfo di = VvVkB_DevInfo(
+		Vv_ARRAY(extensions, dexts),
+		Vv_ARRAY(tasks, intasks),
+		.version=VK_API_VERSION_1_0
+	);
+	VvVkB_QueueSpec* qspecs = malloc(sizeof intasks/sizeof(intasks[0])
+		*sizeof(VvVkB_QueueSpec));
+	r = vVvkb_createDevice(&di, inst, &dev, &pdev, qspecs);
 	if(r<0) error("Could not create device", r);
 	vVvk_loadDev(dev, VK_TRUE);
 
 	for(int i=0; i<sizeof(intasks)/sizeof(VvVkB_TaskInfo); i++) {
-		vVvk10_GetDeviceQueue(dev, qspecs[i].family,
+		vVvk_GetDeviceQueue(dev, qspecs[i].family,
 			qspecs[i].index, &qs[i]);
 	}
 	free(qspecs);
 }
 
 void shutdownVk() {
-	vVvk10_DestroyDevice(dev, NULL);
+	vVvk_DestroyDevice(dev, NULL);
 	endDebug(inst);
-	vVvk10_DestroyInstance(inst, NULL);
-	vVvk_free();
+	vVvk_DestroyInstance(inst, NULL);
+	vVvk_unload();
 }
 
 int main() {

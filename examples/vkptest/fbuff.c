@@ -24,7 +24,7 @@ void setupFBuff() {
 
 	iviews = malloc(imageCount*sizeof(VkImageView));
 	for(int i=0; i<imageCount; i++) {
-		r = vVvk10_CreateImageView(dev, &(VkImageViewCreateInfo){
+		r = vVvk_CreateImageView(dev, &(VkImageViewCreateInfo){
 			VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO, NULL,
 			.image = images[i],
 			.viewType = VK_IMAGE_VIEW_TYPE_2D,
@@ -41,7 +41,7 @@ void setupFBuff() {
 
 	fbuffs = malloc(imageCount*sizeof(VkFramebuffer));
 	for(int i=0; i<imageCount; i++) {
-		r = vVvk10_CreateFramebuffer(dev, &(VkFramebufferCreateInfo){
+		r = vVvk_CreateFramebuffer(dev, &(VkFramebufferCreateInfo){
 			VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO, NULL,
 			.renderPass = rpass,
 			.attachmentCount = 1, .pAttachments = &iviews[i],
@@ -54,8 +54,8 @@ void setupFBuff() {
 
 void cleanupFBuff() {
 	for(int i=0; i<imageCount; i++) {
-		vVvk10_DestroyFramebuffer(dev, fbuffs[i], NULL);
-		vVvk10_DestroyImageView(dev, iviews[i], NULL);
+		vVvk_DestroyFramebuffer(dev, fbuffs[i], NULL);
+		vVvk_DestroyImageView(dev, iviews[i], NULL);
 	}
 	free(fbuffs);
 	free(iviews);

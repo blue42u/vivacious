@@ -46,17 +46,17 @@ int main() {
 		0, 1, 0, 1,
 	};
 	for(int im=0; im<com.simagecnt; im++) {
-		vVvk10_BeginCommandBuffer(com.cb[im].blue, &cbbi);
-		vVvk10_CmdClearColorImage(com.cb[im].blue, com.simages[im],
+		vVvk_BeginCommandBuffer(com.cb[im].blue, &cbbi);
+		vVvk_CmdClearColorImage(com.cb[im].blue, com.simages[im],
 			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &blue,
 			1, &isr);
-		vVvk10_EndCommandBuffer(com.cb[im].blue);
+		vVvk_EndCommandBuffer(com.cb[im].blue);
 
-		vVvk10_BeginCommandBuffer(com.cb[im].red, &cbbi);
-		vVvk10_CmdClearColorImage(com.cb[im].red, com.simages[im],
+		vVvk_BeginCommandBuffer(com.cb[im].red, &cbbi);
+		vVvk_CmdClearColorImage(com.cb[im].red, com.simages[im],
 			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &red,
 			1, &isr);
-		vVvk10_EndCommandBuffer(com.cb[im].red);
+		vVvk_EndCommandBuffer(com.cb[im].red);
 	}
 
 //	BREAK
@@ -66,8 +66,8 @@ int main() {
 	VkSemaphoreCreateInfo sci = {
 		VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO, NULL, 0,
 	};
-	vVvk10_CreateSemaphore(com.dev, &sci, NULL, &donePres);
-	vVvk10_CreateSemaphore(com.dev, &sci, NULL, &doneRend);
+	vVvk_CreateSemaphore(com.dev, &sci, NULL, &donePres);
+	vVvk_CreateSemaphore(com.dev, &sci, NULL, &doneRend);
 
 	uint32_t im;
 	VkPresentInfoKHR pi = {
@@ -93,14 +93,14 @@ int main() {
 			3, cbs,
 			1, &doneRend,
 		};
-		vVvk10_QueueSubmit(com.queue, 1, &si, NULL);
+		vVvk_QueueSubmit(com.queue, 1, &si, NULL);
 
 		vVvk_QueuePresentKHR(com.queue, &pi);
 	}
 
-	vVvk10_QueueWaitIdle(com.queue);
-	vVvk10_DestroySemaphore(com.dev, donePres, NULL);
-	vVvk10_DestroySemaphore(com.dev, doneRend, NULL);
+	vVvk_QueueWaitIdle(com.queue);
+	vVvk_DestroySemaphore(com.dev, donePres, NULL);
+	vVvk_DestroySemaphore(com.dev, doneRend, NULL);
 
 	destroyCBuffs();
 	destroySChain();

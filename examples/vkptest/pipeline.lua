@@ -45,21 +45,21 @@ static VkShaderModule vert, frag;
 void setupPipeline() {
 	VkResult r;
 
-	r = vVvk10_CreateShaderModule(dev, &(VkShaderModuleCreateInfo){
+	r = vVvk_CreateShaderModule(dev, &(VkShaderModuleCreateInfo){
 		VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, NULL,
 		.codeSize = sizeof(vertShader),
 		.pCode = vertShader,
 	}, NULL, &vert);
 	if(r<0) error("loading vert shader", r);
 
-	r = vVvk10_CreateShaderModule(dev, &(VkShaderModuleCreateInfo){
+	r = vVvk_CreateShaderModule(dev, &(VkShaderModuleCreateInfo){
 		VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, NULL,
 		.codeSize = sizeof(fragShader),
 		.pCode = fragShader,
 	}, NULL, &frag);
 	if(r<0) error("loading frag shader", r);
 
-	r = vVvk10_CreatePipelineLayout(dev, &(VkPipelineLayoutCreateInfo){
+	r = vVvk_CreatePipelineLayout(dev, &(VkPipelineLayoutCreateInfo){
 		VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, NULL,
 		.setLayoutCount = 0, .pSetLayouts = NULL,
 		.pushConstantRangeCount = 1,
@@ -70,7 +70,7 @@ void setupPipeline() {
 	}, NULL, &playout);
 	if(r<0) error("creating pipeline layout", r);
 
-	r = vVvk10_CreateGraphicsPipelines(dev, NULL, 1, &(VkGraphicsPipelineCreateInfo){
+	r = vVvk_CreateGraphicsPipelines(dev, NULL, 1, &(VkGraphicsPipelineCreateInfo){
 		VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO, NULL,
 		.stageCount=2, .pStages=(VkPipelineShaderStageCreateInfo[]){
 			{ VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
@@ -155,9 +155,9 @@ void setupPipeline() {
 }
 
 void cleanupPipeline() {
-	vVvk10_DestroyPipeline(dev, pipeline, NULL);
-	vVvk10_DestroyPipelineLayout(dev, playout, NULL);
-	vVvk10_DestroyShaderModule(dev, vert, NULL);
-	vVvk10_DestroyShaderModule(dev, frag, NULL);
+	vVvk_DestroyPipeline(dev, pipeline, NULL);
+	vVvk_DestroyPipelineLayout(dev, playout, NULL);
+	vVvk_DestroyShaderModule(dev, vert, NULL);
+	vVvk_DestroyShaderModule(dev, frag, NULL);
 }
 ]])

@@ -32,9 +32,9 @@ struct Common com;
 
 void loadVulkan() {
 	V = vV();
-	vVvk_allocate();
+	vVvk_load();
 }
 
 void unloadVulkan() {
-	vVvk_free();
+	vVvk_unload();
 }
