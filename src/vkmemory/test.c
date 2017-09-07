@@ -24,7 +24,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-_Vv_STRUCT(Resource) {
+typedef struct {
 	int isImage;
 	union {
 		VkBuffer buff;
@@ -35,7 +35,7 @@ _Vv_STRUCT(Resource) {
 		VkDeviceMemory mem;
 		uint32_t mtype;
 	};
-};
+} Resource;
 
 struct VvVkM_Pool {
 	int cnt;
@@ -58,7 +58,7 @@ static VvVkM_Pool* create(const Vv* V, VkPhysicalDevice pdev, VkDevice dev) {
 static void destroy(const Vv* V, VvVkM_Pool* pool) {
 	for(int i=0; i < pool->cnt; i++) {
 		if(pool->recs[i].mem)
-			vVvk10_FreeMemory(pool->dev, pool->recs[i].mem, NULL);
+			vVvk_FreeMemory(pool->dev, pool->recs[i].mem, NULL);
 	}
 	free(pool->recs);
 	free(pool);
@@ -74,7 +74,7 @@ static void registerGeneral(const Vv* V, VvVkM_Pool* pool, VkMemoryPropertyFlags
 	*rec = (Resource){ .isAlloced = 0, };
 
 	VkPhysicalDeviceMemoryProperties pdmp;
-	vVvk10_GetPhysicalDeviceMemoryProperties(pool->pdev, &pdmp);
+	vVvk_GetPhysicalDeviceMemoryProperties(pool->pdev, &pdmp);
 
 	for(int i=0; i<pdmp.memoryTypeCount; i++) {
 		if((mreq->memoryTypeBits & (1<<i))
@@ -99,7 +99,7 @@ static void registerBuffer(const Vv* V, VvVkM_Pool* pool, VkBuffer b,
 	VkMemoryPropertyFlags ideal, VkMemoryPropertyFlags req) {
 
 	VkMemoryRequirements mreq;
-	vVvk10_GetBufferMemoryRequirements(pool->dev, b, &mreq);
+	vVvk_GetBufferMemoryRequirements(pool->dev, b, &mreq);
 	registerGeneral(V, pool, ideal, req, &mreq);
 	pool->recs[pool->cnt-1].isImage = 0;
 	pool->recs[pool->cnt-1].buff = b;
@@ -109,7 +109,7 @@ static void registerImage(const Vv* V, VvVkM_Pool* pool, VkImage i,
 	VkMemoryPropertyFlags ideal, VkMemoryPropertyFlags req) {
 
 	VkMemoryRequirements mreq;
-	vVvk10_GetImageMemoryRequirements(pool->dev, i, &mreq);
+	vVvk_GetImageMemoryRequirements(pool->dev, i, &mreq);
 	registerGeneral(V, pool, ideal, req, &mreq);
 	pool->recs[pool->cnt-1].isImage = 1;
 	pool->recs[pool->cnt-1].img = i;
@@ -122,13 +122,13 @@ static VkResult bind(const Vv* V, VvVkM_Pool* pool) {
 
 		VkMemoryRequirements mreq;
 		if(rec->isImage) {
-			vVvk10_GetImageMemoryRequirements(pool->dev,
+			vVvk_GetImageMemoryRequirements(pool->dev,
 				rec->img, &mreq);
 		} else {
-			vVvk10_GetBufferMemoryRequirements(pool->dev,
+			vVvk_GetBufferMemoryRequirements(pool->dev,
 				rec->buff, &mreq);
 		}
-		VkResult r = vVvk10_AllocateMemory(pool->dev,
+		VkResult r = vVvk_AllocateMemory(pool->dev,
 			&(VkMemoryAllocateInfo){
 
 			.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
@@ -138,11 +138,11 @@ static VkResult bind(const Vv* V, VvVkM_Pool* pool) {
 		if(r < 0) return r;
 
 		if(rec->isImage) {
-			r = vVvk10_BindImageMemory(pool->dev, rec->img,
+			r = vVvk_BindImageMemory(pool->dev, rec->img,
 				rec->mem, 0);
 			if(r < 0) return r;
 		} else {
-			r = vVvk10_BindBufferMemory(pool->dev, rec->buff,
+			r = vVvk_BindBufferMemory(pool->dev, rec->buff,
 				rec->mem, 0);
 			if(r < 0) return r;
 		}
@@ -173,44 +173,46 @@ static int findImage(VvVkM_Pool* pool, VkImage img) {
 
 static VkResult mapBuffer(const Vv* V, VvVkM_Pool* pool, VkBuffer b, void** out) {
 	Resource* rec = &pool->recs[findBuffer(pool, b)];
-	return vVvk10_MapMemory(pool->dev, rec->mem,
+	return vVvk_MapMemory(pool->dev, rec->mem,
 		0, VK_WHOLE_SIZE, 0, out);
 }
 
 static VkResult mapImage(const Vv* V, VvVkM_Pool* pool, VkImage i, void** out) {
 	Resource* rec = &pool->recs[findImage(pool, i)];
-	return vVvk10_MapMemory(pool->dev, rec->mem,
+	return vVvk_MapMemory(pool->dev, rec->mem,
 		0, VK_WHOLE_SIZE, 0, out);
 }
 
 static void unmapBuffer(const Vv* V, VvVkM_Pool* pool, VkBuffer b) {
 	Resource* rec = &pool->recs[findBuffer(pool, b)];
-	vVvk10_UnmapMemory(pool->dev, rec->mem);
+	vVvk_UnmapMemory(pool->dev, rec->mem);
 }
 
 static void unmapImage(const Vv* V, VvVkM_Pool* pool, VkImage i) {
 	Resource* rec = &pool->recs[findImage(pool, i)];
-	vVvk10_UnmapMemory(pool->dev, rec->mem);
+	vVvk_UnmapMemory(pool->dev, rec->mem);
 }
 
-static VkMappedMemoryRange getRangeBuffer(const Vv* V, VvVkM_Pool* pool, VkBuffer b) {
+static void getRangeBuffer(const Vv* V, VvVkM_Pool* pool, VkBuffer b, VkMappedMemoryRange* mmr) {
 	Resource* rec = &pool->recs[findBuffer(pool, b)];
-	return (VkMappedMemoryRange){
-		.sType=VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
-		.memory=rec->mem,
-		.offset=0,
-		.size=VK_WHOLE_SIZE,
-	};
+	if(mmr->sType == VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE)
+		*mmr = (VkMappedMemoryRange){
+			.sType=VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
+			.memory=rec->mem,
+			.offset=0,
+			.size=VK_WHOLE_SIZE,
+		};
 }
 
-static VkMappedMemoryRange getRangeImage(const Vv* V, VvVkM_Pool* pool, VkImage i) {
+static void getRangeImage(const Vv* V, VvVkM_Pool* pool, VkImage i, VkMappedMemoryRange* mmr) {
 	Resource* rec = &pool->recs[findImage(pool, i)];
-	return (VkMappedMemoryRange){
-		.sType=VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
-		.memory=rec->mem,
-		.offset=0,
-		.size=VK_WHOLE_SIZE,
-	};
+	if(mmr->sType == VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE)
+		*mmr = (VkMappedMemoryRange){
+			.sType=VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
+			.memory=rec->mem,
+			.offset=0,
+			.size=VK_WHOLE_SIZE,
+		};
 }
 
 static void unbindBuffer(const Vv* V, VvVkM_Pool* pool, VkBuffer b) {}
@@ -218,7 +220,7 @@ static void unbindImage(const Vv* V, VvVkM_Pool* pool, VkImage i) {}
 
 static void destroyGeneral(const Vv* V, VvVkM_Pool* pool, int ind) {
 	if(pool->recs[ind].isAlloced)
-		vVvk10_FreeMemory(pool->dev, pool->recs[ind].mem, NULL);
+		vVvk_FreeMemory(pool->dev, pool->recs[ind].mem, NULL);
 	for(int i=ind+1; i < pool->cnt; i++)
 		pool->recs[i-1] = pool->recs[i];
 	pool->cnt--;
@@ -227,17 +229,17 @@ static void destroyGeneral(const Vv* V, VvVkM_Pool* pool, int ind) {
 
 static void destroyBuffer(const Vv* V, VvVkM_Pool* pool, VkBuffer b) {
 	int ind = findBuffer(pool, b);
-	vVvk10_DestroyBuffer(pool->dev, pool->recs[ind].buff, NULL);
+	vVvk_DestroyBuffer(pool->dev, pool->recs[ind].buff, NULL);
 	destroyGeneral(V, pool, ind);
 }
 
 static void destroyImage(const Vv* V, VvVkM_Pool* pool, VkImage i) {
 	int ind = findImage(pool, i);
-	vVvk10_DestroyImage(pool->dev, pool->recs[ind].img, NULL);
+	vVvk_DestroyImage(pool->dev, pool->recs[ind].img, NULL);
 	destroyGeneral(V, pool, ind);
 }
 
-const Vv_VulkanMemoryManager libVv_vkm_test = {
+const VvVkM libVv_vkm_test = {
 	.create = create,
 	.destroy = destroy,
 

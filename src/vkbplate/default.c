@@ -19,13 +19,13 @@
 #include <libvivacious.h>
 #include "internal.h"
 
-extern const Vv_VulkanBoilerplate libVv_vkb_test;
+extern const VvVkB libVv_vkb_test;
 
-VvAPI const struct libVv_VulkanBoilerplate libVv_vkb = {
+VvAPI const struct libVvVkB libVv_vkb = {
 	.test = &libVv_vkb_test,
 };
 
-VvAPI const Vv_VulkanBoilerplate* vVvkb(const Vv* V) {
+VvAPI const VvVkB* vVvkb(const Vv* V) {
 	return &libVv_vkb_test;
 }
 

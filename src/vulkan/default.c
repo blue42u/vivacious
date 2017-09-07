@@ -19,14 +19,14 @@
 #include <libvivacious.h>
 #include "internal.h"
 
-extern const VvVkP libVv_vkp_test;
+extern const VvVk libVv_vk_libdl;
 
-VvAPI const struct libVvVkP libVv_vkp = {
-	.test = &libVv_vkp_test,
+VvAPI const struct libVvVk libVv_vk = {
+	.libdl = &libVv_vk_libdl,
 };
 
-VvAPI const VvVkP* vVvkp(const Vv* V) {
-	return &libVv_vkp_test;
+VvAPI const VvVk* vVvk(const Vv* V) {
+	return &libVv_vk_libdl;
 }
 
 #endif

@@ -130,8 +130,7 @@ static void SetTitle(const Vv* V, VvWi_Window* w, const char* name) {
 static int CreateVkSurface(const Vv* V, VvWi_Window* w, void* inst,
 	void* psurf) {
 
-	if(!&vVvk_KHR_xcb_surface)
-		return VK_ERROR_EXTENSION_NOT_PRESENT;
+	if(!V->vk->cmds->KHR_xcb_surface) return VK_ERROR_EXTENSION_NOT_PRESENT;
 	VkXcbSurfaceCreateInfoKHR xsci = {
 		VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR, NULL,
 		0, w->c->conn, w->id,
@@ -158,7 +157,7 @@ static void SetFullscreen(const Vv* V, VvWi_Window* w, int en) {
 	} else fprintf(stderr, "Attempted fullscreen without EWMH!\n");
 }
 
-static void SetWindowSize(const Vv* V, VvWi_Window* w, const int ext[2]) {
+static void SetWindowSize(const Vv* V, VvWi_Window* w, int ext[2]) {
 	uint32_t values[] = { ext[0], ext[1] };
 	w->c->xcb.configure_window(w->c->conn, w->id,
 		XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT,
@@ -190,7 +189,7 @@ static void GetScreenSize(const Vv* V, VvWi_Connection* wc, int ext[2]) {
 	}
 }
 
-const Vv_Window libVv_wi_x = {
+const VvWi libVv_wi_x = {
 	.connect=Connect, .disconnect=Disconnect,
 	.createWindow=CreateWindow, .destroyWindow=DestroyWindow,
 	.showWindow=ShowWindow, .setTitle=SetTitle,

@@ -18,10 +18,10 @@
 #include "internal.h"
 
 #ifdef Vv_ENABLE_X
-extern const Vv_Window libVv_wi_x;
+extern const VvWi libVv_wi_x;
 #endif // Vv_ENABLE_X
 
-VvAPI const struct libVv_Window libVv_wi = {
+VvAPI const struct libVvWi libVv_wi = {
 #ifdef Vv_ENABLE_X
 	.x = &libVv_wi_x,
 #else
@@ -29,7 +29,7 @@ VvAPI const struct libVv_Window libVv_wi = {
 #endif
 };
 
-VvAPI const Vv_Window* vVwi(const Vv* V) {
+VvAPI const VvWi* vVwi(const Vv* V) {
 	// For now, just use X
 	return libVv_wi.x;
 }

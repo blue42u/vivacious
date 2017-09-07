@@ -19,13 +19,13 @@
 #include <libvivacious.h>
 #include "internal.h"
 
-extern const Vv_VulkanMemoryManager libVv_vkm_test;
+extern const VvVkM libVv_vkm_test;
 
-VvAPI const struct libVv_VulkanMemoryManager libVv_vkm = {
+VvAPI const struct libVvVkM libVv_vkm = {
 	.test = &libVv_vkm_test,
 };
 
-VvAPI const Vv_VulkanMemoryManager* vVvkm(const Vv* V) {
+VvAPI const VvVkM* vVvkm(const Vv* V) {
 	return &libVv_vkm_test;
 }
 
