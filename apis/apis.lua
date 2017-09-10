@@ -21,10 +21,26 @@
 local layers = {}
 local function l(t) layers[#layers+1] = t; return t end
 
-local test = l{
-	name = [[ Test Layer ]],
-	doc = [[ Just for testing ]],
-	'test1',
+local vkbind = l{
+	name = [[ Vulkan-Specific Bindings ]],
+	doc = [[ Contains all Vulkan-specific bindings. ]],
+	'vulkan',
+}
+
+local vkhelp = l{
+	name = [[ Vulkan Helpers ]],
+	doc = [[ Helpers to make using Vulkan a little easier/more flexible. ]],
+	vkbind,
+	'vkbplate',
+	'vkmemory',
+	'vkpipeline',
+}
+
+local cgraphbase = l{
+	name = [[ Common Graphics Bindings ]],
+	doc = [[ Bindings needed for any reasonable graphics application. ]],
+	vkbind,
+	'window',
 }
 
 -- Test if `a` is a dependee of `b`
