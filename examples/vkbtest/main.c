@@ -54,11 +54,7 @@ void setupVk() {
 
 	vVvkb_setInstVersion(ii, VK_MAKE_VERSION(1,0,0));
 	vVvkb_addLayers(ii, (const char*[]){
-		"VK_LAYER_LUNARG_core_validation",
-		"VK_LAYER_LUNARG_parameter_validation",
-		"VK_LAYER_LUNARG_object_tracker",
-		"VK_LAYER_GOOGLE_threading",
-		"VK_LAYER_GOOGLE_unique_objects",
+		"VK_LAYER_LUNARG_standard_validation",
 		NULL });
 	vVvkb_addInstExtensions(ii, (const char*[]){
 		"VK_KHR_surface", "VK_KHR_xcb_surface",

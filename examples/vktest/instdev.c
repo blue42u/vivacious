@@ -25,11 +25,7 @@ static const char* dexts[] = {
 	"VK_KHR_swapchain",
 };
 static const char* lays[] = {
-	"VK_LAYER_LUNARG_core_validation",
-	"VK_LAYER_LUNARG_parameter_validation",
-	"VK_LAYER_LUNARG_object_tracker",
-	"VK_LAYER_GOOGLE_threading",
-	"VK_LAYER_GOOGLE_unique_objects",
+	"VK_LAYER_LUNARG_standard_validation",
 };
 
 void createInst() {
