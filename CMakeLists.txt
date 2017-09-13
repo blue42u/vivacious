@@ -53,6 +53,6 @@ add_definitions(-DVv_VERSION_MAJOR=0 -DVv_VERSION_MINOR=1 -DVv_VERSION_PATCH=1)
 
 add_subdirectory(apis)
 add_subdirectory(src)
-add_subdirectory(examples)
+add_subdirectory(demos)
 
 add_dependencies(vivacious include)
