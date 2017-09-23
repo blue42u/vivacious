@@ -202,7 +202,8 @@ std.func = {
 	pre = function(self)
 		if self.returns then
 			if getmetatable(self.returns) ~= tag then
-				for i,t in ipairs(self.returns) do
+				for i=1,#self.returns do
+					local t = self.returns[i]
 					assert(getmetatable(t) == tag, 'function returns must be types (#'..i..', got '..type(t)..')')
 				end
 			else self.returns = {self.returns} end

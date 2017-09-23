@@ -43,7 +43,7 @@ function require(s)
 end
 
 -- First write up all of the API headers
-for a in pairs(apiset) do
+for _,a in ipairs(apis) do
 	local f = io.open(arg[1]..'/'..a..'.h', 'w')
 	f:write('// File generated from apis/'..a..'.lua, do not edit\n')
 	f:write('#ifndef H_vivacious_'..a..'\n')
@@ -167,13 +167,13 @@ do
 			if type(v) == 'table' then allowlayer(v) end
 		end
 	end
-	f:write'#elif defined(Vv_CHOICE)\n'
+	f:write'#else\n'
 	for _,a in ipairs(apis) do allowlayer({a}) end
 	f:write'#endif\n\n'
 
 	f:write[[
-#define Vv_LEN(A) sizeof(A)/sizeof(A[0])
-#define Vv_ARRAY(N, A) .N##Cnt = Vv_LEN(A), .N=A
+#define Vv_LEN(...) sizeof(__VA_ARGS__)/sizeof((__VA_ARGS__)[0])
+#define Vv_ARRAY(N, ...) .N##Cnt = Vv_LEN((__VA_ARGS__)), .N=(__VA_ARGS__)
 
 #endif
 ]]
