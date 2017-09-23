@@ -55,7 +55,7 @@ vkb.DevInfo = std.compound{
 		extensions = {std.array{std.string}, {}},
 		tasks = {std.array{vkb.TaskInfo}, {}},
 		validator = {std.callback{returns=std.boolean, pdev}, true},
-		version = vk.version,
+		version = {vk.version, '0.0.0'},
 	},
 }
 
