@@ -86,6 +86,17 @@ static VkBool32 checkPDev(const Vv* V, VvVkB_DevInfo* di,
 
 	if(!queuePDev(V, di, pdev, qs, NULL)) return VK_FALSE;
 
+	if(di->surface) {
+	for(int i=0; i < di->tasksCnt; i++) {
+		if(di->tasks[i].presentable) {
+			VkBool32 supported;
+			VkResult r = vVvk_GetPhysicalDeviceSurfaceSupportKHR(
+				pdev, qs[i].family, di->surface, &supported);
+			if(r < 0 || !supported) return VK_FALSE;
+		}
+	}
+	}
+
 	// The custom check is last, of course.
 	if(di->validator) return di->validator(di->validator_ud, pdev);
 	else return VK_TRUE;
@@ -181,9 +192,102 @@ static VkResult createDev(const Vv* V, VvVkB_DevInfo* di,
 	return r;
 }
 
+static inline int testPM(int n, VkPresentModeKHR* pms, VkPresentModeKHR pm) {
+	for(int i=0; i<n; i++) if(pms[i] == pm) return 1;
+	return 0;
+}
+
+static inline int choosePM(int n, VkPresentModeKHR* pms, VkPresentModeKHR* pm) {
+	if(testPM(n, pms, *pm)) return 1;
+	if(*pm == VK_PRESENT_MODE_MAILBOX_KHR) {
+		*pm = VK_PRESENT_MODE_FIFO_KHR;
+		return 1;
+	}
+	if(*pm == VK_PRESENT_MODE_SHARED_DEMAND_REFRESH_KHR) {
+		*pm = VK_PRESENT_MODE_FIFO_RELAXED_KHR;
+		if(testPM(n, pms, *pm)) return 1;
+	}
+	if(*pm == VK_PRESENT_MODE_FIFO_RELAXED_KHR) {
+		*pm = VK_PRESENT_MODE_IMMEDIATE_KHR;
+		if(testPM(n, pms, *pm)) return 1;
+	}
+	if(*pm == VK_PRESENT_MODE_IMMEDIATE_KHR) {
+		*pm = VK_PRESENT_MODE_FIFO_KHR;
+		return 1;
+	}
+	return 0;
+}
+
+static VkResult createSc(const Vv* V,
+	VkPhysicalDevice pd, VkDevice d, VkSurfaceKHR sf,
+	VkSwapchainCreateInfoKHR* sci, int wiRules, VkFormatProperties fps,
+	VkSwapchainKHR* sc, int* icnt) {
+
+	VkResult r;
+
+	sci->surface = sf;
+
+	// First, we need to try and find a format-colorSpace pair.
+	uint32_t cnt;
+	r = vVvk_GetPhysicalDeviceSurfaceFormatsKHR(pd, sf, &cnt, NULL);
+	if(r < 0) return r;
+	VkSurfaceFormatKHR* fpairs = malloc(cnt*sizeof(VkSurfaceFormatKHR));
+	r = vVvk_GetPhysicalDeviceSurfaceFormatsKHR(pd, sf, &cnt, fpairs);
+	if(r < 0) { free(fpairs); return r; }
+	sci->imageFormat = VK_FORMAT_UNDEFINED;
+	for(int i=0; i<cnt; i++) {
+		if(fpairs[i].colorSpace == sci->imageColorSpace) {
+			sci->imageFormat = fpairs[i].format;
+			break;
+		}
+	}
+	free(fpairs);
+	if(sci->imageFormat == VK_FORMAT_UNDEFINED)
+		return VK_ERROR_FORMAT_NOT_SUPPORTED;
+
+	// Nab the caps
+	VkSurfaceCapabilitiesKHR scaps;
+	r = vVvk_GetPhysicalDeviceSurfaceCapabilitiesKHR(pd, sf, &scaps);
+	if(r < 0) return r;
+
+	// Now for the extent and transformation... for this imp, we
+	// completely ignore the user's transformation.
+	if(wiRules && (scaps.currentExtent.width != 0xFFFFFFFF
+		|| scaps.currentExtent.height != 0xFFFFFFFF))
+		sci->imageExtent = scaps.currentExtent;
+	sci->preTransform = scaps.currentTransform;
+	if(scaps.minImageCount > sci->minImageCount)
+		sci->minImageCount = scaps.minImageCount;
+
+	// Then the alpha handling...
+	if(!(sci->compositeAlpha & scaps.supportedCompositeAlpha)) {
+		VkCompositeAlphaFlagBitsKHR f;
+		for(f = 1; !(scaps.supportedCompositeAlpha & f); f = f<<1);
+		sci->compositeAlpha = f;
+	}
+
+	// Then the presentation mode...
+	r = vVvk_GetPhysicalDeviceSurfacePresentModesKHR(pd, sf, &cnt, NULL);
+	if(r < 0) return r;
+	VkPresentModeKHR pms[cnt];
+	r = vVvk_GetPhysicalDeviceSurfacePresentModesKHR(pd, sf, &cnt, pms);
+	if(r < 0) return r;
+	if(!choosePM(cnt, pms, &sci->presentMode))
+		return VK_ERROR_INCOMPATIBLE_DISPLAY_KHR;
+
+	// And finally just make the Swapchain!
+	r = vVvk_CreateSwapchainKHR(d, sci, NULL, sc);
+	if(r < 0) return r;
+	r = vVvk_GetSwapchainImagesKHR(d, *sc, &cnt, NULL);
+	if(r < 0) { vVvk_DestroySwapchainKHR(d, *sc, NULL); return r; }
+	*icnt = cnt;
+	return VK_SUCCESS;
+}
+
 const VvVkB libVv_vkb_test = {
 	.createInstance = createInst,
 	.createDevice = createDev,
+	.createSwapchain = createSc,
 };
 
 #endif // Vv_ENABLE_VULKAN

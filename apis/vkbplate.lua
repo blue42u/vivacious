@@ -44,6 +44,7 @@ vkb.TaskInfo = std.smallcomp{
 		family = std.index,
 		flags = vk.QueueFlags,
 		priority = std.number,
+		presentable = std.boolean,
 	},
 }
 
@@ -56,6 +57,9 @@ vkb.DevInfo = std.compound{
 		tasks = {std.array{vkb.TaskInfo}, {}},
 		validator = {std.callback{returns=std.boolean, pdev}, true},
 		version = {vk.version, '0.0.0'},
+	},
+	v0_1_2 = {
+		surface = {vk.SurfaceKHR, 'NULL'},
 	},
 }
 
@@ -72,6 +76,36 @@ vkb.api.v0_1_1.createDevice = std.func{
 		std.array{vkb.QueueSpec, size='dinfo->tasksCnt'},
 		vk.Result, main=4},
 	{vkb.DevInfo, 'dinfo'}, vk.Instance,
+}
+
+vkb.api.v0_1_2.createSwapchain = std.func{
+	doc = [[
+		Create a Swapchain from a Surface.
+		<sci> will be modified before being used to create the
+		Swapchain, in the following ways:
+		- surface will be set to the new Surface.
+		- imageFormat is completly ignored, and instead a format is
+		  chosen which has a the properties given in <fprops>, and
+		  which uses the color space in imageColorSpace.
+		- If <windowExtent> is true, and the Surface has a
+		  currentExtent, then imageExtent is replaced with that value.
+		- preTransform is replaced with the composition of its original
+		  value with the Surface's currentTransform.
+		- compositeAlpha may be replaced if the given value is not
+		  available (or 0). Applications should check afterwards to
+		  change how they handle the alpha.
+		- presentMode will be replaced with an available value which
+		  cannot affect the application's execution, but may reduce
+		  tearing or increase performance (implementation decides).
+
+		The integer returned is the number of images in the created
+		Swapchain.
+	]],
+	returns = {vk.SwapchainKHR, std.integer, vk.Result, main=3},
+	vk.PhysicalDevice, vk.Device, vk.SurfaceKHR,
+	{vk.SwapchainCreateInfoKHR, 'sci'},
+	{std.boolean, 'windowExtent'},
+	{vk.FormatProperties, 'fprops'},
 }
 
 vkb.api = std.compound(vkb.api)

@@ -27,6 +27,13 @@ local vkbind = l{
 	'vulkan',
 }
 
+local cgraphbase = l{
+	name = [[ Common Graphics Bindings ]],
+	doc = [[ Bindings needed for any reasonable graphics application. ]],
+	vkbind,
+	'window',
+}
+
 local vkhelp = l{
 	name = [[ Vulkan Helpers ]],
 	doc = [[ Helpers to make using Vulkan a little easier/more flexible. ]],
@@ -34,13 +41,6 @@ local vkhelp = l{
 	'vkbplate',
 	'vkmemory',
 	'vkpipeline',
-}
-
-local cgraphbase = l{
-	name = [[ Common Graphics Bindings ]],
-	doc = [[ Bindings needed for any reasonable graphics application. ]],
-	vkbind,
-	'window',
 }
 
 -- Test if `a` is a dependee of `b`
