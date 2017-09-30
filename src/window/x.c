@@ -137,11 +137,18 @@ static int CreateVkSurface(const Vv* V, VvWi_Window* w, void* inst,
 	};
 	return vVvk_CreateXcbSurfaceKHR(inst, &xsci, NULL, psurf);
 }
+static const char* ext = "VK_KHR_xcb_surface";
+static const char* GetVkExtension(const Vv* V, VvWi_Connection* c) {
+	return ext;
+}
 #else
 static int CreateVkSurface(const Vv* V, VvWi_Window* w, void* inst,
 	void* psurf) {
 
 	return -7;	// VK_ERROR_EXTENSION_NOT_PRESENT
+}
+static const char* GetVkExtension(const Vv* V, VvWi_Connection* c) {
+	return NULL;
 }
 #endif
 
@@ -193,7 +200,7 @@ const VvWi libVv_wi_x = {
 	.connect=Connect, .disconnect=Disconnect,
 	.createWindow=CreateWindow, .destroyWindow=DestroyWindow,
 	.showWindow=ShowWindow, .setTitle=SetTitle,
-	.createVkSurface=CreateVkSurface,
+	.createVkSurface=CreateVkSurface, .getVkExtension=GetVkExtension,
 	.setFullscreen=SetFullscreen,
 	.setWindowSize=SetWindowSize, .getWindowSize=GetWindowSize,
 	.getScreenSize=GetScreenSize,

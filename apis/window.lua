@@ -97,5 +97,11 @@ wi.api.v0_1_1.createVkSurface = std.method{
 	{std.udata, 'pSurf'},
 }
 
+wi.api.v0_1_2.getVkExtension = std.method{
+	doc = "Get the Instance extension needed to use a certain Connection.",
+	returns = std.string,
+	wi.Connection,
+}
+
 wi.api = std.compound(wi.api)
 return wi
