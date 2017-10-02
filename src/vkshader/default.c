@@ -14,33 +14,19 @@
    limitations under the License.
 ***************************************************************************/
 
-#ifndef H_libvivacious
-#define H_libvivacious
+#ifdef Vv_ENABLE_VULKAN
 
-#include <vivacious/vivacious.h>
+#include <libvivacious.h>
+#include "internal.h"
 
-extern const struct libVvVk {
-	const VvVk* libdl;
-} libVv_vk;
+extern const VvVkS libVv_vks_test;
 
-extern const struct libVvWi {
-	const VvWi* x;
-} libVv_wi;
+VvAPI const struct libVvVkS libVv_vks = {
+	.test = &libVv_vks_test,
+};
 
-extern const struct libVvVkB {
-	const VvVkB* test;
-} libVv_vkb;
+VvAPI const VvVkS* vVvks(const Vv* V) {
+	return &libVv_vks_test;
+}
 
-extern const struct libVvVkM {
-	const VvVkM* test;
-} libVv_vkm;
-
-extern const struct libVvVkP {
-	const VvVkP* test;
-} libVv_vkp;
-
-extern const struct libVvVkS {
-	const VvVkS* test;
-} libVv_vks;
-
-#endif // H_libvivacious
+#endif

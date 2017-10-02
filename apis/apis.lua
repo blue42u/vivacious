@@ -41,6 +41,7 @@ local vkhelp = l{
 	'vkbplate',
 	'vkmemory',
 	'vkpipeline',
+	'vkshader',
 }
 
 -- Test if `a` is a dependee of `b`

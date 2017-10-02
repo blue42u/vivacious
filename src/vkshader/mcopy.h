@@ -14,33 +14,18 @@
    limitations under the License.
 ***************************************************************************/
 
-#ifndef H_libvivacious
-#define H_libvivacious
+#include <vivacious/vulkan.h>
+#include "spirv/1.2/spirv.h"
+#include <stdbool.h>
 
-#include <vivacious/vivacious.h>
+typedef struct {
+	bool defined;
+	uint32_t map;
+	size_t numwords;
+	uint32_t* op;
+} iddata;
 
-extern const struct libVvVk {
-	const VvVk* libdl;
-} libVv_vk;
-
-extern const struct libVvWi {
-	const VvWi* x;
-} libVv_wi;
-
-extern const struct libVvVkB {
-	const VvVkB* test;
-} libVv_vkb;
-
-extern const struct libVvVkM {
-	const VvVkM* test;
-} libVv_vkm;
-
-extern const struct libVvVkP {
-	const VvVkP* test;
-} libVv_vkp;
-
-extern const struct libVvVkS {
-	const VvVkS* test;
-} libVv_vks;
-
-#endif // H_libvivacious
+// Copys a single instruction from *src to *dst, shifting the IDs
+// by shift along the way.
+uint32_t _vVvks_mcopy_idshift(uint32_t* src, uint32_t* dst,
+	uint32_t idsz, iddata ids[], uint32_t shift);
