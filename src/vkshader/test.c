@@ -76,6 +76,7 @@ static VkResult construct(const Vv* V, VvVkS_Bank* b, VkDevice dev,
 	size_t sz = (10+4*nc)*7;
 	for(size_t i=0; i<nc; i++) sz += cs[i]->size;
 	uint32_t* out = malloc(sz*sizeof(uint32_t));
+	uint32_t* tmp = malloc(sz*sizeof(uint32_t));
 
 	uint32_t shifts[nc+1];
 	shifts[0] = 0;
@@ -88,17 +89,14 @@ static VkResult construct(const Vv* V, VvVkS_Bank* b, VkDevice dev,
 	}
 
 	iddata ids[shifts[nc]];
-	for(uint32_t i=0; i<shifts[nc]; i++) {
-		ids[i].defined = false;
-		ids[i].map = i;
-		ids[i].numwords = 0;
-		ids[i].op = NULL;
-	}
+	for(uint32_t i=0; i<shifts[nc]; i++) ids[i] = DEF_iddata(i);
 
 	size_t here = 0;
 #define FORCS for(size_t csind=0; csind<nc; csind++)
 #define WRITE(S) \
-(here += _vVvks_mcopy_idshift(S, &out[here], shifts[nc], ids, shifts[csind]))
+(here += _vVvks_copy(S, &out[here], shifts[nc], ids, shifts[csind]))
+#define WRITE1(S) \
+(here += _vVvks_scan(S, &tmp[here], shifts[nc], ids, shifts[csind]))
 #define RAW(...) ({ \
 	uint32_t d[] = {__VA_ARGS__}; \
 	memcpy(&out[here], d, sizeof(d)); \
@@ -110,7 +108,17 @@ static VkResult construct(const Vv* V, VvVkS_Bank* b, VkDevice dev,
 #define OPER(N) (cs[csind]->code[heres[csind]+(N)])
 #define NEXT (heres[csind] += WC)
 #define PASS (WRITE(&WORD), NEXT)
+#define SCAN (WRITE1(&WORD), NEXT)
 #define EOI (heres[csind] >= cs[csind]->size)
+
+	// First pass, map all the ids to where they belong
+	FORCS {
+		while(!EOI) SCAN;
+		heres[csind] = 5;
+	}
+	here = 0;
+
+	// Second pass, write everything out. With some extra kinks.
 
 	// Write the header, with 7 extra ids for the EP functions
 	RAW(SpvMagicNumber, SpvVersion, 0, shifts[nc]+7, 0);
@@ -150,9 +158,12 @@ static VkResult construct(const Vv* V, VvVkS_Bank* b, VkDevice dev,
 						&& (OPER(i)>>8)&0xFF
 						&& OPER(i)&0xFF) i++;
 					i++;
-					idcnt += WC-i;
-					for(; i<WC; i++)
-						RAW(OPER(i)+shifts[csind]);
+					for(; i<WC; i++) {
+						if(ids[OPER(i)+shifts[csind]].map == OPER(i)+shifts[csind]) {
+							RAW(OPER(i)+shifts[csind]);
+							idcnt += 1;
+						}
+					}
 					break;
 				}
 				NEXT;
@@ -196,7 +207,7 @@ static VkResult construct(const Vv* V, VvVkS_Bank* b, VkDevice dev,
 			break;
 		}
 	}
-	if(!voidid) {free(out); return VK_ERROR_INITIALIZATION_FAILED;}
+	if(!voidid) {free(tmp); free(out); return VK_ERROR_INITIALIZATION_FAILED;}
 
 	// Then find the void function
 	uint32_t voidfunc = 0;
@@ -208,7 +219,7 @@ static VkResult construct(const Vv* V, VvVkS_Bank* b, VkDevice dev,
 			break;
 		}
 	}
-	if(!voidfunc) {free(out); return VK_ERROR_INITIALIZATION_FAILED;}
+	if(!voidfunc) {free(tmp); free(out); return VK_ERROR_INITIALIZATION_FAILED;}
 
 	// Now write out the different functions
 	uint32_t extra = out[3];
@@ -232,6 +243,7 @@ static VkResult construct(const Vv* V, VvVkS_Bank* b, VkDevice dev,
 		.pCode = out,
 	}, NULL, sm);
 	free(out);
+	free(tmp);
 	return r;
 }
 

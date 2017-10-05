@@ -151,21 +151,79 @@ function handlers.LiteralInteger(c)
 	elseif l == false then	-- Unlimited, reaches EOI
 		out('\t\twhile(!EOI) WRITE(READ);')
 	elseif l == 'typewidth' then	-- Wordcount from ids
-		out('\t\tfor(int i=0; i<ids[first+shift].numwords; i++) WRITE(READ);')
+		out('\t\tfor(int i=0; i<ids[idres+shift].numwords; i++) WRITE(READ);')
 	else error() end
 end
 handlers.LiteralExtInstInteger = handlers.LiteralInteger
 handlers.LiteralContextDependentNumber = handlers.LiteralInteger
 handlers.LiteralSpecConstantOpInteger = handlers.LiteralInteger
 
-rout[[
+local defmergeable = {
+	OpVariable = true,
+	OpExtInstImport = true,
+}
+local mergeable = {}
+for _,op in ipairs(spv.instructions) do
+	local n = op.opname
+	if defmergeable[n]
+		or (n:match'^OpType' and n ~= 'OpTypeForwardPointer')
+		or n:match'^OpConstant' then
+
+		for i,o in ipairs(op.operands) do
+			if o.kind == 'IdResult' then
+				mergeable[i] = mergeable[i] or {}
+				table.insert(mergeable[i], n)
+				break
+			end
+		end
+	end
+end
+
+rout[=[
 // WARNING: Generated file. Do not edit manually.
 
 #include "vkshader/mcopy.h"
 #include <string.h>
 #include <stdio.h>
 
-uint32_t _vVvks_mcopy_idshift(uint32_t* src, uint32_t* dst,
+uint32_t _vVvks_scan(uint32_t* src, uint32_t* dst,
+	uint32_t idsz, iddata ids[], uint32_t shift) {
+
+	uint32_t ind;
+	switch(*src & SpvOpCodeMask) {]=]
+for i,ns in pairs(mergeable) do
+	for _,n in ipairs(ns) do
+		rout('\tcase Spv'..n..':')
+	end
+	rout('\t\tind = '..i..'; break;')
+end
+rout[=[
+	// If its not a mergeable, we don't care about it.
+	default: return 0;
+	};
+
+	// Copy it over. If its skipped already, don't bother with it.
+	uint32_t wc = _vVvks_copy(src, dst, idsz, ids, shift);
+	if(wc == 0) return 0;
+
+	// Look to see if this is a dup of some other instruction. If it is,
+	// we mark it to be skipped, change its mapping, and don't write it out.
+	for(uint32_t i=0; i<idsz && i<dst[ind]; i++) {
+		uint32_t* o = ids[i].op;
+		if(o && memcmp(o, dst, ind*sizeof(uint32_t)) == 0
+			&& memcmp(&o[ind+1], &dst[ind+1],
+				(wc-ind-1)*sizeof(uint32_t)) == 0) {
+			ids[dst[ind]].map = i;
+			return 0;
+		}
+	}
+
+	// Otherwise, we set it up for comparisons later.
+	ids[dst[ind]].op = dst;
+	return wc;
+}
+
+uint32_t _vVvks_copy(uint32_t* src, uint32_t* dst,
 	uint32_t idsz, iddata ids[], uint32_t shift) {
 
 	uint32_t opwc = *src;
@@ -177,23 +235,27 @@ uint32_t _vVvks_mcopy_idshift(uint32_t* src, uint32_t* dst,
 	uint32_t* sdst = dst;
 
 	uint32_t last;
-	uint32_t first;
+	uint32_t idres;
 #define READ ( last = *src, src++, rwc++, last )
 #define WRITE(W) ( *dst = W, dst++ )
 #define BACK ( src--, rwc-- )
 #define EOI ( rwc >= wc )
 
 	WRITE(READ);	// Copy over the opcode + wordcnt
-	switch(op) {]]
+	switch(op) {]=]
 
 for _,ins in ipairs(spv.instructions) do
 	out('\tcase Spv%s: ', ins.opname)
-	if ins.operands then
-		out'\t\tfirst = READ; BACK;'
+	for i,o in ipairs(ins.operands or {}) do
+		if o.kind == 'IdResult' then
+			out('\t\tidres = ssrc[%d];', i)
+			out('\t\tif(ids[idres+shift].map != idres+shift) return 0;')
+			break
+		end
 	end
 	if ins.opname == 'OpTypeInt' or ins.opname == 'OpTypeFloat' then
-		-- Write down how many words this type uses
-		out'\tREAD; ids[first].numwords = 1+((READ-1)/32); BACK; BACK;'
+		-- Write down how many words this type uses, second operand
+		out'\t\tids[idres+shift].numwords = 1+((ssrc[2]-1)/32);'
 	end
 	for i,arg in ipairs(ins.operands or {}) do
 		if arg.quantifier == '*' then out('\twhile(!EOI) {')
@@ -201,24 +263,10 @@ for _,ins in ipairs(spv.instructions) do
 		elseif arg.quantifier then
 			error('Unhandled quantifier '..arg.quantifier) end
 		handlers[arg.kind]{
-			mightbe = arg.qualifier == '?',
+			mightbe = arg.quantifier == '?',
 			from = ins.opname..'_'..i
 		}
 		if arg.quantifier then out('\t}') end
-	end
-	if ins.opname:match'^OpType' and ins.opname ~= 'OpTypeForwardPointer' then
-		-- Look for a dup, and set the mapping to the older one
-		rout[[
-	for(size_t i=0; i<idsz; i++) {
-		if(ids[i].defined && ids[i].op && *ids[i].op == opwc
-			&& memcmp(&ids[i].op[2], &sdst[2],
-				(wc-2)*sizeof(uint32_t)) == 0) {
-			ids[first+shift].map = i;
-			ids[first+shift].defined = true;
-			return 0;
-		}
-	}
-	ids[first+shift].op = sdst;]]
 	end
 	out('\t\tbreak;')
 end

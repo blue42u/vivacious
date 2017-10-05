@@ -24,8 +24,14 @@ typedef struct {
 	size_t numwords;
 	uint32_t* op;
 } iddata;
+#define DEF_iddata(i) (iddata){false, i, 0, NULL};
+
+// Scans a single instruction. Pre-pass, and *dst is a temp space that may
+// be used for iddata.op.
+uint32_t _vVvks_scan(uint32_t* src, uint32_t* dst,
+	uint32_t idsz, iddata ids[], uint32_t shift);
 
 // Copys a single instruction from *src to *dst, shifting the IDs
 // by shift along the way.
-uint32_t _vVvks_mcopy_idshift(uint32_t* src, uint32_t* dst,
+uint32_t _vVvks_copy(uint32_t* src, uint32_t* dst,
 	uint32_t idsz, iddata ids[], uint32_t shift);
