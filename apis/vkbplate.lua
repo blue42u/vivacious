@@ -101,7 +101,7 @@ vkb.api.v0_1_2.createSwapchain = std.func{
 		The integer returned is the number of images in the created
 		Swapchain.
 	]],
-	returns = {vk.SwapchainKHR, std.integer, vk.Result, main=3},
+	returns = {vk.SwapchainKHR, vk.uint32, vk.Result, main=3},
 	vk.PhysicalDevice, vk.Device, vk.SurfaceKHR,
 	{vk.SwapchainCreateInfoKHR, 'sci'},
 	{std.boolean, 'windowExtent'},

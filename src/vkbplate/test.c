@@ -221,7 +221,7 @@ static inline int choosePM(int n, VkPresentModeKHR* pms, VkPresentModeKHR* pm) {
 static VkResult createSc(const Vv* V,
 	VkPhysicalDevice pd, VkDevice d, VkSurfaceKHR sf,
 	VkSwapchainCreateInfoKHR* sci, int wiRules, VkFormatProperties fps,
-	VkSwapchainKHR* sc, int* icnt) {
+	VkSwapchainKHR* sc, uint32_t* icnt) {
 
 	VkResult r;
 

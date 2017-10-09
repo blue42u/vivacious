@@ -71,6 +71,7 @@ vk.api.v0_1_1.cmds = vk.CmdSets
 
 vk.version = std.external{'uint32_t', 'VK_MAKE_VERSION(%d,%d,%d)',
 	function(v) return v:match'(%d+).(%d+).(%d+)' end}
+vk.uint32 = std.external{'uint32_t', '%u'}
 
 vk.api.v0_1_1.load = std.func{
 	doc = [[
