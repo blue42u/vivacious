@@ -91,14 +91,14 @@ static void destroy(const Vv* V, VvVkP_Graph* g) {
 		stat = stat->next;
 		FREE_ST(stat->prev);
 	}
-	FREE_ST(stat);
+	if(stat) FREE_ST(stat);
 
 	VvVkP_Step* sp = g->steps.begin;
 	while(sp && sp->next) {
 		sp = sp->next;
 		FREE_SP(sp->prev);
 	}
-	FREE_SP(sp);
+	if(sp) FREE_SP(sp);
 
 	if(g->layouts) free(g->layouts);
 	if(g->rpass) g->drpass(g->dev, g->rpass, NULL);
@@ -250,12 +250,12 @@ static VkRenderPass getRP(const Vv* V, VvVkP_Graph* g, VkDevice dev,
 		spcnt++;
 		depcnt += sp->depends.cnt;
 	}
-	void* sps[spcnt];
-	VkSubpassDependency deps[depcnt];
+	void** sps = malloc(spcnt*sizeof(void*));
+	VkSubpassDependency* deps = malloc(depcnt*sizeof(VkSubpassDependency));
 	spcnt = 0; depcnt = 0;
 	for(VvVkP_Step* sp = g->steps.begin; sp; sp = sp->next) {
 		sps[spcnt++] = sp;
-		for(int i=0; i < sp->depends.cnt; i++)
+		for(int i=0; i < sp->depends.cnt; i++) {
 			deps[depcnt++] = (VkSubpassDependency){
 				.srcSubpass = 0, .dstSubpass = 0,
 				.srcStageMask = sp->depends.data[i].srcStage,
@@ -266,19 +266,22 @@ static VkRenderPass getRP(const Vv* V, VvVkP_Graph* g, VkDevice dev,
 					| (sp->depends.data[i].attachmentEnable
 					? VK_DEPENDENCY_BY_REGION_BIT : 0),
 			};
+		}
 	}
 
 	// Get a contiguous array of bound States
 	int stcnt = 0;
 	for(VvVkP_State* st = g->stats.begin; st; st = st->next)
 		if(st->bound) stcnt++;
-	void* sts[stcnt];
-	spcnt = 0;
+	void** sts = malloc(stcnt*sizeof(void*));
+	stcnt = 0;
 	for(VvVkP_State* st = g->stats.begin; st; st = st->next)
 		if(st->bound) sts[stcnt++] = st;
 
 	// Get the description for the only subpass
 	VkSubpassDescription sd = spass(spass_ud, spcnt, sps, stcnt, sts);
+	free(sps);
+	free(sts);
 	if(g->layouts) free(g->layouts);
 	g->layouts = calloc(aCnt, sizeof(VkImageLayout));
 	for(int i=0; i<sd.inputAttachmentCount; i++)
@@ -304,6 +307,7 @@ static VkRenderPass getRP(const Vv* V, VvVkP_Graph* g, VkDevice dev,
 		1, &sd,
 		depcnt, deps,
 	}, NULL, &(g->rpass));
+	free(deps);
 	if(r<0) {
 		g->rpass = VK_NULL_HANDLE;
 		if(rs) *rs = r;
