@@ -184,6 +184,7 @@ static VkResult createDev(const Vv* V, VvVkB_DevInfo* di,
 		.ppEnabledExtensionNames = di->extensions,
 		.queueCreateInfoCount = dqcicnt,
 		.pQueueCreateInfos = dqci,
+		.pFeatures = &di->features,
 	}, NULL, dev);
 
 	free(pris);

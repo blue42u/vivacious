@@ -60,6 +60,7 @@ vkb.DevInfo = std.compound{
 	},
 	v0_1_2 = {
 		surface = {vk.SurfaceKHR, 'NULL'},
+		features = {vk.PhysicalDeviceFeatures, '{}'},
 	},
 }
 
