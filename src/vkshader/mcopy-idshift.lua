@@ -189,6 +189,20 @@ rout[=[
 uint32_t _vVvks_scan(uint32_t* src, uint32_t* dst,
 	uint32_t idsz, iddata ids[], uint32_t shift) {
 
+	// Decorations are forward ref, so we save it for later
+	if((src[0] & SpvOpCodeMask) == SpvOpDecorate) {
+		if(src[2] == SpvDecorationBuiltIn)
+			ids[src[1]+shift].builtin = src[3];
+		if(src[2] == SpvDecorationLocation)
+			ids[src[1]+shift].location = src[3];
+		if(src[2] == SpvDecorationComponent)
+			ids[src[1]+shift].component = src[3];
+	}
+
+	if((src[0] & SpvOpCodeMask) == SpvOpVariable) {
+		if(src[3] == SpvStorageClassFunction) return 0;
+	}
+
 	uint32_t ind;
 	switch(*src & SpvOpCodeMask) {]=]
 for i,ns in pairs(mergeable) do
@@ -210,11 +224,21 @@ rout[=[
 	// we mark it to be skipped, change its mapping, and don't write it out.
 	for(uint32_t i=0; i<idsz && i<dst[ind]; i++) {
 		uint32_t* o = ids[i].op;
-		if(o && memcmp(o, dst, ind*sizeof(uint32_t)) == 0
-			&& memcmp(&o[ind+1], &dst[ind+1],
-				(wc-ind-1)*sizeof(uint32_t)) == 0) {
-			ids[dst[ind]].map = i;
-			return 0;
+		if(o) {
+			for(size_t j = 0; j < wc; j++) {
+				if(j == ind) continue;
+				if(o[j] != dst[j]) {
+					o = NULL;
+					break;
+				}
+			}
+			if(o) {
+				iddata a = ids[o[ind]], b = ids[dst[ind]];
+				if(a.builtin == b.builtin && a.location == b.location && a.component == b.component) {
+					ids[dst[ind]].map = i;
+					return 0;
+				}
+			}
 		}
 	}
 

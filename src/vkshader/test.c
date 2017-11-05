@@ -81,11 +81,9 @@ static VkResult construct(const Vv* V, VvVkS_Bank* b, VkDevice dev,
 	uint32_t shifts[nc+1];
 	shifts[0] = 0;
 	size_t heres[nc];
-	size_t fstarts[nc];
 	for(size_t i=0; i<nc; i++) {
 		shifts[i+1] = shifts[i] + cs[i]->code[3];
 		heres[i] = 5;	// Instructions start on index 5
-		fstarts[i] = 0;
 	}
 
 	iddata ids[shifts[nc]];
@@ -141,11 +139,12 @@ static VkResult construct(const Vv* V, VvVkS_Bank* b, VkDevice dev,
 	}
 
 	// Now choose all the EPs
-	uint32_t funcs[7][nc]; // Indexed by [ExecutionModel+7*csind]
+	size_t funcs[7][nc]; // Indexed by [ExecutionModel][csind]
 	for(SpvExecutionModel em = 0; em < 7; em++) {
 		uint32_t istart = here;
 		uint32_t idcnt = 0;
 		RAW(SpvOpEntryPoint, em, shifts[nc]+1+em, 0x6E69616D, 0);
+		size_t epstart = here;
 		FORCS {
 			uint32_t rewind = heres[csind];
 			funcs[em][csind] = 0;
@@ -159,8 +158,14 @@ static VkResult construct(const Vv* V, VvVkS_Bank* b, VkDevice dev,
 						&& OPER(i)&0xFF) i++;
 					i++;
 					for(; i<WC; i++) {
-						if(ids[OPER(i)+shifts[csind]].map == OPER(i)+shifts[csind]) {
-							RAW(OPER(i)+shifts[csind]);
+						uint32_t id = ids[OPER(i)+shifts[csind]].map;
+						for(size_t j=epstart; j<here; j++)
+							if(id == out[j]) {
+								id = 0;
+								break;
+							}
+						if(id) {
+							RAW(id);
 							idcnt += 1;
 						}
 					}
@@ -179,24 +184,50 @@ static VkResult construct(const Vv* V, VvVkS_Bank* b, VkDevice dev,
 	FORCS while(OP == SpvOpExecutionMode) NEXT;
 
 	FORCS while(SEC_DEBUGA) PASS;
-	FORCS while(SEC_DEBUGB) PASS;
+	FORCS while(SEC_DEBUGB) {
+		if(OP == SpvOpName) {
+			int skip = 0;
+			for(SpvExecutionModel em = 0; em < 7; em++)
+				if(OPER(1)+shifts[csind] == funcs[em][csind]) {
+					skip = 1;
+					break;
+				}
+			if(skip) NEXT;
+			else PASS;
+		} else PASS;
+	}
 	FORCS while(SEC_ANNOTATE) PASS;
 	FORCS while(SEC_TYPES) PASS;
 	FORCS {
-		size_t rewind = 0;
+		size_t rewind = 0, fstart = 0;
 		while(!EOI) {
 			if(OP == SpvOpFunction) {
-				fstarts[csind] = heres[csind];
+				fstart = heres[csind];
 				rewind = here;
 			} else if(OP == SpvOpLabel) break;
 			PASS;
 		}
 		if(!EOI) {
-			heres[csind] = fstarts[csind];
+			heres[csind] = fstart;
 			here = rewind;
 		}
 	}
-	FORCS while(!EOI) PASS;
+	FORCS while(!EOI) {
+		if(OP != SpvOpFunction) printf("Odd error?\n");
+		int skip = 0;
+		for(SpvExecutionModel em = 0; em < 7; em++)
+			if(OPER(2)+shifts[csind] == funcs[em][csind]) {
+				funcs[em][csind] = heres[csind];
+				skip = 1;
+			}
+		if(skip) {
+			while(OP != SpvOpFunctionEnd) NEXT;
+			NEXT;
+		} else {
+			while(OP != SpvOpFunctionEnd) PASS;
+			PASS;
+		}
+	}
 
 	// At the end we put the composite EP functions. First find the void:
 	uint32_t voidid = 0;
@@ -224,14 +255,43 @@ static VkResult construct(const Vv* V, VvVkS_Bank* b, VkDevice dev,
 	// Now write out the different functions
 	uint32_t extra = out[3];
 	for(SpvExecutionModel em = 0; em < 7; em++) {
+		size_t rewind = here;
 		RAW(SpvOpFunction | 5<<SpvWordCountShift, voidid,
 			shifts[nc]+1+em, 0, voidfunc);
 		RAW(SpvOpLabel | 2<<SpvWordCountShift, ++extra);
+		uint32_t labels[nc];
+		int lind = 0;
 		FORCS {
-			if(funcs[em][csind])
-				RAW(SpvOpFunctionCall | 4<<SpvWordCountShift,
-					voidid, ++extra, funcs[em][csind]);
+			if(funcs[em][csind]) {
+				heres[csind] = funcs[em][csind];
+				NEXT;
+				labels[lind++] = OPER(1) + shifts[csind];
+				while(OP != SpvOpFunctionEnd)
+					if(OP == SpvOpVariable) PASS;
+					else NEXT;
+			}
 		}
+		if(lind == 0) {
+			here = rewind;
+			continue;
+		}
+		labels[lind] = ++extra;
+		RAW(SpvOpBranch | 2<<SpvWordCountShift, labels[0]);
+		lind = 0;
+		FORCS {
+			if(funcs[em][csind]) {
+				heres[csind] = funcs[em][csind];
+				NEXT;
+				lind++;
+				while(OP != SpvOpFunctionEnd)
+					if(OP == SpvOpVariable) NEXT;
+					else if(OP == SpvOpReturn) {
+						RAW(SpvOpBranch|2<<SpvWordCountShift, labels[lind]);
+						NEXT;
+					} else PASS;
+			}
+		}
+		RAW(SpvOpLabel | 2<<SpvWordCountShift, labels[lind]);
 		RAW(SpvOpReturn | 1<<SpvWordCountShift);
 		RAW(SpvOpFunctionEnd | 1<<SpvWordCountShift);
 	}

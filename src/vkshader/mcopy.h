@@ -23,8 +23,9 @@ typedef struct {
 	uint32_t map;
 	size_t numwords;
 	uint32_t* op;
+	uint32_t builtin, location, component;
 } iddata;
-#define DEF_iddata(i) (iddata){false, i, 0, NULL};
+#define DEF_iddata(i) (iddata){false, i, 0, NULL, -1, -1, 0};
 
 // Scans a single instruction. Pre-pass, and *dst is a temp space that may
 // be used for iddata.op.
