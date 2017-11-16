@@ -25,14 +25,14 @@ Vv V;
 
 // Userdata and callbacks for the Graph's State transitions
 typedef struct {
-	VkBuffer vbuff;
+	VkBuffer vbuff[2];
 	VkShaderModule shader;
 	VkPipeline pipe;
 } Bind;
 void set(void* ud, void* bind, VkCommandBuffer cb) {
 	Bind* b = bind;
-	if(b->vbuff) vVvk_CmdBindVertexBuffers(cb, 0, 1, &b->vbuff,
-		(VkDeviceSize[]){0});
+	if(b->vbuff[0]) vVvk_CmdBindVertexBuffers(cb, 0, 2, b->vbuff,
+		(VkDeviceSize[]){0, 0});
 	if(b->pipe) vVvk_CmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_GRAPHICS,
 		b->pipe);
 }
@@ -137,11 +137,30 @@ int main() {
 	}, NULL, &buff);
 	if(r < 0) error("Creating Buffer", r);
 
-	// ... And the memory for said Buffer
+	// ...and a Buffer for the rotation data
+	VkBuffer rotbuff;
+	r = vVvk_CreateBuffer(dev, &(VkBufferCreateInfo){
+		.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+		.size = 4*sizeof(float),
+		.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT
+			| VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+		.sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+	}, NULL, &rotbuff);
+	if(r < 0) error("Creating rotation Buffer", r);
+
+	// ... And the memory for said Buffers
 	VvVkM_Pool* pool = vVvkm_create(pdev, dev);
 	vVvkm_registerBuffer(pool, buff,0,VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	vVvkm_registerBuffer(pool, rotbuff, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 	r = vVvkm_bind(pool);
 	if(r < 0) error("Binding Memory", r);
+
+	// The one Buffer we want to access via host memory. Let's get a pointer.
+	void* rbuff_void;
+	r = vVvkm_mapBuffer(pool, rotbuff, &rbuff_void);
+	if(r < 0) error("Mapping memory", r);
+	float* rbuff = rbuff_void;
 
 	// Now for some command buffers so that we can actually do things
 	VkCommandPool cpool;
@@ -242,7 +261,8 @@ int main() {
 	VvVkP_Graph* g = vVvkp_create();
 	struct {
 		Bind vbuff, ad, AD, bc, BC;
-	} binds = {{.vbuff=buff}, {.shader=shader.ad}, {.shader=shader.AD},
+	} binds = {{.vbuff={buff, rotbuff}},
+		{.shader=shader.ad}, {.shader=shader.AD},
 		{.shader=shader.bc}, {.shader=shader.BC}};
 	struct {
 		VvVkP_State *vbuff, *ad, *AD, *bc, *BC;
@@ -294,17 +314,29 @@ int main() {
 	// Now for Pipelines. This is just the ton of settings it takes.
 	VkPipelineVertexInputStateCreateInfo pvisci = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-		.vertexBindingDescriptionCount = 1,
-		.pVertexBindingDescriptions = &(VkVertexInputBindingDescription){
-			.binding = 0,
-			.stride = 2*sizeof(float),
-			.inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
+		.vertexBindingDescriptionCount = 2,
+		.pVertexBindingDescriptions = (VkVertexInputBindingDescription[]){
+			{
+				.binding = 0,
+				.stride = 2*sizeof(float),
+				.inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
+			}, {
+				.binding = 1,
+				.stride = sizeof(float),
+				.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE,
+			}
 		},
-		.vertexAttributeDescriptionCount = 1,
-		.pVertexAttributeDescriptions = &(VkVertexInputAttributeDescription){
-			.location = 0,
-			.binding = 0,
-			.format = VK_FORMAT_R32G32_SFLOAT,
+		.vertexAttributeDescriptionCount = 2,
+		.pVertexAttributeDescriptions = (VkVertexInputAttributeDescription[]){
+			{
+				.location = 0,
+				.binding = 0,
+				.format = VK_FORMAT_R32G32_SFLOAT,
+			}, {
+				.location = 1,
+				.binding = 1,
+				.format = VK_FORMAT_R32_SFLOAT,
+			}
 		},
 	};
     VkPipelineInputAssemblyStateCreateInfo piasci = {
@@ -470,9 +502,17 @@ int main() {
 		if(r < 0) error("Creating Fences!", r);
 	}
 
+#define time() ({ \
+	struct timespec t; \
+	clock_gettime(CLOCK_MONOTONIC, &t); \
+	t.tv_sec + t.tv_nsec/1000000000.; \
+})
+
 	// And now for the main loop
-	time_t start = time(NULL);
-	while(difftime(time(NULL), start) < 5) {
+	int fcnt = 0;
+	rbuff[0] = rbuff[1] = rbuff[2] = rbuff[3] = 0;
+	double start = time(), tim;
+	while((tim = time() - start) < 5) {
 		// First get the next image to render into
 		uint32_t i;
 		r = vVvk_AcquireNextImageKHR(dev, swap, UINT64_MAX, draw, NULL, &i);
@@ -503,7 +543,14 @@ int main() {
 			.swapchainCount = 1, .pSwapchains = &swap, .pImageIndices = &i,
 		});
 		if(r < 0) error("Presenting!", r);
+
+		// Rotate the tris
+		rbuff[1] = 3.14*(2*3+1.5) * tim/5;
+		rbuff[2] = 3.14*(2*2+1)   * tim/5;
+		rbuff[3] = 3.14*(2*1+.5)  * tim/5;
+		fcnt++;
 	}
+	printf("FPS: %f   mSPF: %f\n", fcnt/tim, tim/fcnt*1000);
 
 	// Wait for all our CommandBuffers to finish before the final cleanup
 	r = vVvk_WaitForFences(dev, icnt, fences, VK_TRUE, UINT64_MAX);
@@ -529,7 +576,9 @@ int main() {
 	vVvkp_destroy(g);
 	vVvk_FreeCommandBuffers(dev, cpool, icnt, render);
 	vVvk_DestroyCommandPool(dev, cpool, NULL);
+	vVvkm_unmapBuffer(pool, rotbuff);
 	vVvkm_destroy(pool);
+	vVvk_DestroyBuffer(dev, rotbuff, NULL);
 	vVvk_DestroyBuffer(dev, buff, NULL);
 	vVvk_DestroySwapchainKHR(dev, swap, NULL);
 	vVvk_DestroyDevice(dev, NULL);
