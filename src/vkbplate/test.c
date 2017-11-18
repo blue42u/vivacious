@@ -204,10 +204,12 @@ static inline int choosePM(int n, VkPresentModeKHR* pms, VkPresentModeKHR* pm) {
 		*pm = VK_PRESENT_MODE_FIFO_KHR;
 		return 1;
 	}
+#ifdef VK_KHR_shared_presentable_image
 	if(*pm == VK_PRESENT_MODE_SHARED_DEMAND_REFRESH_KHR) {
 		*pm = VK_PRESENT_MODE_FIFO_RELAXED_KHR;
 		if(testPM(n, pms, *pm)) return 1;
 	}
+#endif
 	if(*pm == VK_PRESENT_MODE_FIFO_RELAXED_KHR) {
 		*pm = VK_PRESENT_MODE_IMMEDIATE_KHR;
 		if(testPM(n, pms, *pm)) return 1;
