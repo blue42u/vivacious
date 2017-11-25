@@ -28,7 +28,14 @@ TestObject.v0_1_0.testMethod = {doc=[[
 TestObject.v0_0_1.test2 = {doc=[[
 	Another testing thing.
 ]],
-	{'x', integer{}},
+	{'x', integer{}}, {'s', compound{
+		v0_1_2={
+			{'a', integer{}},
+		},
+		v0_2_1={
+			{'x', boolean{}},
+		},
+	}},
 	{integer{}}, {boolean{}, c_main=true},
 }
 

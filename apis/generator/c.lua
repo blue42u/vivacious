@@ -17,8 +17,9 @@
 package.path = './?.lua'
 
 local function newtype(ref, conv)
-	return setmetatable({}, {__concat=function(_,w) ref(w) end,
-		__call=function(_,w,o) conv(w,o) end})
+	local t = {ref=ref, conv=conv}
+	return setmetatable({}, {__concat=function(_,w) t.ref(w, t) end,
+		__call=function(_,w,o) t.conv(w,o,t) end})
 end
 
 local function tins(t)
@@ -32,7 +33,7 @@ end
 
 local function simpletype(t, c) return newtype(
 	function(w) w(t..' ~') end,
-	function(w,o) w(c(o)) end)
+	function(w,o) w('~', c(o)) end)
 end
 function integer() return simpletype('int', function(o) return ('%d'):format(o) end) end
 function boolean() return simpletype('bool', function(o) return o and 'true' or 'false' end) end
@@ -64,35 +65,82 @@ function callback(arg)
 		end
 
 		w(start..table.concat(parts, ', ')..')')
-	end, function(w,o) w('NULL') end)
+	end, function(w,o) w('~', 'NULL') end)
+end
+
+local structnums = 1
+function compound(arg)
+	local vers = {}
+	for v,t in pairs(arg) do
+		local M,m,p = string.match(v, 'v(%d+)_(%d+)_(%d+)')
+		if M then table.insert(vers, {M=M, m=m, p=p, t=t}) end
+	end
+	table.sort(vers, function(a,b)
+		if a.M ~= b.M then return a.M < b.M
+		elseif a.m ~= b.m then return a.m < b.m
+		else return a.p < b.p end
+	end)
+
+	local entries = {}
+	for _,v in ipairs(vers) do
+		for _,e in ipairs(v.t) do
+			entries[e[1]] = e
+		end
+	end
+
+	local num = structnums
+	structnums = structnums + 1
+
+	local function concat(w, t)
+		local function ref(w) w('struct _Vv_STRUCT_'..num..' *~') end
+		t.ref = ref
+
+		local parts,p = tins{}
+		for _,v in ipairs(vers) do for _,e in ipairs(v.t) do
+			_=e[2]..function(s) p(s, e[1]) end
+		end end
+		for i,p in ipairs(parts) do parts[i] = '\t'..p:gsub('\n', '\n\t')..';\n' end
+		w('struct _Vv_STRUCT_'..num..' {\n'..table.concat(parts, '')..'} *~')
+
+		t.ref = concat
+	end
+
+	return newtype(concat, function(w,o)
+		local parts,p = tins{}
+		for k,v in pairs(o) do if entries[k][3] then
+			entries[k][2](function(x,y)
+				p('.'..x..'='..y, entries[k][1])
+			end, entries[k][3])
+		end end
+		w('~', '&(struct _Vv_STRUCT_'..num..'){'..table.concat(parts, ',')..'}')
+	end)
 end
 
 local structnums = 0
 local function object(arg, newmeth)
-	local meta,meth,tnam = {},{},'struct _self_ref_'..structnums
-	structnums = structnums + 1
+	local meta,mcomp = {},{}
 	function meta:__index(k)
 		local M,m,p = string.match(tostring(k), 'v(%d+)_(%d+)_(%d+)')
 		if M then
-			return setmetatable({}, {__newindex=function(_, k, v)
-				table.insert(v, 1, {'self', newtype(function(w) w(tnam..'* ~') end)})
-				table.insert(meth, {M=M, m=m, p=p, n=k, t=callback(v)})
-				if newmeth then newmeth(k, '~->_methods->'..k..'(~, ') end
+			mcomp[k] = mcomp[k] or {}
+			return setmetatable({}, {__newindex=function(_, n, v)
+				table.insert(v, 1, {'self'})
+				table.insert(mcomp[k], {n, v})
+				newmeth(n, '~->_methods->'..n..'(~, ')
 			end})
 		end
 	end
 	function meta:__concat(w)
-		local tab,t = tins{tnam..' {', '\tstruct {'}
-		table.sort(meth, function(a,b)
-			if a.M ~= b.M then return a.M < b.M
-			elseif a.m ~= b.m then return a.m < b.m
-			elseif a.p ~= b.p then return a.p < b.p
-			else return a.n < b.n end
-		end)
-		for _,m in ipairs(meth) do _=m.t..function(s) t('\t\t'..s..';', m.n) end end
-		t'\t} *_methods;'
-		t'} ~'
-		return w(table.concat(tab, '\n'))
+		local mc = compound(mcomp)
+		local c = compound{v0_0_0 = {{'_methods', mc}}}
+		for v,t in pairs(mcomp) do
+			table.sort(t, function(a,b) return a[1] < b[1] end)
+			for _,e in ipairs(t) do
+				e[2][1][2] = c
+				e[2] = callback(e[2])
+			end
+		end
+		_=c..w
 	end
 	meta.header = arg.header
 	return setmetatable({}, meta)
@@ -135,7 +183,7 @@ for an,api in pairs(apis) do
 
 	-- Typedefs
 	for n,t in pairs(api.types) do
-		_=t..function(s) f:write('typedef '..s:gsub('~', '*Vv'..n)..';\n\n') end
+		_=t..function(s) f:write('typedef '..s:gsub('~', 'Vv'..n)..';\n\n') end
 	end
 
 	-- Method macros
