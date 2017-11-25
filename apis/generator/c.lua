@@ -15,138 +15,158 @@
 --]========================================================================]
 
 package.path = './?.lua'
-local std = dofile 'generator/stdc.lua'
-package.loaded.standard = setmetatable(std,
-	{__index=function(_,k) return false end})
 
-local apis = require 'apis'
-local apiset = {}
-for _,a in ipairs(apis) do apiset[a] = true end
-
-local inapi = 1
-local extras = {{}}
-local oldrequire = require
-function std.define(s) table.insert(extras[inapi], '#define '..s) end
-function std.include(s) table.insert(extras[inapi], '#include <'..s..'>') end
-function require(s)
-	local out
-	if apiset[s] then
-		table.insert(extras[inapi], '#include <vivacious/'..s..'.h>')
-		extras[s] = extras[s] or {}
-
-		local myapi = inapi
-		inapi = s
-		out = oldrequire(s)
-		inapi = myapi
-	else out = oldrequire(s) end
-	return out
+local function newtype(ref, conv)
+	return setmetatable({}, {__concat=function(_,w) ref(w) end,
+		__call=function(_,w,o) conv(w,o) end})
 end
+
+local function tins(t)
+	return t, function(y, x, r)
+		if not r then y,x,r = nil,y,x end
+		if r then x = string.gsub(x, '~', r) end
+		if y then table.insert(t, y, x)
+		else table.insert(t, x) end
+	end
+end
+
+local function simpletype(t, c) return newtype(
+	function(w) w(t..' ~') end,
+	function(w,o) w(c(o)) end)
+end
+function integer() return simpletype('int', function(o) return ('%d'):format(o) end) end
+function boolean() return simpletype('bool', function(o) return o and 'true' or 'false' end) end
+
+function callback(arg)
+	local ret = newtype(function(w) w('void ~') end)
+	local args = {}
+
+	local aend = 0
+	for i,a in ipairs(arg) do
+		if type(a[1]) == 'string' then aend = i else break end
+	end
+
+	local cmain
+	for i=aend+1,#arg do if arg[i].c_main then cmain = i; break end end
+	cmain = cmain or aend+1
+	if arg[cmain] then ret = table.remove(arg, cmain)[1] end
+
+	return newtype(function(w)
+		local start
+		local parts,p = tins{}
+		for i=1,aend do _=arg[i][2]..function(s) p(s, arg[i][1]) end end
+		for i=aend+1,#arg do _=arg[i][1]..function(s) p(s, '*') end end
+
+		local retdone
+		_=ret..function(s)
+			if retdone then p(s, '*') else start = s:gsub('~', '(*~)(') end
+			retdone = true
+		end
+
+		w(start..table.concat(parts, ', ')..')')
+	end, function(w,o) w('NULL') end)
+end
+
+local structnums = 0
+local function object(arg, newmeth)
+	local meta,meth,tnam = {},{},'struct _self_ref_'..structnums
+	structnums = structnums + 1
+	function meta:__index(k)
+		local M,m,p = string.match(tostring(k), 'v(%d+)_(%d+)_(%d+)')
+		if M then
+			return setmetatable({}, {__newindex=function(_, k, v)
+				table.insert(v, 1, {'self', newtype(function(w) w(tnam..'* ~') end)})
+				table.insert(meth, {M=M, m=m, p=p, n=k, t=callback(v)})
+				if newmeth then newmeth(k, '~->_methods->'..k..'(~, ') end
+			end})
+		end
+	end
+	function meta:__concat(w)
+		local tab,t = tins{tnam..' {', '\tstruct {'}
+		table.sort(meth, function(a,b)
+			if a.M ~= b.M then return a.M < b.M
+			elseif a.m ~= b.m then return a.m < b.m
+			elseif a.p ~= b.p then return a.p < b.p
+			else return a.n < b.n end
+		end)
+		for _,m in ipairs(meth) do _=m.t..function(s) t('\t\t'..s..';', m.n) end end
+		t'\t} *_methods;'
+		t'} ~'
+		return w(table.concat(tab, '\n'))
+	end
+	meta.header = arg.header
+	return setmetatable({}, meta)
+end
+
+local outdir = table.remove(arg, 1)..'/'
+local apis = setmetatable({}, {__index=function(self, k)
+	self[k] = {defines = {}, includes = {}, types = {}, meths={}}
+	return self[k]
+end})
+for _,a in ipairs(arg) do
+	local env = setmetatable({}, {
+		__index = _G,
+		__newindex = function(self, k, v)
+			local api
+			local obj = object(v, function(n, s) table.insert(api.meths, {n=n, s=s, t=k}) end)
+			local meta = {__call=function(_,n) return k..' '..n end, __index=obj}
+			rawset(self, k, setmetatable({}, meta))
+			api = apis[getmetatable(obj).header or k..'.h']
+			api.types[k] = obj
+		end
+	})
+	package.preload[a] = loadfile(a..'.lua', 't', env)
+end
+for _,a in ipairs(arg) do require(a) end
 
 -- First write up all of the API headers
-for _,a in ipairs(apis) do
-	local f = io.open(arg[1]..'/'..a..'.h', 'w')
-	f:write('// File generated from apis/'..a..'.lua, do not edit\n')
-	f:write('#ifndef H_vivacious_'..a..'\n')
-	f:write('#define H_vivacious_'..a..'\n\n')
 
-	local api = require(a)
-	local names = {}
-	for n,t in pairs(api) do if not t.notdef then
-		names[t] = 'Vv'..api.api.shortname..'_'..n
-	end end
-	names[api.api] = 'Vv'..api.api.shortname
+for an,api in pairs(apis) do
+	local f = io.open(outdir..an..'.h', 'w')
+	f:write(([[
+// Generated file, do not edit directly, edit apis/*.lua instead
+#ifndef H_vivacious_~
+#define H_vivacious_~
 
-	f:write'#include <vivacious/core.h>\n'
-	if #extras[a] > 0 then f:write(table.concat(extras[a], '\n')..'\n') end
+#include <vivacious/core.h>
+]]):gsub('~', an)..'')
+	if #api.includes > 0 then f:write(table.concat(api.includes, '\n')..'\n') end
 	f:write'\n'
 
-	local Vv = {std.external{'const Vv*'}}
-	local function modfunc(t)
-		if t._from == 'func' then table.insert(t, 1, Vv)
-		else t:_def(modfunc) end
+	-- Typedefs
+	for n,t in pairs(api.types) do
+		_=t..function(s) f:write('typedef '..s:gsub('~', '*Vv'..n)..';\n\n') end
 	end
-	modfunc(api.api)
 
-	local tdefd = {}
-	local function writetdef(t)
-		if not tdefd[t] then
-			t:_def(writetdef)
-
-			if names[t] then
-				local ref = t._ref
-				function t:_ref(w, n)
-					t:_sref(w, names[self], n)
-				end
-				ref(t, function(s)
-					f:write('typedef ')
-					f:write(s)
-					f:write(';\n')
-				end, names[t], true)
-
-				if t._macro then
-					t:_macro(function(s)
-						f:write(s..'\n')
-					end, names[t])
-				end
-
-				f:write('\n')
-			end
-
-			tdefd[t] = true
-		end
+	-- Method macros
+	f:write('#ifdef Vv_'..an..'_ENABLED\n')
+	for _,m in ipairs(api.meths) do
+		m.s = m.s:gsub('~', '_SELF')
+		f:write(string.gsub([[
+#define vV`n(SELF, ...) ({ Vv`t _SELF = (SELF); `s__VA_ARGS__); })
+]], '`(.)', m)..'')
 	end
-	for _,t in pairs(api) do writetdef(t) end
+	f:write('#endif // Vv_'..an..'_ENABLED\n')
 
-	local aName, aname = api.api.shortname, api.api.shortname:lower()
-	f:write('const Vv'..aName..'* vV'..aname..'(const Vv*);\n')
-
-	f:write('#ifdef Vv_'..aname..'_ENABLED\n')
-	local function writedef(t, name, path)
-		if t._from == 'func' then
-			if #t > 1 or #t.returns > 1 then
-				f:write('#define vV'..aname..'_'..name
-					..'(...) '..path
-					..'(&(Vv_CHOICE), __VA_ARGS__)\n')
-			else
-				f:write('#define vV'..aname..'_'..name
-					..'() '..path
-					..'(&(Vv_CHOICE))\n')
-			end
-		elseif t._from == 'external' and t.func then
-			f:write('#define vV'..aname..'_'..name
-				..'(...) '..path
-				..'(__VA_ARGS__)\n')
-		else
-			t:_def(function(st, pre, post, nam)
-				writedef(st, nam or name, pre..path..post)
-			end)
-		end
-	end
-	writedef(api.api, nil, '(Vv_CHOICE).'..aname)
-	f:write'#endif\n\n'
-
-	f:write('#endif')
+	f:write('\n#endif // H_vivacious_'..an)
 	f:close()
 end
+
+--[=[
 
 -- Then write up the core.h
 do
 	local f = io.open(arg[1]..'/core.h', 'w')
-	f:write'// Generated from apis/generator/c.lua, do not edit\n'
-	f:write'#ifndef H_vivacious_core\n'
-	f:write'#define H_vivacious_core\n\n'
-	f:write'#include <stdlib.h>\n\n'
+	f:write[[
+// Generated from apis/generator/c.lua, do not edit
+#ifndef H_vivacious_core
+#define H_vivacious_core
 
-	-- First the "choice" structure, Vv
-	f:write'typedef struct {\n'
-	for _,a in ipairs(apis) do
-		local api = require(a)
-		f:write('\tconst struct Vv'..api.api.shortname..'* '
-			..api.api.shortname:lower()..';\n')
-	end
-	f:write'} Vv;\n\n'
+#include <stdlib.h>
+#include <stdbool.h>
+]]
 
-	-- Then the implementation defines (ad nauseum)
+	-- The Vv_*_ENABLED macros, as defined by the Vv_IMP_* macros
 	local function allowlayer(l)
 		for _,v in ipairs(l) do
 			if type(v) == 'table' then allowlayer(v)
@@ -204,3 +224,4 @@ do
 	f:write'#endif'
 	f:close()
 end
+]=]
