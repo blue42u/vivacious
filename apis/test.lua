@@ -16,7 +16,11 @@
 
 TestObject = {doc=[[
 	A testing-worthy object.
-]], header='test'}
+]], header='test',
+	v0_1_0 = {
+		{'defaultx', integer{}},
+	},
+}
 
 TestObject.v0_1_0.testMethod = {doc=[[
 	Testing method.
@@ -44,4 +48,25 @@ TestObject.v0_1_0.testP = {doc=[[
 ]],
 	{'x', integer{}},
 	{integer{}}, {boolean{}, c_main=true},
+}
+
+TestObject.TestChild = {doc=[[
+	Test child.
+]],
+	v0_1_0={
+		{'test', boolean{}},
+	},
+}
+
+TestObject.TestChild.v0_1_1.test2 = {doc=[[
+	A third testing method.
+]],
+	{'x', integer{}}, {'y', integer{}},
+	{boolean{}},
+}
+
+OtherTest = {doc=[[
+	Another testing thing.
+]], header='test',
+	TestObject,
 }

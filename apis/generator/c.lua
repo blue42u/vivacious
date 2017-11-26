@@ -116,52 +116,70 @@ function compound(arg)
 	end)
 end
 
+-- Now for the Object bits
+local apis = setmetatable({}, {__index=function(self, k)
+	self[k] = {defines = {}, includes = {}, types = {}, meths={}, creates={}}
+	return self[k]
+end})
+
 local structnums = 0
-local function object(arg, newmeth)
-	local meta,mcomp = {},{}
+local function newobject(env, name, arg, key)
+	local api = apis[arg.header or name]
+	local meta,mcomp,meths = {},{},{}
+
+	if not arg.v0_0_0 then arg.v0_0_0 = {{'_methods'}}
+	else table.insert(arg.v0_0_0, 1, {'_methods'}) end
+
+	local cargs = {}
+	for i,obj in ipairs(arg) do
+		table.insert(cargs, getmetatable(obj).name)
+		table.insert(arg.v0_0_0, #cargs+1, {getmetatable(obj).name:lower(), obj})
+	end
+	cargs = table.concat(cargs, ', ')
+	if not key then table.insert(api.creates, {s=cargs, t=name}) end
+
 	function meta:__index(k)
 		local M,m,p = string.match(tostring(k), 'v(%d+)_(%d+)_(%d+)')
 		if M then
 			mcomp[k] = mcomp[k] or {}
 			return setmetatable({}, {__newindex=function(_, n, v)
 				table.insert(v, 1, {'self'})
-				table.insert(mcomp[k], {n, v})
-				newmeth(n, '~->_methods->'..n..'(~, ')
+				meths[n] = v
+				table.insert(mcomp[k], {n})
+				table.insert(api.meths, {n=n, s='~->_methods->'..n..'(~, '})
 			end})
 		end
 	end
+	function meta:__newindex(k, a)
+		if a.v0_0_0 then table.insert(a.v0_0_0, {'parent', self})
+		else a.v0_0_0 = {{'parent', self}} end
+		a.header = arg.header or name	-- Children are with their parents
+		newobject(self, name..k, a, k)
+	end
 	function meta:__concat(w)
-		local mc = compound(mcomp)
-		local c = compound{v0_0_0 = {{'_methods', mc}}}
+		local c = compound(arg)
 		for v,t in pairs(mcomp) do
 			table.sort(t, function(a,b) return a[1] < b[1] end)
 			for _,e in ipairs(t) do
-				e[2][1][2] = c
-				e[2] = callback(e[2])
+				meths[e[1]][1][2] = c
+				e[2] = callback(meths[e[1]])
 			end
 		end
+		arg.v0_0_0[1][2] = compound(mcomp)
 		_=c..w
 	end
-	meta.header = arg.header
-	return setmetatable({}, meta)
+
+	local wrap = setmetatable({}, {__concat=function(_,w) w(name..' ~') end,
+		__index=meta.__index, __newindex=meta.__newindex, name=name})
+	rawset(env, key or name, wrap)
+	table.insert(api.types, {n=name, t=setmetatable({}, meta)})
 end
 
 local outdir = table.remove(arg, 1)..'/'
-local apis = setmetatable({}, {__index=function(self, k)
-	self[k] = {defines = {}, includes = {}, types = {}, meths={}}
-	return self[k]
-end})
 for _,a in ipairs(arg) do
 	local env = setmetatable({}, {
 		__index = _G,
-		__newindex = function(self, k, v)
-			local api
-			local obj = object(v, function(n, s) table.insert(api.meths, {n=n, s=s, t=k}) end)
-			local meta = {__call=function(_,n) return k..' '..n end, __index=obj}
-			rawset(self, k, setmetatable({}, meta))
-			api = apis[getmetatable(obj).header or k..'.h']
-			api.types[k] = obj
-		end
+		__newindex = newobject,
 	})
 	package.preload[a] = loadfile(a..'.lua', 't', env)
 end
@@ -182,9 +200,15 @@ for an,api in pairs(apis) do
 	f:write'\n'
 
 	-- Typedefs
-	for n,t in pairs(api.types) do
-		_=t..function(s) f:write('typedef '..s:gsub('~', 'Vv'..n)..';\n\n') end
+	for _,t in ipairs(api.types) do
+		_=t.t..function(s) f:write('typedef '..s:gsub('~', 'Vv'..t.n)..';\n\n') end
 	end
+
+	-- Object Creation Functions
+	for _,c in ipairs(api.creates) do
+		f:write(('~ create~('..c.s..');\n'):gsub('~', 'Vv'..c.t)..'')
+	end
+	f:write'\n'
 
 	-- Method macros
 	f:write('#ifdef Vv_'..an..'_ENABLED\n')
