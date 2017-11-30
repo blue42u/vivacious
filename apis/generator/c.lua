@@ -29,11 +29,11 @@ local function tins(t)
 	end
 end
 
-local function simpletype(t, c) return function(w, o)
-	if o == nil then w(t..' ~') else w('~', c(o)) end
+local function simpletype(t, c, v) return function(w, o)
+	if o == nil then w(t..' ~') else w('~', c(o or v)) end
 end end
-function integer() return simpletype('int', function(o) return ('%d'):format(o) end) end
-function boolean() return simpletype('bool', function(o) return o and 'true' or 'false' end) end
+function integer() return simpletype('int', function(o) return ('%d'):format(o) end, 0) end
+function boolean() return simpletype('bool', function(o) return o and 'true' or 'false' end, false) end
 
 function callback(arg)
 	local aend
@@ -65,7 +65,7 @@ function callback(arg)
 			end)
 
 			w(me..'('..table.concat(parts, ', ')..')')
-		elseif o then w('~', 'NULL') end
+		else w('~', 'NULL') end
 	end
 end
 
@@ -81,29 +81,32 @@ function compound(arg)
 		else return a.p < b.p end
 	end)
 
-	local mems = {}
+	local mems,mdefs = {},{}
 	for _,v in ipairs(vers) do for _,e in ipairs(v.t) do
 		table.insert(mems, e)
-		if e[3] then assert(arg.c_typedefname); mems[e[1]] = e end
+		if e[3] ~= nil then mdefs[e[1]] = e end
 	end end
 
-	return function(w, o)
+	local me = {}
+	function me:__call(w, o)
 		local parts,p = tins{}
 		if o == nil then
 			for _,e in ipairs(mems) do
 				e[2](function(s) p('\t'..s:gsub('\n', '\n\t')..';\n', e[1]) end)
 			end
-			local pre = 'struct '..(arg.c_structname or '')..' {\n'
-			local post = arg.c_novar and '}' or '}* ~'
+			local pre = 'struct '..(me.structname or '')..' {\n'
+			local post = me.novar and '}' or '}* ~'
 			w(pre..table.concat(parts, '')..post)
 		else
-			for k,v in pairs(o) do
-				local m = mems[k]
-				if m then m[2](function(n,s) p('.'..n..'='..y, m[1]) end, m[3]) end
+			for k,v in pairs(o or mdefs) do
+				local m = mdefs[k]
+				v = o and v or v[3]
+				if v then m[2](function(n,s) p('.'..n..'='..s, m[1]) end, v) end
 			end
-			w('~', '&('..arg.c_typedefname..'){'..table.concat(parts, ', ')..'}')
+			w('~', '&('..me.typedefname..'){'..table.concat(parts, ', ')..'}')
 		end
 	end
+	return setmetatable({}, me)
 end
 
 -- Now for the Object bits
@@ -113,7 +116,7 @@ local apis = setmetatable({}, {__index=function(self, k)
 end})
 
 local function object(arg, name, api)
-	local meta,meths = {name=name},{}
+	local meta,meths,tdefs = {name=name},{},{}
 
 	arg.v0_0_0 = arg.v0_0_0 or {}
 	local cargs = {}
@@ -129,6 +132,20 @@ local function object(arg, name, api)
 		if M then
 			return setmetatable({},
 				{__newindex=function(_,k2,v) table.insert(meths, {v=k, a=v, n=k2}) end})
+		elseif k == 'typedef' then
+			return setmetatable({}, {__newindex=function(_,n,v)
+				local vn = 'Vv'..n
+				if getmetatable(v) then getmetatable(v).typedefname = vn end
+				table.insert(tdefs, function(w)
+					v(function(s) w('typedef '..string.gsub(s, '~', vn)..';') end)
+					v(function(n, s)
+						w(string.gsub('#define ~(...) ({ ~ X = '..s..'; __VA_ARGS__; X; })', '~', vn))
+					end,
+						false)
+					w('')
+				end)
+				rawset(myself, n, function(w) w(k..' ~') end)
+			end})
 		end
 	end
 	function meta:__newindex(k, a)
@@ -142,22 +159,38 @@ local function object(arg, name, api)
 		w('Vv'..name..' ~')
 	end
 
-	table.insert(api.objects, function(w)
+	table.insert(api, function(w)
+		-- Construct the _M methods sub-struct
 		local mcomp = {c_structname='Vv'..name..'_M'}
 		table.sort(meths, function(a,b) return a.n < b.n end)
-		for n,m in pairs(meths) do
+		for _,m in ipairs(meths) do
 			table.insert(m.a, 1, {'self', myself})
 			mcomp[m.v] = mcomp[m.v] or {}
 			table.insert(mcomp[m.v], {m.n, callback(m.a)})
 		end
 		mcomp = compound(mcomp)
+		local function mc(w,o) mcomp(function(s) w('const '..s) end) end
 
+		-- Write out the typedefs
+		for _,t in ipairs(tdefs) do t(w) end
+
+		-- Write out the full structure
 		arg.v0_0_0 = arg.v0_0_0 or {}
-		table.insert(arg.v0_0_0, 1, {'_M', mcomp})
-		arg.c_structname = 'Vv'..name
-		arg.c_novar = true
+		table.insert(arg.v0_0_0, 1, {'const _M', mc})
+		local comp = compound(arg)
+		getmetatable(comp).structname = 'Vv'..name
+		getmetatable(comp).novar = true
 		w('typedef struct Vv'..name..'* Vv'..name..';')
-		compound(arg)(function(s) w(s..';') end)
+		comp(function(s) w(s..';') end)
+
+		-- Write out the creation function
+		w('Vv'..name..' vVcreate'..name..'(void*);')
+
+		-- Write out all the method macros
+		for _,m in ipairs(meths) do
+			w('#define vV'..m.n..'(_S, ...) ({ __typeof__(_S) _s = (_S); '
+				..'_s->_M->'..m.n..'(_s, __VA_ARGS__); })')
+		end
 	end)
 
 	return myself
@@ -165,9 +198,13 @@ end
 
 local outdir = table.remove(arg, 1)..'/'
 for _,a in ipairs(arg) do
-	apis[a] = {objects={}}
+	apis[a] = {pres={}}
 	local env = setmetatable({}, {__index = _G,
-		__newindex = function(self, k, v) rawset(self, k, object(v, k, apis[a])) end})
+		__newindex = function(self, k, v)
+			if k == 'c_define' then table.insert(apis[a].pres, '#define '..v)
+			elseif k == 'c_include' then table.insert(apis[a].pres, '#include <'..v..'>')
+			else rawset(self, k, object(v, k, apis[a])) end
+		end})
 	package.preload[a] = loadfile(a..'.lua', 't', env)
 end
 for _,a in ipairs(arg) do require(a) end
@@ -184,33 +221,24 @@ for an,api in pairs(apis) do
 
 ]]):gsub('~', an)..'')
 
-	-- Objects
-	for _,o in ipairs(api.objects) do
+	for _,p in ipairs(api.pres) do
+		f:write(p..'\n')
+	end
+	f:write'\n'
+
+	-- Run all the collected writing functions
+	for _,o in ipairs(api) do
 		o(function(s) f:write(s..'\n') end)
 		f:write'\n'
 	end
 
---[=[
-	-- Method macros
-	f:write('#ifdef Vv_'..an..'_ENABLED\n')
-	for _,m in ipairs(api.meths) do
-		m.s = m.s:gsub('~', '_SELF')
-		f:write(string.gsub([[
-#define vV`n(SELF, ...) ({ Vv`t _SELF = (SELF); `s__VA_ARGS__); })
-]], '`(.)', m)..'')
-	end
-	f:write('#endif // Vv_'..an..'_ENABLED\n')
-]=]
-
-	f:write('\n#endif // H_vivacious_'..an)
+	f:write('#endif // H_vivacious_'..an)
 	f:close()
 end
 
---[=[
-
 -- Then write up the core.h
 do
-	local f = io.open(arg[1]..'/core.h', 'w')
+	local f = io.open(outdir..'core.h', 'w')
 	f:write[[
 // Generated from apis/generator/c.lua, do not edit
 #ifndef H_vivacious_core
@@ -218,34 +246,11 @@ do
 
 #include <stdlib.h>
 #include <stdbool.h>
-]]
 
-	-- The Vv_*_ENABLED macros, as defined by the Vv_IMP_* macros
-	local function allowlayer(l)
-		for _,v in ipairs(l) do
-			if type(v) == 'table' then allowlayer(v)
-			else
-				local api = require(v)
-				local n = api.api.shortname:lower()
-				f:write('#define Vv_'..n..'_ENABLED\n')
-			end
-		end
-	end
-	f:write'#if 0\n'
-	for i=#apis,1,-1 do
-		local a = apis[i]
-		local api = require(a)
-		local N,n = api.api.shortname, api.api.shortname:lower()
-		f:write('#elif defined(Vv_IMP_'..n..')\n')
-		for _,v in ipairs(apis.layers[a]) do
-			if type(v) == 'table' then allowlayer(v) end
-		end
-	end
-	f:write'#else\n'
-	for _,a in ipairs(apis) do allowlayer({a}) end
-	f:write'#endif\n\n'
+#ifndef __GNUC__
+#define __typeof__ typeof
+#endif
 
-	f:write[[
 #define Vv_LEN(...) sizeof(__VA_ARGS__)/sizeof((__VA_ARGS__)[0])
 #define Vv_ARRAY(N, ...) .N##Cnt = Vv_LEN((__VA_ARGS__)), .N=(__VA_ARGS__)
 
@@ -256,26 +261,16 @@ end
 
 -- And finish up with vivacious.h
 do
-	local f = io.open(arg[1]..'/vivacious.h', 'w')
-	f:write'// Generated from apis/generator/c.lua, do not edit\n'
-	f:write'#ifndef H_vivacious_vivacious\n'
-	f:write'#define H_vivacious_vivacious\n\n'
+	local f = io.open(outdir..'vivacious.h', 'w')
+	f:write[[
+// Generated from apis/generator/c.lua, do not edit
+#ifndef H_vivacious_vivacious
+#define H_vivacious_vivacious
 
-	-- Include all the API headers
-	for _,a in ipairs(apis) do
+]]
+	for a in pairs(apis) do
 		f:write('#include <vivacious/'..a..'.h>\n')
 	end
-	f:write'\n'
-
-	-- Add a macro to get the default Vv.
-	f:write'#define vV() ({ \\\n	Vv V; \\\n'
-	for _,a in ipairs(apis) do
-		local n = require(a).api.shortname:lower()
-		f:write('\tV.'..n..' = vV'..n..'(&V); \\\n')
-	end
-	f:write'	V; \\\n})\n\n'
-
-	f:write'#endif'
+	f:write'\n#endif'
 	f:close()
 end
-]=]

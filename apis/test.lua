@@ -22,10 +22,19 @@ TestObject = {doc=[[
 	},
 }
 
+TestObject.typedef.Test = compound{
+	v0_1_2 = {
+		{'a', integer{}},
+		{'b', boolean{}},
+		{'c', integer{}, 5},
+		{'d', boolean{}, true},
+	},
+}
+
 TestObject.v0_1_0.testMethod = {doc=[[
 	Testing method.
 ]],
-	{'a', integer{}}, {'b', boolean{}, false},
+	{'a', TestObject.Test}, {'b', boolean{}, false},
 	{integer{}}, {integer{}},
 }
 
