@@ -16,66 +16,67 @@
 
 TestObject = {doc=[[
 	A testing-worthy object.
-]], header='test',
+]],
 	v0_1_0 = {
-		{'defaultx', integer{}},
+		{'defaultx', integer},
 	},
 }
 
 TestObject.typedef.Test = compound{
 	v0_1_2 = {
-		{'a', integer{}},
-		{'b', boolean{}},
-		{'c', integer{}, 5},
-		{'d', boolean{}, true},
+		{'a', integer},
+		{'b', boolean},
+		{'c', integer},
+		{'d', boolean},
 	},
 }
+TestObject.Test.default = {c=5, d=true}
 
 TestObject.v0_1_0.testMethod = {doc=[[
 	Testing method.
 ]],
-	{'a', TestObject.Test}, {'b', boolean{}, false},
-	{integer{}}, {integer{}},
+	{'a', TestObject.Test}, {'b', boolean},
+	{integer}, {integer},
 }
 
 TestObject.v0_0_1.test2 = {doc=[[
 	Another testing thing.
 ]],
-	{'x', integer{}}, {'s', compound{
+	{'x', integer}, {'s', compound{
 		v0_1_2={
-			{'a', integer{}},
+			{'a', integer},
 		},
 		v0_2_1={
-			{'x', boolean{}},
+			{'x', boolean},
 		},
 	}},
-	{integer{}}, {boolean{}, c_main=true},
+	{integer}, {boolean, c_main=true},
 }
 
 TestObject.v0_1_0.testP = {doc=[[
 	Another testing thing.
 ]],
-	{'x', integer{}},
-	{integer{}}, {boolean{}, c_main=true},
+	{'x', integer},
+	{integer}, {boolean, c_main=true},
 }
 
-TestObject.TestChild = {doc=[[
+TestObject.Child = {doc=[[
 	Test child.
 ]],
 	v0_1_0={
-		{'test', boolean{}},
+		{'test', boolean},
 	},
 }
 
-TestObject.TestChild.v0_1_1.test2 = {doc=[[
+TestObject.Child.v0_1_1.test2 = {doc=[[
 	A third testing method.
 ]],
-	{'x', integer{}}, {'y', integer{}},
-	{boolean{}},
+	{'x', integer}, {'y', integer},
+	{boolean},
 }
 
 OtherTest = {doc=[[
 	Another testing thing.
-]], header='test',
+]],
 	TestObject,
 }
