@@ -26,8 +26,8 @@ local parent_overrides = {
 	VkDisplayModeKHR = 'VkDisplayKHR',
 }
 
-local vktypes = {Vk={typedef={}}}
-print('Vk = {"The core Vulkan binding"}\n')
+Vk = {doc="The core Vulkan binding"}
+local vktypes = {Vk=Vk}
 
 do
 	local handles = {}
@@ -45,12 +45,11 @@ do
 		for n,t in pairs(handles) do
 			if vktypes[t.parent] then
 				if t.type == 'VK_DEFINE_NON_DISPATCHABLE_HANDLE' then
-					print(t.parent..'.'..n:match'Vk(.*)'..' = {"A Vulkan binding", '..(t.parent or '')..'}\n')
-					vktypes[t.parent][n:match'Vk(.*)'] = {}
+					vktypes[t.parent][n:match'Vk(.*)'] = {doc="A Vulkan Binding"}
 					vktypes[n] = vktypes[t.parent][n:match'Vk(.*)']
 				elseif t.type == 'VK_DEFINE_HANDLE' then
-					print(n..' = {"A Vulkan binding", '..t.parent..'}\n')
-					vktypes[n] = {}
+					_ENV[n] = {doc="A Vulkan Binding", _ENV[t.parent]}
+					vktypes[n] = _ENV[n]
 				else error() end
 				handles[n] = nil
 				stuck = false
@@ -70,86 +69,81 @@ for n,t in pairs(vk.types) do
 		for w in bn:gmatch'%u+%l*' do table.insert(tokens, w:upper()) end
 
 		local vals = {}
-		for rn,v in pairs(t.values) do
-			local n = rn
-			for s in pairs(vk.vids) do if n:match('_'..s..'$') then
-				n = n:gsub('_'..s..'$', '')
+		for rn in pairs(t.values) do
+			local nam = rn
+			for s in pairs(vk.vids) do if nam:match('_'..s..'$') then
+				nam = nam:gsub('_'..s..'$', '')
 				break
 			end end
-			if t.category == 'bitmask' then n:gsub('_BIT$', '') end
-			for _,s in ipairs(tokens) do if n:match('^'..s..'_') then
-				n = n:gsub('^'..s..'_', '')
+			if t.category == 'bitmask' then nam:gsub('_BIT$', '') end
+			for _,s in ipairs(tokens) do if nam:match('^'..s..'_') then
+				nam = nam:gsub('^'..s..'_', '')
 			else break end end
-			n = n:lower():gsub('_.', function(s) return s:sub(2):upper() end)
-			table.insert(vals, {n, rn})
+			nam = nam:lower():gsub('_.', function(s) return s:sub(2):upper() end)
+			table.insert(vals, {nam, rn})
 		end
 
-		print('Vk.typedef.'..n:match'Vk(.*)'..' = {"A Vulkan Binding", '..t.category..'{')
+		local entries = {c_external=n}
+		print('<Vk.typedef.'..n:match'Vk(.*)'..' = '..t.category..'{')
 		for _,v in ipairs(vals) do
-			print('\t{"'..v[1]..'", c_external"'..v[2]..'"},')
+			table.insert(entries, {v[1], c_external(v[2])})
+			print('<\t{"'..v[1]..'", c_external"'..v[2]..'"},')
 		end
-		print('}, c_external="'..n..'"}')
-		vktypes.Vk.typedef[n:match'Vk(.*)'] = vals
-		vktypes[n] = vals
+		print('<c_external="'..n..'"}')
+		Vk.typedef[n:match'Vk(.*)'] = (t.category == 'enum' and enum or bitmask)(entries)
+		vktypes[n] = Vk[n:match'Vk(.*)']
 
 		if t.category == 'bitmask' and t.requires then
-			print('Vk.typedef.'..t.requires:match'Vk(.*)'..' = {"Alias", Vk.'..n:match'Vk(.*)'..'}\n')
-			vktypes.Vk.typedef[t.requires:match'Vk(.*)'] = vals
-			vktypes[t.requires] = vals
+			print('<Vk.typedef.'..t.requires:match'Vk(.*)'..' = {"Alias", Vk.'..n:match'Vk(.*)'..'}\n')
+			Vk.typedef[t.requires:match'Vk(.*)'] = Vk[n:match'Vk(.*)']
+			vktypes[t.requires] = Vk[t.requires:match'Vk(.*)']
 		else print() end
 	end
 end
 
-vktypes.void = 'general{}'
-vktypes.VkBool32 = "boolean{}"
+vktypes.void = general
+vktypes.VkBool32 = boolean
 
-vktypes.uint64_t = "integer{}"
-vktypes.uint32_t = "integer{}"
-vktypes.uint8_t = "integer{}"
-vktypes.int = "integer{}"
-vktypes.int32_t = "integer{}"
-vktypes.float = "number{}"
-vktypes.size_t = "size{}"
-vktypes.VkDeviceSize = "size{}"
+vktypes.uint64_t = integer
+vktypes.uint32_t = integer
+vktypes.uint8_t = integer
+vktypes.int = integer
+vktypes.int32_t = integer
+vktypes.float = number
+vktypes.size_t = size
+vktypes.VkDeviceSize = size
 
-vktypes.char = "char{}"
-vktypes.VkSampleMask = "integer{}"
+vktypes.VkSampleMask = integer
 
-vktypes.PFN_vkInternalAllocationNotification = [[
-callback{"A manual Vulkan Binding",
-	{'udata', general{}}, {'size', size{}},
+vktypes.PFN_vkInternalAllocationNotification = callback{
+	{'udata', general}, {'size', size},
 	{'type', Vk.InternalAllocationType}, {'scope', Vk.SystemAllocationScope},
-}]]
-vktypes.PFN_vkInternalFreeNotification = [[
-callback{"A manual Vulkan Binding",
-	{'udata', general{}}, {'size', size{}},
+}
+vktypes.PFN_vkInternalFreeNotification = callback{
+	{'udata', general}, {'size', size},
 	{'type', Vk.InternalAllocationType}, {'scope', Vk.SystemAllocationScope},
-}]]
-vktypes.PFN_vkReallocationFunction = [[
-callback{"A manual Vulkan Binding",
-	{'udata', general{}}, {'original', ptr{}}, {'size', size{}}, {'alignment', size{}},
+}
+vktypes.PFN_vkReallocationFunction = callback{
+	{'udata', general}, {'original', ptr}, {'size', size}, {'alignment', size},
 	{'scope', Vk.SystemAllocationScope},
-	{ptr{}},
-}]]
-vktypes.PFN_vkAllocationFunction = [[
-callback{"A manual Vulkan Binding",
-	{'udata', general{}}, {'size', size{}}, {'alignment', size{}},
+	{ptr},
+}
+vktypes.PFN_vkAllocationFunction = callback{
+	{'udata', general}, {'size', size}, {'alignment', size},
 	{'scope', Vk.SystemAllocationScope},
-	{ptr{}},
-}]]
-vktypes.PFN_vkFreeFunction = [[
-callback{"A manual Vulkan Binding",
-	{'udata', general{}}, {'mem', ptr{}},
-}]]
+	{ptr},
+}
+vktypes.PFN_vkFreeFunction = callback{
+	{'udata', general}, {'mem', ptr},
+}
 
-vktypes.PFN_vkDebugReportCallbackEXT = [[
-callback{"A manual Vulkan Binding",
+vktypes.PFN_vkDebugReportCallbackEXT = callback{
 	{'flags', Vk.DebugReportFlagsEXT}, {'objectType', Vk.DebugReportObjectTypeEXT},
-	{'object', integer{}}, {'location', size{}}, {'mCode', integer{}},
-	{'layerPrefix', string{}}, {'message', string{}},
-	{'udata', general{}},
-	{boolean{}}
-}]]
+	{'object', integer}, {'location', size}, {'mCode', integer},
+	{'layerPrefix', string}, {'message', string},
+	{'udata', general},
+	{boolean},
+}
 
 for n,t in pairs(vk.types) do
 	if t.category == nil and vktypes[n] == nil then vktypes[n] = 'ignore{}' end
@@ -177,11 +171,11 @@ do
 			end
 
 			local rmed = {}
-			for n,m in pairs(mems) do
+			for _,m in pairs(mems) do
 				if m.len then
 					if mems[m.len] then mems[m.len],rmed[m.len] = nil,true
 					elseif not rmed[m.len] then
-						for n in pairs(mems) do print('>>', n) end
+						for mm in pairs(mems) do print('>>', mm) end
 						print('>>>', m.name, m.len, m.type)
 						error('Odd len: '..m.len)
 					end
@@ -213,7 +207,7 @@ do
 		end
 		if stuck then
 			for t in pairs(missing) do print('>', t) end
-			for n,t in pairs(structs) do print('>>', n) end
+			for n in pairs(structs) do print('>>', n) end
 			error()
 		end
 	until not next(structs)

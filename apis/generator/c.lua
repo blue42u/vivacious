@@ -30,6 +30,60 @@ local function simpletype(t, c) return function(w, o)
 end end
 integer = simpletype('int', function(o) return ('%d'):format(o) end)
 boolean = simpletype('bool', function(o) return o and 'true' or 'false' end)
+function c_external(n) return setmetatable({}, {
+		__tostring = function() return n end,
+		__add = function(a,b) return c_external('('..n..'+'..tostring(b)..')') end,
+		__sub = function(a,b) return c_external('('..n..'-'..tostring(b)..')') end,
+		__mul = function(a,b) return c_external('('..n..'*'..tostring(b)..')') end,
+		__div = function(a,b) return c_external('('..n..'/'..tostring(b)..')') end,
+		__unm = function(a) return c_external('-('..n..')') end,
+		__band = function(a,b) return c_external('('..n..'&'..tostring(b)..')') end,
+		__bor = function(a,b) return c_external('('..n..'|'..tostring(b)..')') end,
+		__bxor = function(a,b) return c_external('('..n..'^'..tostring(b)..')') end,
+		__bnot = function(a) return c_external('~('..n..')') end,
+}) end
+
+function enum(arg)
+	local vals = {}
+	local lastval = 0
+	for _,e in ipairs(arg) do
+		if e[2] then lastval, vals[e[1]] = e[2], tostring(e[2])
+		else lastval,vals[e[1]] = lastval+1, tostring(lastval+1) end
+	end
+
+	return function(w, o)
+		if o == nil then
+			local parts, p = tins{}
+			p('enum {\n')
+			for _,e in ipairs(arg) do
+				p('\t~='..vals[e[1]]:gsub('\n', '\n\t')..',\n', e[1])
+			end
+			p('} ~')
+			return table.concat(parts, '')
+		else w('~', vals[o]) end
+	end
+end
+
+function bitmask(arg)
+	local vals = {}
+	local lastval = 0
+	for _,e in ipairs(arg) do
+		if e[2] then lastval, vals[e[1]] = e[2], tostring(e[2])
+		else lastval,vals[e[1]] = lastval+1, tostring(lastval<<1) end
+	end
+
+	return function(w, o)
+		if o == nil then
+			local parts, p = tins{}
+			p('enum {\n')
+			for _,e in ipairs(arg) do
+				p('\t~='..vals[e[1]]:gsub('\n', '\n\t')..',\n', e[1])
+			end
+			p('} ~')
+			return table.concat(parts, '')
+		else w('~', vals[o]) end
+	end
+end
 
 function callback(arg)
 	local aend

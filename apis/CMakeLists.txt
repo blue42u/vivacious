@@ -2,7 +2,7 @@ set(APIS
 #	vkbplate
 #	vkmemory
 #	vkpipeline
-#	vulkan
+	vulkan
 #	window
 #	vkshader
 	test
