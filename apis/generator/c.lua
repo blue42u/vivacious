@@ -30,18 +30,51 @@ local function simpletype(t, c) return function(w, o)
 end end
 integer = simpletype('int', function(o) return ('%d'):format(o) end)
 boolean = simpletype('bool', function(o) return o and 'true' or 'false' end)
+size = simpletype('size_t', function(o) return ('%d'):format(o) end)
+number = simpletype('float', function(o) return ('%f'):format(o) end)
+str = simpletype('const char*', function(o) return o == 0 and 'NULL' or ('%q'):format(o) end)
+general = simpletype('void*', function(o) return o and error'No format for general' or 'NULL' end)
+ptr = simpletype('void*', function(o) return o and error'No format for ptr' or 'NULL' end)
 function c_external(n) return setmetatable({}, {
 		__tostring = function() return n end,
-		__add = function(a,b) return c_external('('..n..'+'..tostring(b)..')') end,
-		__sub = function(a,b) return c_external('('..n..'-'..tostring(b)..')') end,
-		__mul = function(a,b) return c_external('('..n..'*'..tostring(b)..')') end,
-		__div = function(a,b) return c_external('('..n..'/'..tostring(b)..')') end,
-		__unm = function(a) return c_external('-('..n..')') end,
-		__band = function(a,b) return c_external('('..n..'&'..tostring(b)..')') end,
-		__bor = function(a,b) return c_external('('..n..'|'..tostring(b)..')') end,
-		__bxor = function(a,b) return c_external('('..n..'^'..tostring(b)..')') end,
-		__bnot = function(a) return c_external('~('..n..')') end,
+		__add = function(_,b) return c_external('('..n..'+'..tostring(b)..')') end,
+		__sub = function(_,b) return c_external('('..n..'-'..tostring(b)..')') end,
+		__mul = function(_,b) return c_external('('..n..'*'..tostring(b)..')') end,
+		__div = function(_,b) return c_external('('..n..'/'..tostring(b)..')') end,
+		__unm = function() return c_external('-('..n..')') end,
+		__band = function(_,b) return c_external('('..n..'&'..tostring(b)..')') end,
+		__bor = function(_,b) return c_external('('..n..'|'..tostring(b)..')') end,
+		__bxor = function(_,b) return c_external('('..n..'^'..tostring(b)..')') end,
+		__bnot = function() return c_external('~('..n..')') end,
 }) end
+function c_rawtype(t, null)
+	local function err() error('Custom type '..t..' doesn\'t do conversions') end
+	return simpletype(t,
+		null and function(o) if o == 0 then return 'NULL' else err() end end or err)
+end
+function c_bitmask(t) return function(w, o)
+	if o == nil then w(t..'* ~')
+	elseif #o == 0 then w('~', 'NULL')
+	else error"c_bitmask doesn't support custom conversions yet" end
+end end
+
+function array(arg)
+	return function(w, o)
+		if o == nil then
+			size(function(s) w(s:gsub('~', '~Cnt')) end)
+			arg[1](function(s) w(s:gsub('~', '*~')) end)
+		else
+			size(function(n,s) w(arg.c_len or n..'Cnt', s) end, #o)
+			if #o == 0 then w('~', 'NULL') end
+
+			local tnam
+			arg[1](function(s) tnam = s:gsub('~', '[]') end)
+			local parts,p = tins{}
+			for _,v in ipairs(o) do arg[1](p, v) end
+			w('~', '('..tnam..'){'..table.concat(parts, ', ')..'}')
+		end
+	end
+end
 
 function enum(arg)
 	local vals = {}
@@ -50,6 +83,7 @@ function enum(arg)
 		if e[2] then lastval, vals[e[1]] = e[2], tostring(e[2])
 		else lastval,vals[e[1]] = lastval+1, tostring(lastval+1) end
 	end
+	vals[0] = '0'
 
 	return function(w, o)
 		if o == nil then
@@ -60,7 +94,7 @@ function enum(arg)
 			end
 			p('} ~')
 			return table.concat(parts, '')
-		else w('~', vals[o]) end
+		else w('~', vals[o] or error(tostring(o)..' not a valid value!')) end
 	end
 end
 
@@ -71,6 +105,7 @@ function bitmask(arg)
 		if e[2] then lastval, vals[e[1]] = e[2], tostring(e[2])
 		else lastval,vals[e[1]] = lastval+1, tostring(lastval<<1) end
 	end
+	vals[0] = '0'
 
 	return function(w, o)
 		if o == nil then
@@ -81,7 +116,7 @@ function bitmask(arg)
 			end
 			p('} ~')
 			return table.concat(parts, '')
-		else w('~', vals[o]) end
+		else w('~', vals[o] or error(tostring(o)..' not a valid value!')) end
 	end
 end
 
@@ -91,7 +126,7 @@ function callback(arg)
 		if aend then assert(type(a[1]) ~= 'string')
 		elseif type(a[1]) ~= 'string' then aend = i-1 end
 	end
-	aend = aend or 0
+	aend = aend or #arg
 
 	local args = table.move(arg, 1, aend, 1, {})
 	local rets = table.move(arg, aend+1, #arg, 1, {})
@@ -100,8 +135,8 @@ function callback(arg)
 	for i,r in ipairs(rets) do
 		if r.c_main then assert(not cmain); cmain = i end
 	end
-	local ret = table.remove(rets, cmain or 1)[1]
-		or function(w,o) assert(o==nil); w('void ~') end
+	local ret = function(w,o) assert(o==nil); w('void ~') end
+	if #rets > 1 then ret = table.remove(rets, cmain or 1)[1] end
 
 	return function(w, o)
 		if o == nil then
@@ -185,24 +220,30 @@ local function object(arg, name, api, top)
 			return setmetatable({}, {__newindex=function(_,n,v)
 				local vn = 'Vv'..n
 				if getmetatable(v) then getmetatable(v).structname = vn end
+				local exname
 				table.insert(tdefs, function(w)
-					v(function(s) w('typedef '..string.gsub(s, '~', vn)..';') end)
-					w''
+					if not exname then
+						v(function(s) w('typedef '..string.gsub(s, '~', vn)..';') end)
+						w''
+					end
 				end)
-				rawset(myself, n, setmetatable({}, {__call=function(_,w) w(vn..' ~') end,
+				rawset(myself, n, setmetatable({}, {
+					__call=function(_,w,o)
+						if o == nil then w((exname or vn)..' ~') else v(w,o) end end,
 					__newindex=function(_,k,def)
 						if k == 'default' then
 							table.insert(tdefs, function(w)
 								v(function(_,s)
 									w(('#define ~(...) ({ ~ X = '..s..'; __VA_ARGS__; X; })')
-										:gsub('~', vn))
+										:gsub('~', exname or vn))
 									w''
 								end, def)
 							end)
-						end
+						elseif k == 'c_external' then exname = def
+						else error('Unknown typedef command '..k) end
 					end}))
 			end})
-		end
+		else error('Attempt to reference subtype '..k) end
 	end
 	function meta:__newindex(k, a)
 		a.v0_0_0 = a.v0_0_0 or {}
@@ -211,8 +252,8 @@ local function object(arg, name, api, top)
 		rawset(self, k, object(a, name..k, api, false))
 	end
 	function meta:__call(w, o)
-		assert(o == nil)
-		w('Vv'..name..' ~')
+		if o == nil then w('Vv'..name..' ~')
+		else w('~', 'NULL') end
 	end
 
 	table.insert(api, function(w)
