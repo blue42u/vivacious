@@ -47,9 +47,7 @@ function c_external(n) return setmetatable({}, {
 		__bxor = function(_,b) return c_external('('..n..'^'..tostring(b)..')') end,
 		__bnot = function() return c_external('~('..n..')') end,
 }) end
-function c_rawtype(t)
-	return simpletype(t, tostring)
-end
+function c_rawtype(t) return simpletype(t, tostring) end
 function c_bitmask(t) return function(w, o)
 	if o == nil then w(t..'* ~')
 	elseif not next(o) then w('~', 'NULL')
@@ -57,18 +55,18 @@ function c_bitmask(t) return function(w, o)
 end end
 
 function array(arg)
+	local st,t = arg.sizetype or size, arg[1]
 	return function(w, o)
 		if o == nil then
-			size(function(s) w(s:gsub('~', '~Cnt')) end)
-			arg[1](function(s) w(s:gsub('~', '*~')) end)
+			st(function(s) w(s:gsub('~', '~Cnt')) end)
+			t(function(s) w(s:gsub('~', '*~')) end)
 		else
 			size(function(n,s) w(arg.c_len or n..'Cnt', s) end, #o)
-			if #o == 0 then w('~', 'NULL')
-			else
+			if #o == 0 then w('~', 'NULL') else
 				local tnam
-				arg[1](function(s) tnam = s:gsub('~', '[]') end)
+				t(function(s) tnam = s:gsub('~', '[]') end)
 				local parts,p = tins{}
-				for _,v in ipairs(o) do arg[1](p, v) end
+				for _,v in ipairs(o) do t(p, v) end
 				w('~', '('..tnam..'){'..table.concat(parts, ', ')..'}')
 			end
 		end
