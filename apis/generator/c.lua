@@ -32,8 +32,8 @@ integer = simpletype('int', function(o) return ('%d'):format(o) end)
 boolean = simpletype('bool', function(o) return o and 'true' or 'false' end)
 size = simpletype('size_t', function(o) return ('%d'):format(o) end)
 number = simpletype('float', function(o) return ('%f'):format(o) end)
-str = simpletype('const char*', function(o) return o == 0 and 'NULL' or ('%q'):format(o) end)
-general = simpletype('void*', function(o) return o and error'No format for general' or 'NULL' end)
+str = simpletype('const char*', function(o) return o == '' and 'NULL' or ('%q'):format(o) end)
+general = simpletype('void*', function(o) return o and error('No format for general ('..tostring(o)..')') or 'NULL' end)
 ptr = simpletype('void*', function(o) return o and error'No format for ptr' or 'NULL' end)
 function c_external(n) return setmetatable({}, {
 		__tostring = function() return n end,
@@ -47,14 +47,12 @@ function c_external(n) return setmetatable({}, {
 		__bxor = function(_,b) return c_external('('..n..'^'..tostring(b)..')') end,
 		__bnot = function() return c_external('~('..n..')') end,
 }) end
-function c_rawtype(t, null)
-	local function err() error('Custom type '..t..' doesn\'t do conversions') end
-	return simpletype(t,
-		null and function(o) if o == 0 then return 'NULL' else err() end end or err)
+function c_rawtype(t)
+	return simpletype(t, tostring)
 end
 function c_bitmask(t) return function(w, o)
 	if o == nil then w(t..'* ~')
-	elseif #o == 0 then w('~', 'NULL')
+	elseif not next(o) then w('~', 'NULL')
 	else error"c_bitmask doesn't support custom conversions yet" end
 end end
 
@@ -65,13 +63,14 @@ function array(arg)
 			arg[1](function(s) w(s:gsub('~', '*~')) end)
 		else
 			size(function(n,s) w(arg.c_len or n..'Cnt', s) end, #o)
-			if #o == 0 then w('~', 'NULL') end
-
-			local tnam
-			arg[1](function(s) tnam = s:gsub('~', '[]') end)
-			local parts,p = tins{}
-			for _,v in ipairs(o) do arg[1](p, v) end
-			w('~', '('..tnam..'){'..table.concat(parts, ', ')..'}')
+			if #o == 0 then w('~', 'NULL')
+			else
+				local tnam
+				arg[1](function(s) tnam = s:gsub('~', '[]') end)
+				local parts,p = tins{}
+				for _,v in ipairs(o) do arg[1](p, v) end
+				w('~', '('..tnam..'){'..table.concat(parts, ', ')..'}')
+			end
 		end
 	end
 end
@@ -83,7 +82,6 @@ function enum(arg)
 		if e[2] then lastval, vals[e[1]] = e[2], tostring(e[2])
 		else lastval,vals[e[1]] = lastval+1, tostring(lastval+1) end
 	end
-	vals[0] = '0'
 
 	return function(w, o)
 		if o == nil then
@@ -105,7 +103,6 @@ function bitmask(arg)
 		if e[2] then lastval, vals[e[1]] = e[2], tostring(e[2])
 		else lastval,vals[e[1]] = lastval+1, tostring(lastval<<1) end
 	end
-	vals[0] = '0'
 
 	return function(w, o)
 		if o == nil then
@@ -116,7 +113,11 @@ function bitmask(arg)
 			end
 			p('} ~')
 			return table.concat(parts, '')
-		else w('~', vals[o] or error(tostring(o)..' not a valid value!')) end
+		else
+			local v = c_external'0'
+			for b in pairs(o) do v = v | (vals[b] or error(tostring(b)..' not valid in bitmask!')) end
+			w('~', tostring(v))
+		end
 	end
 end
 
@@ -179,15 +180,15 @@ function compound(arg)
 			for _,e in ipairs(mems) do
 				e[2](function(s) p('\t'..s:gsub('\n', '\n\t')..';\n', e[1]) end)
 			end
-			local pre = 'struct '..me.structname..' {\n'
-			local post = me.novar and '}' or '}* ~'
+			local pre = me.structname..' {\n'
+			local post = me.novar and '}' or '}'..(arg.static and '' or '*')..' ~'
 			w(pre..table.concat(parts, '')..post)
 		else
 			for k,v in pairs(o) do
 				local m = mems[k]
-				if m then m[2](function(n,s) p('.'..n..'='..s, m[1]) end, v) end
+				if m then m[2](function(n,s) p('.'..n..' = '..s, m[1]) end, v) end
 			end
-			w('~', '&(struct '..me.structname..'){'..table.concat(parts, ', ')..'}')
+			w((me.external and not arg.static) and '*~' or '~', (arg.static and '' or '&')..'('..me.structname..'){'..table.concat(parts, ', ')..'}')
 		end
 	end
 	return setmetatable({}, me)
@@ -219,7 +220,7 @@ local function object(arg, name, api, top)
 		elseif k == 'typedef' then
 			return setmetatable({}, {__newindex=function(_,n,v)
 				local vn = 'Vv'..n
-				if getmetatable(v) then getmetatable(v).structname = vn end
+				if getmetatable(v) then getmetatable(v).structname = 'struct '..vn end
 				local exname
 				table.insert(tdefs, function(w)
 					if not exname then
@@ -233,13 +234,18 @@ local function object(arg, name, api, top)
 					__newindex=function(_,k,def)
 						if k == 'default' then
 							table.insert(tdefs, function(w)
-								v(function(_,s)
-									w(('#define ~(...) ({ ~ X = '..s..'; __VA_ARGS__; X; })')
+								v(function(n,s)
+									w(('#define ~(...) ({ ~ '..n:gsub('~', '_x')..' = '..s..'; VvMAGIC(__VA_ARGS__); _x; })')
 										:gsub('~', exname or vn))
 									w''
 								end, def)
 							end)
-						elseif k == 'c_external' then exname = def
+						elseif k == 'c_external' then
+							exname = def
+							if getmetatable(v) then
+								getmetatable(v).structname = exname
+								getmetatable(v).external = true
+							end
 						else error('Unknown typedef command '..k) end
 					end}))
 			end})
@@ -266,7 +272,7 @@ local function object(arg, name, api, top)
 			table.insert(mcomp[m.v], {m.n, callback(m.a)})
 		end
 		mcomp = compound(mcomp)
-		getmetatable(mcomp).structname = 'Vv'..name..'_M'
+		getmetatable(mcomp).structname = 'struct Vv'..name..'_M'
 		local function mc(w,o) mcomp(function(s) w('const '..s) end) end
 
 		-- Write out the typedefs
@@ -275,6 +281,8 @@ local function object(arg, name, api, top)
 		-- Write out the full structure
 		arg.v0_0_0 = arg.v0_0_0 or {}
 		table.insert(arg.v0_0_0, 1, {'const _M', mc})
+		if arg.wrapper then table.insert(arg.v0_0_0, 1, {'_R', arg.wrapper}) end
+		arg.v1000000000_0_0 = {{'_I', c_rawtype('struct Vv'..name..'_I')}}
 		local comp = compound(arg)
 		getmetatable(comp).structname = 'Vv'..name
 		getmetatable(comp).novar = true
@@ -350,6 +358,25 @@ do
 
 #define Vv_LEN(...) sizeof(__VA_ARGS__)/sizeof((__VA_ARGS__)[0])
 #define Vv_ARRAY(N, ...) .N##Cnt = Vv_LEN((__VA_ARGS__)), .N=(__VA_ARGS__)
+
+#define VvMAGIC_FA_1(what, x, ...) what(x);
+]]
+	local maxmagic = 100
+	for i=2,maxmagic do
+		f:write('#define VvMAGIC_FA_'..i..'(what, x, ...) what(x); VvMAGIC_FA_'..(i-1)..'(__VA_ARGS__)\n')
+	end
+	f:write'#define VvMAGIC_NA(...) VvMAGIC_AN(__VA_ARGS__'
+	for i=maxmagic,0,-1 do f:write(','..i) end
+	f:write')\n#define VvMAGIC_AN('
+	for i=1,maxmagic do f:write('_'..i..',') end
+	f:write[[N, ...) N
+
+#define VvMAGIC_C(A, B) VvMAGIC_C2(A, B)
+#define VvMAGIC_C2(A, B) A##B
+#define VvMAGIC_FA(what, ...) VvMAGIC_C(VvMAGIC_FA_, VvMAGIC_NA(__VA_ARGS__))(what, __VA_ARGS__)
+
+#define VvMAGIC_x(A) _x A
+#define VvMAGIC(...) VvMAGIC_FA(VvMAGIC_x, __VA_ARGS__)
 
 #endif
 ]]

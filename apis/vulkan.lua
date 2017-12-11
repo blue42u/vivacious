@@ -29,6 +29,8 @@ local parent_overrides = {
 Vk = {doc="The core Vulkan binding"}
 local vktypes = {Vk=Vk}
 
+local vknulls = {}
+
 do
 	local handles = {}
 	for n,t in pairs(vk.types) do
@@ -46,13 +48,14 @@ do
 			if vktypes[t.parent] then
 				if t.type == 'VK_DEFINE_NON_DISPATCHABLE_HANDLE' then
 					vktypes[t.parent][n:match'Vk(.*)'] = {doc="A Vulkan Binding",
-						v1_0_0 = {{'real', c_rawtype(n)}}}
+						wrapper = c_rawtype(n)}
 					vktypes[n] = vktypes[t.parent][n:match'Vk(.*)']
 				elseif t.type == 'VK_DEFINE_HANDLE' then
 					_ENV[n] = {doc="A Vulkan Binding", _ENV[t.parent],
-						v1_0_0 = {{'real', c_rawtype(n)}}}
+						wrapper = c_rawtype(n)}
 					vktypes[n] = _ENV[n]
 				else error() end
+				vknulls[n] = {}
 				handles[n] = nil
 				stuck = false
 			end
@@ -89,63 +92,66 @@ for n,t in pairs(vk.types) do
 		end
 
 		local entries = {}
-		print('Vk.typedef.'..n:match'Vk(.*)'..' = '..t.category..'{')
 		for _,v in ipairs(vals) do
 			table.insert(entries, {v[1], c_external(v[2])})
-			print('\t{"'..v[1]..'", c_external"'..v[2]..'"},')
 		end
-		print('}')
 		Vk.typedef[n:match'Vk(.*)'] = (t.category == 'enum' and enum or bitmask)(entries)
-		print('Vk.'..n:match'Vk(.*)'..'.c_external = "'..n..'"')
 		Vk[n:match'Vk(.*)'].c_external = n
 		vktypes[n] = Vk[n:match'Vk(.*)']
+		if t.category == 'bitmask' then vknulls[n] = {}
+		elseif #vals > 0 then vknulls[n] = vals[1][1] end
 
 		if t.category == 'bitmask' and t.requires then
-			print('Vk.typedef.'..t.requires:match'Vk(.*)'..' = {"Alias", Vk.'..n:match'Vk(.*)'..'}\n')
 			Vk.typedef[t.requires:match'Vk(.*)'] = Vk[n:match'Vk(.*)']
 			Vk[t.requires:match'Vk(.*)'].c_external = t.requires
 			vktypes[t.requires] = Vk[t.requires:match'Vk(.*)']
-		else print() end
+			vknulls[t.requires] = {}
+		end
 	end
 end
 
-vktypes.void = general
-vktypes.VkBool32 = boolean
+vktypes.void,vknulls.void = general, false
+vktypes.VkBool32,vknulls.VkBool32 = boolean, false
 
-vktypes.uint64_t = integer
-vktypes.uint32_t = integer
-vktypes.uint8_t = integer
-vktypes.int = integer
-vktypes.int32_t = integer
-vktypes.float = number
-vktypes.size_t = size
-vktypes.VkDeviceSize = size
+vktypes.uint64_t,vknulls.uint64_t = integer, 0
+vktypes.uint32_t,vknulls.uint32_t = integer, 0
+vktypes.uint8_t,vknulls.uint8_t = integer, 0
+vktypes.int,vknulls.int = integer, 0
+vktypes.int32_t,vknulls.int32_t = integer, 0
+vktypes.float,vknulls.float = number, 0
+vktypes.size_t,vknulls.size_t = size, 0
+vktypes.VkDeviceSize,vknulls.VkDeviceSize = size, 0
 
-vktypes.string = str
+vktypes.string,vknulls.string = str, ''
 
-vktypes.vksamplemask = c_bitmask('VkSampleMask')
+vktypes.vksamplemask,vknulls.vksamplemask = c_bitmask('VkSampleMask'),{}
 
 vktypes.PFN_vkInternalAllocationNotification = callback{
 	{'udata', general}, {'size', size},
 	{'type', Vk.InternalAllocationType}, {'scope', Vk.SystemAllocationScope},
 }
+vknulls.PFN_vkInternalAllocationNotification = true
 vktypes.PFN_vkInternalFreeNotification = callback{
 	{'udata', general}, {'size', size},
 	{'type', Vk.InternalAllocationType}, {'scope', Vk.SystemAllocationScope},
 }
+vknulls.PFN_vkInternalFreeNotification = true
 vktypes.PFN_vkReallocationFunction = callback{
 	{'udata', general}, {'original', ptr}, {'size', size}, {'alignment', size},
 	{'scope', Vk.SystemAllocationScope},
 	{ptr},
 }
+vknulls.PFN_vkReallocationFunction = true
 vktypes.PFN_vkAllocationFunction = callback{
 	{'udata', general}, {'size', size}, {'alignment', size},
 	{'scope', Vk.SystemAllocationScope},
 	{ptr},
 }
+vknulls.PFN_vkAllocationFunction = true
 vktypes.PFN_vkFreeFunction = callback{
 	{'udata', general}, {'mem', ptr},
 }
+vknulls.PFN_vkFreeFunction = true
 
 vktypes.PFN_vkDebugReportCallbackEXT = callback{
 	{'flags', Vk.DebugReportFlagsEXT}, {'objectType', Vk.DebugReportObjectTypeEXT},
@@ -161,13 +167,10 @@ for n in pairs{
 	ANativeWindow=true,	--android/native_window.h
 	MirConnection=true, MirSurface=true,	-- mir_toolkit/client_types.h
 	wl_display=true, wl_surface=true,	-- wayland-client.h
-	HINSTANCE=true, HWND=true, SECURITY_ATTRIBUTES=true, -- windows.h
+	HANDLE=true, LPCWSTR=true, DWORD=true, SECURITY_ATTRIBUTES=true,
+	HINSTANCE=true, HWND=true, -- windows.h
 	xcb_connection_t=true, xcb_visualid_t=true, xcb_window_t=true,	-- xcb.h
-} do vktypes[n] = c_rawtype(n) end
-
-for n in pairs{
-	HANDLE=true, LPCWSTR=true, DWORD=true, -- windows.h
-} do vktypes[n] = c_rawtype(n, true) end
+} do vktypes[n],vknulls[n] = c_rawtype(n),c_external'NULL' end
 
 do
 	local ex = {
@@ -192,9 +195,13 @@ do
 						m.len = m.len:gsub(',?null%-terminated$', '')
 						if #m.len == 0 then m.len = nil end
 					end
+				elseif m.type == 'void' then
+					m.arr = m.arr - 1
+				elseif (m.arr or 0) > 0 and not m.len then
+					m.arr = m.arr - 1
 				end
 				if m.values and not m.values:find',' then m.def = enumify(m.values, m.type)
-				elseif m.optional == 'true' then m.def = m.arr > 0 and {} or 0 end
+				elseif m.optional == 'true' then m.def = '' end
 				m.i = i
 				mems[m.name] = m
 			end
@@ -231,38 +238,27 @@ do
 				if not vktypes[m.type] then missing[m.type] = true goto skip end
 			end
 
+			local sTyped = false
 			local pn = n:match'Vk(.*)'
-			print('Vk.typedef.'..pn..' = '..t.category..'{')
 			for _,m in ipairs(t.members) do
+				if m.name == 'sType' then sTyped = true end
 				if (m.arr or 0) > 0 then
 					assert(m.arr == 1)
-					print('\t{"'..m.name..'", array{vktypes.'..m.type
-						..', c_len="'..tostring(m.len)..'"}},')
 					table.insert(mems, {m.name, array{vktypes[m.type], c_len=m.len}})
 				else
-					print('\t{"'..m.name..'", vktypes.'..m.type..'},')
 					table.insert(mems, {m.name, vktypes[m.type]})
 				end
-				def[m.name] = m.def
+				if m.def == '' then
+					if vknulls[m.type] == nil then error('No NULL for '..m.type) end
+					def[m.name] = m.arr > 0 and {} or vknulls[m.type]
+				else def[m.name] = m.def end
 			end
-			print('}')
 
-			vktypes.Vk.typedef[pn] = compound{v1_0_0=mems}
-			print('Vk.'..pn..'.c_external = "'..n..'"')
+			vktypes.Vk.typedef[pn] = compound{v1_0_0=mems, static=not sTyped}
 			Vk[pn].c_external = n
-			local function dump(v, k, p)
-				if type(v) == 'table' then
-					if next(v) then
-						print(p..k..' = {')
-						for tk,tv in pairs(v) do dump(tv, tk, '\t'..p) end
-						print(p..'},')
-					else print(p..k..' = {},') end
-				else print(p..k..' = '..tostring(v)..',') end
-			end
-			dump(def, 'Vk.'..pn..'.default', '')
-			print()
 			Vk[pn].default = def
 			vktypes[n] = Vk[pn]
+			vknulls[n] = {}
 			structs[n] = nil
 			stuck = false
 			::skip::
