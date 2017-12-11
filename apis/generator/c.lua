@@ -173,7 +173,7 @@ function compound(arg)
 		mems[e[1]] = e
 	end end
 
-	local me = {structname = ''}
+	local me = {structname = '', extraptr=not arg.static}
 	function me:__call(w, o)
 		local parts,p = tins{}
 		if o == nil then
@@ -188,7 +188,7 @@ function compound(arg)
 				local m = mems[k]
 				if m then m[2](function(n,s) p('.'..n..' = '..s, m[1]) end, v) end
 			end
-			w((me.external and not arg.static) and '*~' or '~', (arg.static and '' or '&')..'('..me.structname..'){'..table.concat(parts, ', ')..'}')
+			w('~', (arg.static and '' or '&')..'('..me.structname..'){'..table.concat(parts, ', ')..'}')
 		end
 	end
 	return setmetatable({}, me)
@@ -235,7 +235,11 @@ local function object(arg, name, api, top)
 						if k == 'default' then
 							table.insert(tdefs, function(w)
 								v(function(n,s)
-									w(('#define ~(...) ({ ~ '..n:gsub('~', '_x')..' = '..s..'; VvMAGIC(__VA_ARGS__); _x; })')
+									local x = ''
+									if getmetatable(v) and getmetatable(v).extraptr and exname then
+										x = '*'
+									end
+									w(('#define ~(...) ({ ~'..x..' _x = '..s..'; VvMAGIC(__VA_ARGS__); _x; })')
 										:gsub('~', exname or vn))
 									w''
 								end, def)
