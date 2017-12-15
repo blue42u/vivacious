@@ -29,6 +29,7 @@ local function simpletype(t, c) return function(w, o)
 	if o == nil then w(t..' ~') else w('~', c(o)) end
 end end
 integer = simpletype('int', function(o) return ('%d'):format(o) end)
+index = simpletype('int', function(o) return ('%d'):format(o-1) end)
 boolean = simpletype('bool', function(o) return o and 'true' or 'false' end)
 size = simpletype('size_t', function(o) return ('%d'):format(o) end)
 number = simpletype('float', function(o) return ('%f'):format(o) end)
@@ -140,15 +141,17 @@ function callback(arg)
 	return function(w, o)
 		if o == nil then
 			local parts,p = tins{}
-			for _,a in ipairs(args) do a[2](function(s) p(s, a[1]) end) end
-			for _,r in ipairs(rets) do r[1](function(s) p(s, '*') end) end
+			for _,a in ipairs(args) do a[2](function(s)
+				p('\t'..string.gsub(s, '\n', '\n\t'), a[1]) end) end
+			for _,r in ipairs(rets) do r[1](function(s)
+				p('\t'..string.gsub(s, '\n', '\n\t'), '*') end) end
 
 			local me
 			ret(function(s)
 				if me then p(s, '*') else me = s:gsub('~', '(*~)') end
 			end)
 
-			w(me..'('..table.concat(parts, ', ')..')')
+			w(me..'(\n'..table.concat(parts, ',\n')..')')
 		else w('~', 'NULL') end
 	end
 end
@@ -205,7 +208,7 @@ local function object(arg, name, api, top)
 	local cargs = {}
 	for i,obj in ipairs(arg) do
 		cargs[i] = getmetatable(obj).name
-		arg.v0_0_0[i] = {getmetatable(obj).name:lower(), obj}
+		arg.v0_0_0[i] = {string.lower(getmetatable(obj).name), obj}
 	end
 	cargs = table.concat(cargs, ', ')
 
@@ -266,7 +269,7 @@ local function object(arg, name, api, top)
 
 	table.insert(api, function(w)
 		-- Construct the _M methods sub-struct
-		local mcomp = {c_structname='Vv'..name..'_M'}
+		local mcomp = {}
 		table.sort(meths, function(a,b) return a.n < b.n end)
 		for _,m in ipairs(meths) do
 			table.insert(m.a, 1, {'self', myself})
@@ -286,7 +289,7 @@ local function object(arg, name, api, top)
 		if arg.wrapper then table.insert(arg.v0_0_0, 1, {'_R', arg.wrapper}) end
 		arg.v1000000000_0_0 = {{'_I', c_rawtype('struct Vv'..name..'_I')}}
 		local comp = compound(arg)
-		getmetatable(comp).structname = 'Vv'..name
+		getmetatable(comp).structname = 'struct Vv'..name
 		getmetatable(comp).novar = true
 		w('typedef struct Vv'..name..'* Vv'..name..';')
 		comp(function(s) w(s..';') end)
@@ -308,10 +311,10 @@ local outdir = table.remove(arg, 1)..'/'
 for _,a in ipairs(arg) do
 	apis[a] = {pres={}}
 	local env = setmetatable({}, {__index = _G,
-		__newindex = function(self, k, v)
+		__newindex = function(_, k, v)
 			if k == 'c_define' then table.insert(apis[a].pres, '#define '..v)
 			elseif k == 'c_include' then table.insert(apis[a].pres, '#include <'..v..'>')
-			else rawset(self, k, object(v, k, apis[a], true)) end
+			else rawset(_G, k, object(v, k, apis[a], true)) end
 		end})
 	package.preload[a] = loadfile(a..'.lua', 't', env)
 end

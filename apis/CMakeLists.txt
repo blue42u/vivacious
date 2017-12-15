@@ -1,11 +1,6 @@
 set(APIS
-#	vkbplate
-#	vkmemory
-#	vkpipeline
 	vulkan
-#	window
-#	vkshader
-	test
+	rendergraph
 )
 
 set(OUT ${CMAKE_BINARY_DIR}/include/vivacious)

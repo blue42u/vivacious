@@ -16,18 +16,18 @@
 
 require 'vulkan'
 
-MemoryPool = {[[
+MemoryPool = {doc=[[
 	Manager for memory on the Device-side.
 ]], VkDevice}
 
-MemoryPool.Resource = {[[
+MemoryPool.Resource = {doc=[[
 	A reference to a resource in the Pool, which may or may not have
 	allocated memory, be mapped anywhere, or be currently usable.
 	Before this Resource has been Bound, <range> may not be filled yet. Check
 	that <range.sType> is valid or <range.memory> is non-NULL before using it.
 ]],
 	v0_1_1 = {
-		{'range', VkMappedMemoryRange, readonly=true, invalidempty=true},
+		{'range', Vk.MappedMemoryRange, readonly=true, invalidempty=true},
 		{'resource', {buffer=VkDevice.Buffer, image=VkDevice.Image}, readonly=true},
 	},
 }

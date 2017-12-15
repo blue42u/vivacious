@@ -16,87 +16,83 @@
 
 require 'vulkan'
 
-RenderGraph = {[[
+RenderGraph = {doc=[[
 	A dependency graph of rendering operations (Steps) and contexts (States).
 ]], VkDevice}
 
-RenderGraph.State = {[[
+RenderGraph.State = {doc=[[
 	A context in which Steps may be executed. When recording, entries into this
 	State invoke <enter>, and exiting invokes <exit>. After a call to
 	`getRenderPass` has completed on the Graph, <subpass> is set to the index
 	of the subpass in which this State is used, if this State is subpass-bound.
 ]],
 	v0_2_0 = {
-		{'udata', general{}, constpointer=true},
-		{'enter', callback{{'cb', VkCommandBuffer}, {'udata', 'general'}}},
-		{'exit', callback{{'cb', VkCommandBuffer}, {'udata', 'general'}}},]
-		{'subpass', index{}, readonly=true},
+		{'udata', general, constpointer=true},
+		{'enter', callback{{'cb', VkCommandBuffer}, {'udata', general}}},
+		{'exit', callback{{'cb', VkCommandBuffer}, {'udata', general}}},
+		{'subpass', index, readonly=true},
 	},
 }
 
-RenderGraph.Step = {[[
+RenderGraph.Step = {doc=[[
 	A single rendering operation (atomic for ordering purposes). When recording
 	this Step, <handler> is called with <udata> as an argument.
 ]],
 	v0_2_0 = {
-		{'udata', general{}, constpointer=true},
-		{'handler', callback{{'cb', VkCommandBuffer}, {'udata', 'general'}}},
+		{'udata', general, constpointer=true},
+		{'handler', callback{{'cb', VkCommandBuffer}, {'udata', general}}},
 	},
 }
 
-RenderGraph.typedef.Dependency = {[[
-	A description of a dependency on a particular Step.
-]],
-	compound{
-		v0_1_1 = {
-			{'dstStep', RenderGraph.Step},
-			{'srcStage', Vk.PipelineStageFlags},
-			{'dstStage', Vk.PipelineStageFlags},
-			{'srcAccess', Vk.AccessFlags, 0},
-			{'dstAccess', Vk.AccessFlags, 0},
-			{'flags', Vk.DependencyFlags, 0},
-		},
+RenderGraph.typedef.Dependency = compound{
+	v0_1_1 = {
+		{'dstStep', RenderGraph.Step},
+		{'srcStage', Vk.PipelineStageFlags},
+		{'dstStage', Vk.PipelineStageFlags},
+		{'srcAccess', Vk.AccessFlags, 0},
+		{'dstAccess', Vk.AccessFlags, 0},
+		{'flags', Vk.DependencyFlags, 0},
 	},
 }
 
-RenderGraph.v0_1_1.addState = {[[
+RenderGraph.v0_1_1.addState = {doc=[[
 	Add a new State into the Graph. <udata>, <enter> and <exit> set the
 	corresponding fields in the new State. If <spassBound> is true, this State
 	is subpass-bound and will only be used in a single subpass. gee
 ]],
-	{'enter', callback{{'cb', VkCommandBuffer}, {'udata', 'general'}}},
-	{'exit', callback{{'cb', VkCommandBuffer}, {'udata', 'general'}}},
-	{'udata', general{}},
-	{'spassBound', boolean{}, false},
+	{'enter', callback{{'cb', VkCommandBuffer}, {'udata', general}}},
+	{'exit', callback{{'cb', VkCommandBuffer}, {'udata', general}}},
+	{'udata', general},
+	{'spassBound', boolean, false},
 	{RenderGraph.State},
 }
 
-RenderGraph.v0_1_1.addStep = {[[
+RenderGraph.v0_1_1.addStep = {doc=[[
 	Add a new Step into the Graph, with the dependencies specified by <deps>.
 	<udata> and <handler> set the corrosponding fields in the new Step. If
 	<secondary> is true, this Step will be part of a subpass begun with
 	VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS. May return NULL if the Step
 	is able to be added due to dependency issues.
 ]],
-	{'handler', callback{{'cb', VkCommandBuffer}, {'udata', 'general'}}},
-	{'udata', general{}},
+	{'handler', callback{{'cb', VkCommandBuffer}, {'udata', general}}},
+	{'udata', general},
 	{'deps', array{RenderGraph.Dependency}},
 	{'states', array{RenderGraph.State}},
-	{'secondary', boolean{}, false},
+	{'secondary', boolean, false},
 	{RenderGraph.Step},
 }
 
-RenderGraph.Step.v0_1_1.applyDependencies = {[[
+RenderGraph.Step.v0_1_1.applyDependencies = {doc=[[
 	Apply more Dependencies onto this Step. Good for inserting Steps.
 ]],
 	{'deps', array{RenderGraph.Dependency}},
 }
 
-RenderGraph.Step.v0_1_1.remove = {[[
+RenderGraph.Step.v0_1_1.remove = {doc=[[
 	Remove a Step from the Graph. Destroys the Step.
 ]]}
 
-RenderGraph.v0_1_1.getRenderPass = {[[
+RenderGraph.v0_1_1.getRenderPass = {doc=[[
 	Get the VkRenderPass for the Graph as it is arranged at the time of the call.
 	<spass> is called for each subpass with the Steps and subpass-bound States in
 	that subpass, and its return value is used as the Description for the subpass.
@@ -109,19 +105,19 @@ RenderGraph.v0_1_1.getRenderPass = {[[
 	}},
 }
 
-RenderGraph.v0_1_1.getStates = {[[
+RenderGraph.v0_1_1.getStates = {doc=[[
 	Get a list of all the States in the Graph. May not include unused States.
 ]],
 	{array{RenderGraph.State}},
 }
 
-RenderGraph.v0_1_1.getSteps = {[[
+RenderGraph.v0_1_1.getSteps = {doc=[[
 	Get a list of all the Steps in the Graph.
 ]],
 	{array{RenderGraph.Step}},
 }
 
-RenderGraph.v0_1_1.record = {[[
+RenderGraph.v0_1_1.record = {doc=[[
 	Record an invocation of the RenderGraph into <cb>.
 ]],
 	{'cb', VkCommandBuffer}, {'rpbi', Vk.RenderPassBeginInfo},
