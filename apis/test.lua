@@ -14,69 +14,18 @@
    limitations under the License.
 --]========================================================================]
 
-TestObject = {doc=[[
-	A testing-worthy object.
-]],
-	v0_1_0 = {
-		{'defaultx', integer},
-	},
+Test = {}
+
+Test.type.Def1 = integer
+Test.type.Def2 = compound{
+	{'a', integer},
+	{'b', number, 5.3},
 }
 
-TestObject.typedef.Test = compound{
-	v0_1_2 = {
-		{'a', integer},
-		{'b', boolean},
-		{'c', integer},
-		{'d', boolean},
-	},
-}
-TestObject.Test.default = {c=5, d=true}
-
-TestObject.v0_1_0.testMethod = {doc=[[
-	Testing method.
-]],
-	{'a', TestObject.Test}, {'b', boolean},
-	{integer}, {integer},
+Test.v1_2_3.testmeth = {
+	returns = {integer},
+	{'c', number}
 }
 
-TestObject.v0_0_1.test2 = {doc=[[
-	Another testing thing.
-]],
-	{'x', integer}, {'s', compound{
-		v0_1_2={
-			{'a', integer},
-		},
-		v0_2_1={
-			{'x', boolean},
-		},
-	}},
-	{integer}, {boolean, c_main=true},
-}
-
-TestObject.v0_1_0.testP = {doc=[[
-	Another testing thing.
-]],
-	{'x', integer},
-	{integer}, {boolean, c_main=true},
-}
-
-TestObject.Child = {doc=[[
-	Test child.
-]],
-	v0_1_0={
-		{'test', boolean},
-	},
-}
-
-TestObject.Child.v0_1_1.test2 = {doc=[[
-	A third testing method.
-]],
-	{'x', integer}, {'y', integer},
-	{boolean},
-}
-
-OtherTest = {doc=[[
-	Another testing thing.
-]],
-	TestObject,
-}
+Test.v1_2_3.rw.a = integer
+Test.v1_2_3.ro.b = integer

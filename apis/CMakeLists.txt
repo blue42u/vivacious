@@ -1,13 +1,12 @@
 set(APIS
-	vulkan
-	rendergraph
+	test
 )
 
 set(OUT ${CMAKE_BINARY_DIR}/include/vivacious)
 file(MAKE_DIRECTORY ${OUT})
 
 set(OUTS ${OUT}/core.h ${OUT}/vivacious.h)
-set(DEPS ../external/vulkan.lua)
+set(DEPS ../external/vulkan.lua generator/stdlib.lua)
 foreach(A ${APIS})
 	set(OUTS ${OUTS} ${OUT}/${A}.h)
 	set(DEPS ${DEPS} ${A}.lua)
