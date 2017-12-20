@@ -28,4 +28,9 @@ Test.v1_2_3.testmeth = {
 }
 
 Test.v1_2_3.rw.a = integer
-Test.v1_2_3.ro.b = integer
+Test.v1_2_3.ro.b = array{integer}
+
+Test.Little = {}
+Test.Little.v3_2_1.meth = {
+	{'d', boolean}
+}

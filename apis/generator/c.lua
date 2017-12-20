@@ -41,6 +41,43 @@ local function append(t)
 	return setmetatable({}, {__newindex=function(_,_,v) table.insert(t, v) end})
 end
 
+local function onedef(t, k)
+	local c = {}
+	t'def'(c, k)
+	return c[k]
+end
+
+local function oneconv(t, k, v)
+	local c = {}
+	t'conv'(c, k, v)
+	return c[k]
+end
+
+function G.array(arg)
+	return {
+		def = function(c,e)
+			local cc,k = {}
+			if arg.fixedsize then k = e..'['..arg.fixedsize..']' else
+				c[e..'Cnt'], k = 'size_t '..e..'Cnt', '*'..e
+			end
+			c[e] = onedef(arg[1], k)
+		end,
+		conv = function(c, e, v)
+			if not arg.fixedsize then c[e..'Cnt'] = ('%d'):format(#v) end
+			if #v == 0 then c[e] = 'NULL' else
+				local cc = {}
+				arg[1]'def'(cc, '[]')
+				local parts = {}
+				for _,vv in ipairs(v) do
+					table.insert(parts, oneconv(arg[1], '', vv))
+				end
+				c[e] = '('..cc['[]']..'){'..table.concat(parts,', ')..'}'
+			end
+		end,
+	}
+
+end
+
 local void = sl.T{def='void `e`', conv=error}
 function G.callable(arg)
 	local ret = table.remove(arg.returns or {}, 1) or void
@@ -86,48 +123,43 @@ function G.behavior()
 			c[e] = 'typedef struct Vv'..e..'* Vv'..e..';'
 			for _,t in ipairs(ts) do
 				local cc = {}
-				t[2]'def'(cc, 'Vv'..t[1])
+				t[2]'def'(cc, 'Vv'..e..t[1])
 				for k,v in pairs(cc) do c[k] = 'typedef '..v..';' end
 				cc = {}
-				t[2]'conv'(cc, 'Vv'..t[1])
+				t[2]'conv'(cc, 'Vv'..e..t[1])
 				for k,v in pairs(cc) do
-					c[k] = '#define '..k..'_DEF '..v
+					c[k] = '#define '..k..'(...) ({Vv'..e..t[1]..' _x = '..v..'; '
+						..'VvMAGIC(__VA_ARGS__); _x; })'
 				end
 			end
 
 			local meths = {}
 			for _,em in ipairs(es) do if em[1] == 'm' then
-				em[3]'def'(setmetatable({}, {__newindex = function(_,_,s)
-					table.insert(meths, '\t\t'..s:gsub('\n', '\n\t\t')..';\n')
-				end}), em[2])
-				c[em[2]] = '#define '..em[2]..'(_S, ...) ({ __typeof__ (_S) _s = (_S); '
+				table.insert(meths, '\t\t'..onedef(em[3], em[2]):gsub('\n', '\n\t\t')..';\n')
+				c[em[2]] = '#define vV'..em[2]..'(_S, ...) ({ __typeof__ (_S) _s = (_S); '
 					..'_s->_M->'..em[2]..'(_s, __VA_ARGS__); })'
 			end end
 			meths = table.concat(meths)
 
 			local dats = {}
 			for _,ed in ipairs(es) do if ed[1] == 'rw' then
-				ed[3]'def'(setmetatable({}, {__newindex = function(_,_,s)
-					table.insert(dats, '\t'..s:gsub('\n', '\n\t')..';\n')
-				end}), ed[2])
+				table.insert(dats, '\t'..onedef(ed[3], ed[2]):gsub('\n', '\n\t')..';\n')
 			elseif ed[1] == 'ro' then
-				ed[3]'def'(setmetatable({}, {__newindex = function(_,_,s)
-					s = s:gsub('\n', '\n\t'):gsub('%*', '%*const ')
-					table.insert(dats, '\tconst '..s..';\n')
-				end}), ed[2])
+				table.insert(dats, '\tconst '..onedef(ed[3], ed[2])
+					:gsub('\n', '\n\t'):gsub('%*', '*const ')..';\n')
 			end end
 			dats = table.concat(dats)
 
-			c[e] = 'struct '..e..' {\n'
-				..'\tstruct '..e..'_M {\n'
+			c[e] = 'struct Vv'..e..' {\n'
+				..'\tconst struct Vv'..e..'_M {\n'
 				..meths
-				..'\t} *_M;\n'
+				..'\t} * const _M;\n'
 				..dats
-				..'}'
+				..'};'
 		end,
-		subtype = function(n, ty)
+		subtype = function(name, n, ty)
 			return {
-				def=function(c,e) c[e] = 'Vv'..n..' '..e end,
+				def='Vv'..name..n..' `e`',
 				conv=ty'conv',
 			}
 		end,

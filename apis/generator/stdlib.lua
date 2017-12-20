@@ -102,7 +102,14 @@ local arrayopts = {
 }
 function stdlib.array(arg)
 	checkarg(arg, arrayopts)
-	return T(assert(G.array, 'Generator does not support arrays!')(arg))
+	return Tw{assert(G.array, 'Generator does not support arrays!')(arg),
+		v=function(v)
+			if arg.fixedsize then
+				assert(#v < arg.fixedsize, "Conversion for array is too large!")
+			end
+			return v
+		end
+	}
 end
 
 -- Options are strings, treated similarly to how luaL_checkoption operates.
@@ -286,7 +293,7 @@ end
 
 	The generator behavior hook acts a little different than the others. It
 	should return a table with the following entries:
-	- subtype(<name>, <Type>) -> Type
+	- subtype(<mainname>, <name>, <Type>) -> Type
 	  Called when new Named Types are added, and can return a different Type.
 	- def(c, e, {{<name>, <Type},...}, {{'m' | 'rw' | 'ro', <name> <Type>},...})
 	  Called as usual for the def hook, but with the contents of the Behavior.
@@ -301,8 +308,8 @@ local function behavior(arg, name)
 	end
 	local g = assert(G.behavior, "Generator does not support Behaviors!")(arg)
 
-	local types,vers = {},{}
-	local myself = T{
+	local types,vers,subs,isubs = {},{},{},{}
+	local me = T{
 		def = function(c, e)
 			table.sort(vers, function(a,b)
 				if a.M ~= b.M then return a.M < b.M
@@ -312,20 +319,22 @@ local function behavior(arg, name)
 			local ents = {}
 			for _,v in ipairs(vers) do table.move(v.e, 1, #v.e, #ents+1, ents) end
 			g.def(c, e, types, ents)
+			for k,b in pairs(subs) do b'def'(c, e..k) end
 		end,
 		conv = function() error("Behaviors cannot be converted from Lua") end,
-		default = function() error("Behaviors don't have defaults") end,
 	}
+	local myself = T(g.subtype(name, '', me))
 
+	assert(name, "Behaviors need to know their names!")
 	local meta = getmetatable(myself)
-	meta.behaves = name or true
+	meta.behaves = name
 	function meta.__index(_, k)
 		local M,m,p = string.match(tostring(k), '^v(%d+)_(%d+)_(%d+)$')
 		M,m,p = tonumber(M), tonumber(m), tonumber(p)
 		if k == 'type' then
 			return setmetatable({}, {__newindex=function(_,n,ty)
 				table.insert(types, {n, ty})
-				types[n] = T(g.subtype(n, ty))
+				types[n] = T(g.subtype(name, n, ty))
 			end})
 		elseif M then
 			if not vers[k] then
@@ -349,47 +358,53 @@ local function behavior(arg, name)
 					table.insert(vr, {'m', n, stdlib.callable(ca)})
 				end
 			})
-		else return type[k] end
+		else return types[k] or isubs[k] end
 	end
 	function meta.__newindex(_, k, ba)
 		assert(#ba == 0, "Sub-Behaviors can't have extra parents")
-		types[k] = behavior(ba)
-		types[k].v0_0_0.ro.parent = myself
+		local i,o = behavior(ba, name..k)
+		i.v0_0_0.ro.parent = myself
+		subs[k],isubs[k] = o,i
 	end
 
 	for _,b in ipairs(arg) do
 		myself.v0_0_0.ro[b'behaves'] = b
 	end
-	return myself
+	return myself, me
 end
 
 -- The generator is the one to actually load the spec files, so we provide some
 -- helper functions to make life easier.
 local sl = {lib=stdlib, T=T}
 local function stdenv()
+	local res = {}
 	return setmetatable({}, {
 		__index=stdlib,
-		__newindex=function(env, k, v) rawset(env, k, behavior(v)) end
-	})
+		__newindex=function(env, k, v)
+			local i,o = behavior(v, k)
+			rawset(env, k, i)
+			res[k] = o
+		end
+	}), res
 end
 function sl.load(a,b,c)
-	local env = stdenv()
+	local env,res = stdenv()
 	local f,err = load(a,b,c,env)
-	if not f then env = err end
-	return f,env
+	if not f then res = err end
+	return f,res
 end
 function sl.loadfile(a,b)
-	local env = stdenv()
+	local env,res = stdenv()
 	local f,err = loadfile(a,b,env)
-	if not f then env = err end
-	return f,env
+	if not f then res = err end
+	return f,res
 end
 function sl.preload(n, f)
 	local fn,err = package.searchpath(f or n, package.path)
 	if err then error(err) end
-	local env
-	package.preload[n],env = sl.loadfile(fn, 't')
-	return env
+	local res
+	package.preload[n],res = sl.loadfile(fn, 't')
+	return res
 end
-function sl.require(n) local env = sl.preload(n); return require(n),env end
+function sl.require(n) local res = sl.preload(n); return require(n),res end
 return sl
