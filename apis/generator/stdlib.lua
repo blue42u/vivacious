@@ -39,15 +39,35 @@ local function T(t)
 			for i,h in ipairs(arghandlers) do h(tab, tp[i]) end
 			return tab
 		end
-		if type(t[key]) == 'function' then m[key] = t[key]
+		if type(t[key]) == 'function' then
+			m[key] = function(c,...)
+				local addedkeys,cc = {},{}
+				t[key](setmetatable(cc, {__newindex=function(s,k,v)
+					rawset(s, k, v)
+					table.insert(addedkeys, k)
+				end}), ...)
+				for _,k in ipairs(addedkeys) do
+					c[cc[k]] = k
+					table.insert(c, cc[k])
+				end
+				return c
+			end
 		elseif type(t[key]) == 'string' then
-			m[key] = function(c,e,...) c[e] = strapply(t[key], totab(e,...)) end
+			m[key] = function(c,e,...)
+				local v = strapply(t[key], totab(e,...))
+				c[v] = e
+				table.insert(c, v)
+				return c
+			end
 		elseif type(t[key]) == 'table' then
 			m[key] = function(c,e,...)
 				local tab = totab(e,...)
 				for k,v in pairs(t[key]) do
-					c[strapply(k,tab)] = strapply(v,tab)
+					k,v = strapply(k,tab), strapply(v,tab)
+					c[v] = k
+					table.insert(c, v)
 				end
+				return c
 			end
 		else error('Making a type with an odd '..key..' value!') end
 	end
@@ -293,9 +313,9 @@ end
 
 	The generator behavior hook acts a little different than the others. It
 	should return a table with the following entries:
-	- subtype(<mainname>, <name>, <Type>) -> Type
+	- subtype(<name>, <Type>) -> Type
 	  Called when new Named Types are added, and can return a different Type.
-	- def(c, e, {{<name>, <Type},...}, {{'m' | 'rw' | 'ro', <name> <Type>},...})
+	- def(c, e, {{<name>, <Type>},...}, {{'m' | 'rw' | 'ro', <name>, <Type>},...})
 	  Called as usual for the def hook, but with the contents of the Behavior.
 ]]
 local behavioropts = {

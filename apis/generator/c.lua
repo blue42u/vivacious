@@ -37,41 +37,22 @@ simple('string', 'const char*', '%q', '')
 package.path = './?.lua;./generator/?.lua'
 local sl = require 'stdlib'
 
-local function append(t)
-	return setmetatable({}, {__newindex=function(_,_,v) table.insert(t, v) end})
-end
-
-local function onedef(t, k)
-	local c = {}
-	t'def'(c, k)
-	return c[k]
-end
-
-local function oneconv(t, k, v)
-	local c = {}
-	t'conv'(c, k, v)
-	return c[k]
-end
-
 function G.array(arg)
 	return {
-		def = function(c,e)
-			local cc,k = {}
-			if arg.fixedsize then k = e..'['..arg.fixedsize..']' else
-				c[e..'Cnt'], k = 'size_t '..e..'Cnt', '*'..e
+		def = function(c, e)
+			if arg.fixedsize then
+				arg[1]'def'(c, e..'['..arg.fixedsize..']')
+			else
+				c[e..'Cnt'] = 'size_t '..e..'Cnt'
+				arg[1]'def'(c, '*'..e)
 			end
-			c[e] = onedef(arg[1], k)
 		end,
 		conv = function(c, e, v)
 			if not arg.fixedsize then c[e..'Cnt'] = ('%d'):format(#v) end
 			if #v == 0 then c[e] = 'NULL' else
-				local cc = {}
-				arg[1]'def'(cc, '[]')
-				local parts = {}
-				for _,vv in ipairs(v) do
-					table.insert(parts, oneconv(arg[1], '', vv))
-				end
-				c[e] = '('..cc['[]']..'){'..table.concat(parts,', ')..'}'
+				local els = {}
+				for i,vv in ipairs(v) do arg[1]'conv'(els, i, vv) end
+				c[e] = '('..arg[1]'def'({}, '[]')[1]..'){'..table.concat(els,', ')..'}'
 			end
 		end,
 	}
@@ -82,25 +63,18 @@ local void = sl.T{def='void `e`', conv=error}
 function G.callable(arg)
 	local ret = table.remove(arg.returns or {}, 1) or void
 	local args = {}
-	for _,a in ipairs(arg) do a[2]'def'(append(args), a[1]) end
-	for _,r in ipairs(arg.returns or {}) do r'def'(append(args), '*') end
-	args = table.concat(args, ', ')
-
-	local cc = {}
-	ret'def'(append(cc), '(*`e`)('..args..')')
+	for _,a in ipairs(arg) do a[2]'def'(args, a[1]) end
+	for _,r in ipairs(arg.returns or {}) do r'def'(args, '*') end
 	return {
-		def = cc[1],
+		def = ret'def'({}, '(*`e`)('..table.concat(args, ', ')..')')[1],
 		conv = function() error("Callables don't support Lua conversion") end
 	}
 end
 
 function G.compound(arg)
 	local ents = {}
-	for _,e in ipairs(arg) do
-		e[2]'def'(setmetatable({}, {__newindex = function(_,_,s)
-			table.insert(ents, '\t'..s:gsub('\n', '\n\t')..';\n')
-		end}), e[1])
-	end
+	for _,e in ipairs(arg) do e[2]'def'(ents, e[1]) end
+	for i,e in ipairs(ents) do ents[i] = '\t'..e:gsub('\n', '\n\t')..';\n' end
 	ents = table.concat(ents)
 
 	local typs = {}
@@ -108,11 +82,12 @@ function G.compound(arg)
 	return {
 		def = 'struct `e` {\n'..ents..'} `e`',
 		conv = function(c, e, v)
-			local cc = {}
-			for k,sv in pairs(v) do typs[k]'conv'(cc, k, sv) end
-			c[e] = 'struct '..e..' {'
-			for k,s in pairs(cc) do c[e] = c[e]..'.'..k..' = '..s..', ' end
-			c[e] = c[e] .. '}'
+			local ps = {}
+			for k,sv in pairs(v) do
+				local cc = typs[k]'conv'({}, k, sv)
+				for _,rv in ipairs(cc) do table.insert(ps, '.'..cc[rv]..' = '..rv) end
+			end
+			c[e] = 'struct '..e..' {'..table.concat(ps, ', ')..'}'
 		end,
 	}
 end
