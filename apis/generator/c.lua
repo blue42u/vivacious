@@ -17,22 +17,12 @@
 local G = {simple={}}
 package.preload.generator = function() return G end
 
-local function simple(n, t, f, d)
-	G.simple[n] = {def = t..' `e`', default=d}
-	if type(f) == 'string' then
-		G.simple[n].conv = '`v:'..f..'`'
-	elseif type(f) == 'function' then
-		G.simple[n].conv = function(c,e,v) c[e] = f(v) end
-	else
-		G.simple[n].conv = function() error("Simpletype "..n.." has no conversion") end
-	end
-end
-simple('number', 'float', '%f', 0)
-simple('integer', 'int', '%d', 0)
-simple('memory', 'void*')
-simple('boolean', 'int', function(v) return v and '1' or '0' end, false)
-simple('generic', 'void*')
-simple('string', 'const char*', '%q', '')
+G.simple.number = {def='float `e`', conv='`v:%f`', default=0}
+G.simple.integer = {def = 'int `e`', conv='`v:%d`', default=0}
+G.simple.boolean = {def = 'bool `e`', conv=tostring, default=false}
+G.simple.string = {def = 'const char* `e`', conv='`v:%q`', default=''}
+G.simple.memory = {def = 'void* `e`', conv=error}
+G.simple.generic = {def = 'void* `e`', conv=error}
 
 package.path = './?.lua;./generator/?.lua'
 local sl = require 'stdlib'
@@ -52,11 +42,10 @@ function G.array(arg)
 			if #v == 0 then c[e] = 'NULL' else
 				local els = {}
 				for i,vv in ipairs(v) do arg[1]'conv'(els, i, vv) end
-				c[e] = '('..arg[1]'def'({}, '[]')[1]..'){'..table.concat(els,', ')..'}'
+				c[e] = '{'..els', '..'}'
 			end
 		end,
 	}
-
 end
 
 local void = sl.T{def='void `e`', conv=error}
@@ -66,7 +55,7 @@ function G.callable(arg)
 	for _,a in ipairs(arg) do a[2]'def'(args, a[1]) end
 	for _,r in ipairs(arg.returns or {}) do r'def'(args, '*') end
 	return {
-		def = ret'def'({}, '(*`e`)('..table.concat(args, ', ')..')')[1],
+		def = ret'def'({}, '(*`e`)('..args', '..')')[1],
 		conv = function() error("Callables don't support Lua conversion") end
 	}
 end
@@ -74,8 +63,7 @@ end
 function G.compound(arg)
 	local ents = {}
 	for _,e in ipairs(arg) do e[2]'def'(ents, e[1]) end
-	for i,e in ipairs(ents) do ents[i] = '\t'..e:gsub('\n', '\n\t')..';\n' end
-	ents = table.concat(ents)
+	ents = ents('', function(e) return '\t'..e:gsub('\n', '\n\t')..';\n' end)
 
 	local typs = {}
 	for _,e in ipairs(arg) do typs[e[1]] = e[2] end
@@ -83,11 +71,8 @@ function G.compound(arg)
 		def = 'struct `e` {\n'..ents..'} `e`',
 		conv = function(c, e, v)
 			local ps = {}
-			for k,sv in pairs(v) do
-				local cc = typs[k]'conv'({}, k, sv)
-				for _,rv in ipairs(cc) do table.insert(ps, '.'..cc[rv]..' = '..rv) end
-			end
-			c[e] = 'struct '..e..' {'..table.concat(ps, ', ')..'}'
+			for k,sv in pairs(v) do typs[k]'conv'(ps, k, sv) end
+			c[e] = '{'..ps(', ', '.`e`=`v`')..'}'
 		end,
 	}
 end
@@ -161,7 +146,7 @@ for an,env in pairs(envs) do
 
 	for n,b in pairs(env) do
 		f:write('// Behavior '..n..'\n')
-		b'def'(setmetatable({}, {__newindex=function(_,_,s) f:write(s..'\n') end}), n)
+		for _,s in ipairs(b'def'({}, n)) do f:write(s..'\n') end
 		f:write'\n'
 	end
 
