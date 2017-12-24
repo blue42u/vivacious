@@ -18,14 +18,13 @@ local G = {simple={}}
 package.preload.generator = function() return G end
 
 G.simple.number = {def='float `e`', conv='`v:%f`', default=0}
-G.simple.integer = {def = 'int `e`', conv='`v:%d`', default=0}
-G.simple.boolean = {def = 'bool `e`', conv=tostring, default=false}
-G.simple.string = {def = 'const char* `e`', conv='`v:%q`', default=''}
-G.simple.memory = {def = 'void* `e`', conv=error}
-G.simple.generic = {def = 'void* `e`', conv=error}
+G.simple.integer = {def='int `e`', conv='`v:%d`', default=0}
+G.simple.boolean = {def='bool `e`', conv=tostring, default=false}
+G.simple.string = {def='const char* `e`', conv='`v:%q`', default=''}
+G.simple.memory = {def='void* `e`', conv=error}
+G.simple.generic = {def='void* `e`', conv=error}
 
-package.path = './?.lua;./generator/?.lua'
-local sl = require 'stdlib'
+local sl
 
 function G.array(arg)
 	return {
@@ -40,7 +39,7 @@ function G.array(arg)
 		conv = function(c, e, v)
 			if not arg.fixedsize then c[e..'Cnt'] = ('%d'):format(#v) end
 			if #v == 0 then c[e] = 'NULL' else
-				local els = {}
+				local els = sl.C()
 				for i,vv in ipairs(v) do arg[1]'conv'(els, i, vv) end
 				c[e] = '{'..els', '..'}'
 			end
@@ -48,20 +47,22 @@ function G.array(arg)
 	}
 end
 
-local void = sl.T{def='void `e`', conv=error}
 function G.callable(arg)
-	local ret = table.remove(arg.returns or {}, 1) or void
-	local args = {}
-	for _,a in ipairs(arg) do a[2]'def'(args, a[1]) end
-	for _,r in ipairs(arg.returns or {}) do r'def'(args, '*') end
+	local ret = table.remove(arg.returns or {}, 1)
+		or sl.T{def='void `e`', conv=error}
 	return {
-		def = ret'def'({}, '(*`e`)('..args', '..')')[1],
+		def = function(c, e)
+			local args = sl.C()
+			for _,a in ipairs(arg) do a[2]'def'(args, a[1]) end
+			for _,r in ipairs(arg.returns or {}) do r'def'(args, '*') end
+			ret'def'(c, '(*'..e..')('..args', '..')')
+		end,
 		conv = function() error("Callables don't support Lua conversion") end
 	}
 end
 
 function G.compound(arg)
-	local ents = {}
+	local ents = sl.C()
 	for _,e in ipairs(arg) do e[2]'def'(ents, e[1]) end
 	ents = ents('', function(e) return '\t'..e:gsub('\n', '\n\t')..';\n' end)
 
@@ -70,63 +71,57 @@ function G.compound(arg)
 	return {
 		def = 'struct `e` {\n'..ents..'} `e`',
 		conv = function(c, e, v)
-			local ps = {}
+			local ps = sl.C()
 			for k,sv in pairs(v) do typs[k]'conv'(ps, k, sv) end
 			c[e] = '{'..ps(', ', '.`e`=`v`')..'}'
 		end,
 	}
 end
 
+G.reference = {
+	def=function(c, e, n) c[e] = n..' '..e end,
+	conv=function(c, e, t) t'conv'(c, e) end,
+}
+function G.refname(e) return e:gsub('%.', '') end
+function G.reftype(c, e, c2) c[e] = 'typedef '..c2[1]..';' end
 function G.behavior()
 	return {
-		def = function(c, e, ts, es)
-			c[e] = 'typedef struct Vv'..e..'* Vv'..e..';'
-			for _,t in ipairs(ts) do
-				local cc = {}
-				t[2]'def'(cc, 'Vv'..e..t[1])
-				for k,v in pairs(cc) do c[k] = 'typedef '..v..';' end
-				cc = {}
-				t[2]'conv'(cc, 'Vv'..e..t[1])
-				for k,v in pairs(cc) do
-					c[k] = '#define '..k..'(...) ({Vv'..e..t[1]..' _x = '..v..'; '
-						..'VvMAGIC(__VA_ARGS__); _x; })'
-				end
-			end
-
-			local meths = {}
+		def = function(c, e, es)
+			c[e..'_typedef'] = '// Behavior '..e
+				..'\ntypedef struct '..e..'* '..e..';'
+			local ms = sl.C()
 			for _,em in ipairs(es) do if em[1] == 'm' then
-				table.insert(meths, '\t\t'..onedef(em[3], em[2]):gsub('\n', '\n\t\t')..';\n')
-				c[em[2]] = '#define vV'..em[2]..'(_S, ...) ({ __typeof__ (_S) _s = (_S); '
+				em[3]'def'(ms, em[2])
+				c[em[2]] = '#define vV'..em[2]..'(_S, ...) ({ '
+					..'__typeof__ (_S) _s = (_S); '
 					..'_s->_M->'..em[2]..'(_s, __VA_ARGS__); })'
 			end end
-			meths = table.concat(meths)
+			ms = ms('', function(s)
+				return '\t\t'..s:gsub('\n', '\n\t\t')..';\n' end)
 
-			local dats = {}
+			local ds = sl.C()
 			for _,ed in ipairs(es) do if ed[1] == 'rw' then
-				table.insert(dats, '\t'..onedef(ed[3], ed[2]):gsub('\n', '\n\t')..';\n')
+				ed[3]'def'(ds, ed[2])
 			elseif ed[1] == 'ro' then
-				table.insert(dats, '\tconst '..onedef(ed[3], ed[2])
-					:gsub('\n', '\n\t'):gsub('%*', '*const ')..';\n')
+				ed[3]'def'(ds, 'const '..ed[2])
 			end end
-			dats = table.concat(dats)
+			ds = ds('', function(s)
+				return '\t'..s:gsub('\n', '\n\t')..';\n' end)
 
-			c[e] = 'struct Vv'..e..' {\n'
-				..'\tconst struct Vv'..e..'_M {\n'
-				..meths
+			c[e] = 'struct '..e..' {\n'
+				..'\tconst struct '..e..'_M {\n'
+				..ms
 				..'\t} * const _M;\n'
-				..dats
+				..ds
 				..'};'
 		end,
-		subtype = function(name, n, ty)
-			return {
-				def='Vv'..name..n..' `e`',
-				conv=ty'conv',
-			}
-		end,
+		conv = error,
 	}
 end
 
 -- Now load in all the specs
+package.path = './?.lua;./generator/?.lua'
+sl = require 'stdlib'
 local outdir = table.remove(arg, 1)..'/'
 local envs = {}
 for _,a in ipairs(arg) do envs[a] = sl.preload(a) end
@@ -144,11 +139,7 @@ for an,env in pairs(envs) do
 
 ]]):gsub('~', an)..'')
 
-	for n,b in pairs(env) do
-		f:write('// Behavior '..n..'\n')
-		for _,s in ipairs(b'def'({}, n)) do f:write(s..'\n') end
-		f:write'\n'
-	end
+	for _,e in ipairs(env'def'('Vv')) do f:write(e..'\n\n') end
 
 	f:write('#endif // H_vivacious_'..an)
 	f:close()
@@ -176,7 +167,8 @@ do
 ]]
 	local maxmagic = 100
 	for i=2,maxmagic do
-		f:write('#define VvMAGIC_FA_'..i..'(what, x, ...) what(x); VvMAGIC_FA_'..(i-1)..'(__VA_ARGS__)\n')
+		f:write('#define VvMAGIC_FA_'..i..'(what, x, ...) what(x); '
+			..'VvMAGIC_FA_'..(i-1)..'(__VA_ARGS__)\n')
 	end
 	f:write'#define VvMAGIC_NA(...) VvMAGIC_AN(__VA_ARGS__'
 	for i=maxmagic,0,-1 do f:write(','..i) end
@@ -186,7 +178,8 @@ do
 
 #define VvMAGIC_C(A, B) VvMAGIC_C2(A, B)
 #define VvMAGIC_C2(A, B) A##B
-#define VvMAGIC_FA(what, ...) VvMAGIC_C(VvMAGIC_FA_, VvMAGIC_NA(__VA_ARGS__))(what, __VA_ARGS__)
+#define VvMAGIC_FA(what, ...) VvMAGIC_C(VvMAGIC_FA_, \
+	VvMAGIC_NA(__VA_ARGS__))(what, __VA_ARGS__)
 
 #define VvMAGIC_x(A) _x A
 #define VvMAGIC(...) VvMAGIC_FA(VvMAGIC_x, __VA_ARGS__)

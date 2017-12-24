@@ -20,7 +20,7 @@ local stdlib = setmetatable({}, {__index=_ENV})
 -- Handy string-application with formatting
 local function strapply(s, t)
 	return string.gsub(s, '`(%a+):?(.-)`', function(k, f)
-		assert(t[k], 'Invalid strapply for key '..k..': '..string.format('%q', s))
+		assert(t[k], 'Invalid strapply for key '..k..':'..string.format('%q',s))
 		if #f > 0 then return string.format(f, t[k])
 		else return t[k] end
 	end)
@@ -36,13 +36,20 @@ end
 -- 6. c(s, f) -> table.concat({f(<result>, <elem name>), ...}, s)
 -- 7. c(s, fs) -> table.concat(strapply(fs, {e=<elem name>, v=<result>}), s)
 -- 8. #c -> Number of elements
-local function C(x)
-	if getmetatable(x) then return x end
+local function C()
 	local m = {}
 
 	local ord,res = {},{}
+	function m.__pairs()
+		local i = 0
+		return function()
+			i = i + 1
+			print(i, ord[i], res[i])
+			return ord[i], res[i]
+		end
+	end
 	function m.__len() return #ord end
-	function m:__index(k) return self[ord[k]] end
+	function m:__index(k) return rawget(self, ord[k]) end
 	function m:__newindex(k,v)
 		rawset(self, k, v)
 		table.insert(ord, k)
@@ -57,20 +64,20 @@ local function C(x)
 		return table.concat(f and r or res, s)
 	end
 
-	return setmetatable(x or {}, m)
+	return setmetatable({}, m)
 end
 
 -- Construct a Type from the functions or strings that make it up.
 -- Types are called with one of the "hook" names ('def' or 'conv'),
--- and the resulting function is called with an optional Context and element name.
+-- and the resulting function is called with a Context and element name.
 local function T(t, extra)
 	if not t then return nil end
 	local m = {}
 	function m.__call(_,k) return m[k] end
 
 	local ah = {}
-	function ah.e(o,v) return v end
-	function ah.v(o,v)
+	function ah.e(v) return v end
+	function ah.v(v)
 		if v == nil then v = t.default end
 		if extra and extra.v then v = extra.v(v) or v end
 		return v
@@ -79,26 +86,29 @@ local function T(t, extra)
 	local function handle(key, as)
 		if type(t[key]) == 'function' then
 			m[key] = function(c, e, ...)
-				if type(c) == 'string' then c,e = C(),c else c = C(c) end
 				local a = table.pack(...)
+				if type(c) == 'string' then c,e = C(),c; table.insert(a,1,e) end
 				for i,an in ipairs(as) do a[i] = ah[an](a[i]) end
 				t[key](c, e, table.unpack(a))
 				return c
 			end
 		elseif type(t[key]) == 'string' then
 			m[key] = function(c, e, ...)
-				if type(c) == 'string' then c,e = C(),c else c = C(c) end
-				local a,r = table.pack(...),{e=e}
+				local a = table.pack(...)
+				if type(c) == 'string' then c,e = C(),c; table.insert(a,1,e) end
+				local r = {e=e}
 				for i,an in ipairs(as) do r[an] = ah[an](a[i]) end
 				c[e] = strapply(t[key], r)
 				return c
 			end
 		elseif type(t[key]) == 'table' then
 			m[key] = function(c, e, ...)
-				if type(c) == 'string' then c,e = C(),c else c = C(c) end
-				local a,r = table.pack(...),{e=e}
+				local a = table.pack(...)
+				if type(c) == 'string' then c,e = C(),c; table.insert(a,1,e) end
+				local r = {e=e}
 				for i,an in ipairs(as) do r[an] = ah[an](a[i]) end
-				for k,v in pairs(t[key]) do c[strapply(k, r)] = strapply(v, r) end
+				for k,v in pairs(t[key]) do
+					c[strapply(k, r)] = strapply(v, r) end
 				return c
 			end
 		else error('Making a type with an odd '..key..' value!') end
@@ -133,7 +143,7 @@ local function checkarg(arg, opts)
 		end
 	end
 
-	if opts._integer == true then assert(arg[1], 'Required sequence is empty') end
+	if opts._integer == true then assert(arg[1], 'Sequence is empty') end
 	for k,o in pairs(opts) do
 		if o == true then assert(arg[k], 'Required argument '..k..' is nil') end
 	end
@@ -170,15 +180,15 @@ function stdlib.options(arg)
 	local opts = {}
 	for _,o in ipairs(arg) do opts[o] = o end
 	return T(assert(G.array, 'Generator does not support options!')(arg), {
-		v=function(v) return assert(opts[v], 'Invalid option '..tostring(v)) end,
+		v=function(v) return assert(opts[v],'Invalid option '..tostring(v)) end,
 	})
 end
 
 -- Flags are strings or tables, with the strings using the shorthand names for
 -- the flag values, and the table can use either. The generator will always be
 -- given a table with the proper names for flag values.
--- If a value's proper name is one character long, it will accepted as shorthand,
--- while shorthands must be one character long.
+-- If a value's proper name is one character long, it will accepted as
+-- shorthand, while shorthands must be one character long.
 function stdlib.flags(arg)
 	checkarg(arg, {
 		_integer = function(v)
@@ -274,7 +284,7 @@ function stdlib.compound(arg)
 	-- Now if its mutable, order the elements for the generator
 	local garg
 	if static then garg = arg else
-		garg = setmetatable({}, {__index=arg})
+		garg = setmetatable({mutable=true}, {__index=arg})
 		local vers = {}
 		for k,v in pairs(arg) do
 			local M,m,p = string.match(k, 'v(%d+)_(%d+)_(%d+)')
@@ -305,85 +315,90 @@ function stdlib.compound(arg)
 end
 
 --[[
-	Behaviors are the main construct in Vv, they are mostly-opaque objects with
-	methods that give them capabilities. In Lua these are Userdata. Similar to
-	compounds, these create a context for the elements inside them; unlike
-	compounds, there are 5 different contexts for 4 different areas:
+	Behaviors form the most important part of Vv, they are opaque objects with
+	methods that allow applications to access the unknown internals, and allows
+	for multiple separate implementations of the same Behaviors. In Lua, these
+	are represented Userdata. Similar to compounds, they contain a Context for
+	their elements to reside in; unlike compounds, there is more than one:
 
-	1. Methods are callable elements, and are contained in one context.
-	2. Data are elements in the Behavior that are accessable from outside, and
-	   form a second context. Some Data is read-only, which forms the third.
-	3. Named Types are Types that are given a special name connected to the
-	   Behavior, and form the fourth context.
-	4. Sub-Behaviors are Behaviors that are tethered to their super-Behavior
-	   and so have Methods of their own. These form the fifth context.
+	1. Methods are callable elements, accessable in the usual manner for
+	   Lua-style methods. Added to Behavior `B` in version `M.m.p` by a
+	   statement like `B.vM_m_p.<name> = {...callback arg...}`.
+	2. Read-only Data are elements accessable by the key of the same name.
+	   Added by `B.vM_m_p.ro.<name> = <Type>`.
+	3. Read-write Data are elements that be assigned to as well.
+	   Added by `B.vM_m_p.rw.<name> = <Type>`.
+	4. Types can be given names attached to a Behavior, although this is only
+	   for generation and not extensively used in applications.
+	   Added by `B.type.<name> = <Type>`, refer to `B.<name>`.
+	5. Sub-Behaviors are Behaviors that are tethered to their super-Behavior,
+	   and so a super-Behavior cannot be destroyed before its super-Behavior.
+	   Added by `B.<name> = <Type>`, refer to `B.<name>`.
 
-	Behaviors are created by setting the argument table to the name in _ENV,
-	that is as a global. Then to fill the 3 areas, the Behavior is accessed
-	with the version and specifics about the area. If the created Behavior
-	was named "B", and we were adding for version M.m.p, then
+	Behaviors themselves are created by assigning the argument table to a name
+	in the _ENV table (i.e. global) of a properly loaded function. At runtime,
+	these are created by global functions which have optional arguments for the
+	parent Behaviors, which are later accessable by ro Data.
 
-	1. Methods are added by `B.vM_m_p.<methodname> = {... callback arg ...}`.
-	2. Data are added by `B.vM_m_p.rw.<name> = <Type>`.
-	3. Read-only Data are added by `B.vM_m_p.ro.<name> = <Type>`.
-	4. Named types are added by `B.type.<name> = <Type>`, and the <Type> can be
-	   later referenced as `B.<name>`.
-	5. Sub-Behaviors are added by `B.<name> = {... behavior arg ...}`, and can
-	   be later referenced as `B.<name>`.
-
-	In application code, Behaviors are created by global functions which have
-	optional arguments for parent Behaviors. The actual algorithms and content
-	of the Behavior can change based on the given arguments, which can allow
-	implementers of Vv's API to choose the best implementation.
-
-	It should be noted that the Types returned by the Behavior are not identical
-	to the ones used, they defer to the actual type and will only function
-	properly after the main Type has been `def`'d.
-
-	The generator behavior hook acts a little different than the others. It
-	should return a table with the following entries:
-	- subtype(<name>, <Type>) -> Type
-	  Called when new Named Types are added, and can return a different Type.
-	- def(c, e, {{<name>, <Type>},...}, {{'m' | 'rw' | 'ro', <name>, <Type>},...})
-	  Called as usual for the def hook, but with the contents of the Behavior.
+	It should be noted that the sub-Types and sub-Behaviors are def'd into the
+	top-level Context as needed, when the referenced Type is def'd. It should
+	also be noted that the _ENV table is also a Type similar to a Behavior.
 ]]
-local behavioropts = {
-	-- [integer] = parent Behaviors, can also be sub-Behaviors.
-}
-local function behavior(arg, name)
-	checkarg(arg, behavioropts, true)
-	for i,b in ipairs(arg) do
-		assert(b'behaves', 'Invalid parent Behavior at #'..i)
-	end
-	local g = assert(G.behavior, "Generator does not support Behaviors!")(arg)
-
-	local types,vers,subs,isubs = {},{},{},{}
-	local me = T{
+local R,Rn,Rt
+if G.reference then
+	R = T(G.reference)
+	Rn = assert(G.refname, 'Generator does not support reference names!')
+	Rt = assert(G.reftype, 'Generator does not support reference types!')
+end
+local function behavior(arg)
+	checkarg(arg, {
+		_integer = function(b) assert(b'behaves') end, -- parent Behaviors
+	})
+	local g = T(assert(G.behavior, 'Generator does not support Behaviors')(arg))
+	local real,vers,subs = {},{},{}
+	local ref = R and {} or real
+	local myself = T{
 		def = function(c, e)
 			table.sort(vers, function(a,b)
 				if a.M ~= b.M then return a.M < b.M
 				elseif a.m ~= b.m then return a.m < b.m
 				else return a.p < b.p end
 			end)
-			local ents = {}
-			for _,v in ipairs(vers) do table.move(v.e, 1, #v.e, #ents+1, ents) end
-			g.def(c, e, types, ents)
-			for k,b in pairs(subs) do b'def'(c, e..k) end
-		end,
-		conv = function() error("Behaviors cannot be converted from Lua") end,
-	}
-	local myself = T(g.subtype(name, '', me))
+			local es = {}
+			for _,v in ipairs(vers) do table.move(v.e, 1, #v.e, #es+1, es) end
 
-	assert(name, "Behaviors need to know their names!")
+			if R then for k,t in pairs(real) do
+				local n = Rn(e..'.'..k)
+				ref[k] = T{
+					def=subs[k]
+					and function(c2, e2) t'def'(c, n) R'def'(c2, e2, n) end
+					or function(c2, e2) Rt(c, n, t'def'(n)) R'def'(c2,e2,n) end,
+					conv = function(c2, e2) R'conv'(c2, e2, t) end,
+				}
+			end end
+			g'def'(c, Rn(e), es)
+			if R then for k,t in pairs(real) do
+				local n = Rn(e..'.'..k)
+				if not c[n] then if subs[k] then t'def'(c, n)
+				else Rt(c, n, t'def'(n)) end end
+			end end
+		end,
+		conv = function() error("Behaviors cannot convert") end
+	}
+
 	local meta = getmetatable(myself)
-	meta.behaves = name
+	meta.behaves = true
+	local defered = {}
 	function meta.__index(_, k)
 		local M,m,p = string.match(tostring(k), '^v(%d+)_(%d+)_(%d+)$')
 		M,m,p = tonumber(M), tonumber(m), tonumber(p)
 		if k == 'type' then
-			return setmetatable({}, {__newindex=function(_,n,ty)
-				table.insert(types, {n, ty})
-				types[n] = T(g.subtype(name, n, ty))
+			return setmetatable({}, {__newindex=function(_,k2,v)
+				real[k2] = v
+				defered[k2] = T{
+					def=function(...) ref[k2]'def'(...) end,
+					conv=function(...) ref[k2]'conv'(...) end,
+				}
 			end})
 		elseif M then
 			if not vers[k] then
@@ -407,53 +422,60 @@ local function behavior(arg, name)
 					table.insert(vr, {'m', n, stdlib.callable(ca)})
 				end
 			})
-		else return types[k] or isubs[k] end
+		else return defered[k] end
 	end
 	function meta.__newindex(_, k, ba)
 		assert(#ba == 0, "Sub-Behaviors can't have extra parents")
-		local i,o = behavior(ba, name..k)
-		i.v0_0_0.ro.parent = myself
-		subs[k],isubs[k] = o,i
+		real[k] = behavior(ba)
+		subs[k] = true
+		defered[k] = T{
+			def=function(...) ref[k]'def'(...) end,
+			conv=function(...) ref[k]'conv'(...) end,
+		}
+		local m = getmetatable(defered[k])
+		m.__index, m.__newindex = real[k], real[k]
+		setmetatable(m, {__index=getmetatable(real[k])})
 	end
-
-	for _,b in ipairs(arg) do
-		myself.v0_0_0.ro[b'behaves'] = b
-	end
-	return myself, me
+	return myself
 end
 
 -- The generator is the one to actually load the spec files, so we provide some
 -- helper functions to make life easier.
-local sl = {lib=stdlib, T=T}
+local sl = {lib=stdlib, T=T, C=C}
 local function stdenv()
-	local res = {}
-	return setmetatable({}, {
-		__index=stdlib,
-		__newindex=function(env, k, v)
-			local i,o = behavior(v, k)
-			rawset(env, k, i)
-			res[k] = o
-		end
-	}), res
+	local bs,ns = {},{}
+	local env = T{
+		def = function(c, e)
+			for i,b in ipairs(bs) do b'def'(c, e..'.'..ns[i]) end
+		end,
+		conv = error,
+	}
+	local meta = getmetatable(env)
+	meta.__index = stdlib
+	meta.__newindex = function(_, k, v)
+		rawset(env, k, behavior(v))
+		bs[#bs+1], ns[#ns+1] = env[k], k
+	end
+	return env
 end
 function sl.load(a,b,c)
-	local env,res = stdenv()
+	local env = stdenv()
 	local f,err = load(a,b,c,env)
-	if not f then res = err end
-	return f,res
+	if not f then env = err end
+	return f,env
 end
 function sl.loadfile(a,b)
-	local env,res = stdenv()
+	local env = stdenv()
 	local f,err = loadfile(a,b,env)
-	if not f then res = err end
-	return f,res
+	if not f then env = err end
+	return f,env
 end
 function sl.preload(n, f)
 	local fn,err = package.searchpath(f or n, package.path)
 	if err then error(err) end
-	local res
-	package.preload[n],res = sl.loadfile(fn, 't')
-	return res
+	local env
+	package.preload[n],env = sl.loadfile(fn, 't')
+	return env
 end
-function sl.require(n) local res = sl.preload(n); return require(n),res end
+function sl.require(n) local env = sl.preload(n); return require(n),env end
 return sl

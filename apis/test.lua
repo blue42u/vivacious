@@ -34,3 +34,9 @@ Test.Little = {}
 Test.Little.v3_2_1.meth = {
 	{'d', boolean}
 }
+
+OtherTest = {Test.Little}
+OtherTest.v1_2_1.meth = {
+	returns = {Test.Def2},
+	{'a', integer},
+}
