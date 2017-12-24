@@ -87,7 +87,7 @@ local function T(t, extra)
 		if type(t[key]) == 'function' then
 			m[key] = function(c, e, ...)
 				local a = table.pack(...)
-				if type(c) == 'string' then c,e = C(),c; table.insert(a,1,e) end
+				if type(c) == 'string' then table.insert(a,1,e); c,e = C(),c end
 				for i,an in ipairs(as) do a[i] = ah[an](a[i]) end
 				t[key](c, e, table.unpack(a))
 				return c
@@ -95,7 +95,7 @@ local function T(t, extra)
 		elseif type(t[key]) == 'string' then
 			m[key] = function(c, e, ...)
 				local a = table.pack(...)
-				if type(c) == 'string' then c,e = C(),c; table.insert(a,1,e) end
+				if type(c) == 'string' then table.insert(a,1,e); c,e = C(),c end
 				local r = {e=e}
 				for i,an in ipairs(as) do r[an] = ah[an](a[i]) end
 				c[e] = strapply(t[key], r)
@@ -104,7 +104,7 @@ local function T(t, extra)
 		elseif type(t[key]) == 'table' then
 			m[key] = function(c, e, ...)
 				local a = table.pack(...)
-				if type(c) == 'string' then c,e = C(),c; table.insert(a,1,e) end
+				if type(c) == 'string' then table.insert(a,1,e); c,e = C(),c end
 				local r = {e=e}
 				for i,an in ipairs(as) do r[an] = ah[an](a[i]) end
 				for k,v in pairs(t[key]) do
@@ -372,7 +372,7 @@ local function behavior(arg)
 				ref[k] = T{
 					def=subs[k]
 					and function(c2, e2) t'def'(c, n) R'def'(c2, e2, n) end
-					or function(c2, e2) Rt(c, n, t'def'(n)) R'def'(c2,e2,n) end,
+					or function(c2, e2) Rt(c, n, t) R'def'(c2,e2,n) end,
 					conv = function(c2, e2) R'conv'(c2, e2, t) end,
 				}
 			end end
@@ -380,7 +380,7 @@ local function behavior(arg)
 			if R then for k,t in pairs(real) do
 				local n = Rn(e..'.'..k)
 				if not c[n] then if subs[k] then t'def'(c, n)
-				else Rt(c, n, t'def'(n)) end end
+				else Rt(c, n, t) end end
 			end end
 		end,
 		conv = function() error("Behaviors cannot convert") end

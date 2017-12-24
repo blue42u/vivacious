@@ -83,7 +83,11 @@ G.reference = {
 	conv=function(c, e, t) t'conv'(c, e) end,
 }
 function G.refname(e) return e:gsub('%.', '') end
-function G.reftype(c, e, c2) c[e] = 'typedef '..c2[1]..';' end
+function G.reftype(c, e, t)
+	c[e] = 'typedef '..t'def'(e)[1]..';'
+	c[e..'_magic'] = '#define '..e..'(...) ({ '
+		..e..' _x = '..t'conv'(e)[1]..'; VvMAGIC(__VA_ARGS__); _x; })'
+end
 function G.behavior()
 	return {
 		def = function(c, e, es)
