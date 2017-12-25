@@ -445,7 +445,7 @@ end
 -- Now we load up the generator and run it on all the files we need to
 -- First get the options for us in particular, and get the generator ready
 function package.preload.stdlib() return {lib=stdlib, T=T, C=C} end
-package.path = './?.lua;./?/'..table.remove(arg, 1)..'.lua'
+package.path = './apis/?.lua;./apis/?/'..table.remove(arg, 1)..'.lua'
 local root = table.remove(arg, 1)..'/'
 local envs = {}
 G = require 'generator'
@@ -453,7 +453,6 @@ loadsimple()
 
 -- Then get all the environments ready
 for _,a in ipairs(arg) do
-	print('Preparing environment for spec '..a)
 	local bs = {}
 	local env = T{
 		def = function(c, e)
@@ -472,7 +471,6 @@ end
 
 -- Then preload and load in all the specs
 for a,e in pairs(envs) do
-	print('Loading '..a)
 	local f,err = package.searchpath(a, package.path)
 	if err then error(err) end
 	f,err = loadfile(f, 't', e)
