@@ -24,7 +24,7 @@ G.simple.string = {def='const char* `e`', conv='`v:%q`', default=''}
 G.simple.memory = {def='void* `e`', conv=error}
 G.simple.generic = {def='void* `e`', conv=error}
 
-local sl
+local sl = require 'stdlib'
 
 function G.array(arg)
 	return {
@@ -47,9 +47,9 @@ function G.array(arg)
 	}
 end
 
+local void = sl.T{def='void `e`', conv=error}
 function G.callable(arg)
-	local ret = table.remove(arg.returns or {}, 1)
-		or sl.T{def='void `e`', conv=error}
+	local ret = table.remove(arg.returns or {}, 1) or void
 	return {
 		def = function(c, e)
 			local args = sl.C()
@@ -123,18 +123,11 @@ function G.behavior()
 	}
 end
 
--- Now load in all the specs
-package.path = './?.lua;./generator/?.lua'
-sl = require 'stdlib'
-local outdir = table.remove(arg, 1)..'/'
-local envs = {}
-for _,a in ipairs(arg) do envs[a] = sl.preload(a) end
-for _,a in ipairs(arg) do require(a) end
-
--- First thing to write, the API headers. Each spec turns into one of these.
-for an,env in pairs(envs) do
-	local f = io.open(outdir..an..'.h', 'w')
-	f:write(([[
+function G.generate(root, envs)
+	-- First thing to write, the API headers. Each spec turns into one of these.
+	for an,env in pairs(envs) do
+		local f = io.open(root..an..'.h', 'w')
+		f:write(([[
 // Generated file, do not edit directly, edit apis/~.lua instead
 #ifndef H_vivacious_~
 #define H_vivacious_~
@@ -143,16 +136,16 @@ for an,env in pairs(envs) do
 
 ]]):gsub('~', an)..'')
 
-	for _,e in ipairs(env'def'('Vv')) do f:write(e..'\n\n') end
+		for _,e in ipairs(env'def'('Vv')) do f:write(e..'\n\n') end
 
-	f:write('#endif // H_vivacious_'..an)
-	f:close()
-end
+		f:write('#endif // H_vivacious_'..an)
+		f:close()
+	end
 
--- Then write up the core.h. This is mostly hardcoded.
-do
-	local f = io.open(outdir..'core.h', 'w')
-	f:write[[
+	-- Then write up the core.h. This is mostly hardcoded.
+	do
+		local f = io.open(root..'core.h', 'w')
+		f:write[[
 // Generated from apis/generator/c.lua, do not edit
 #ifndef H_vivacious_core
 #define H_vivacious_core
@@ -169,16 +162,16 @@ do
 
 #define VvMAGIC_FA_1(what, x, ...) what(x);
 ]]
-	local maxmagic = 100
-	for i=2,maxmagic do
-		f:write('#define VvMAGIC_FA_'..i..'(what, x, ...) what(x); '
-			..'VvMAGIC_FA_'..(i-1)..'(__VA_ARGS__)\n')
-	end
-	f:write'#define VvMAGIC_NA(...) VvMAGIC_AN(__VA_ARGS__'
-	for i=maxmagic,0,-1 do f:write(','..i) end
-	f:write')\n#define VvMAGIC_AN('
-	for i=1,maxmagic do f:write('_'..i..',') end
-	f:write[[N, ...) N
+		local maxmagic = 100
+		for i=2,maxmagic do
+			f:write('#define VvMAGIC_FA_'..i..'(what, x, ...) what(x); '
+				..'VvMAGIC_FA_'..(i-1)..'(__VA_ARGS__)\n')
+		end
+		f:write'#define VvMAGIC_NA(...) VvMAGIC_AN(__VA_ARGS__'
+		for i=maxmagic,0,-1 do f:write(','..i) end
+		f:write')\n#define VvMAGIC_AN('
+		for i=1,maxmagic do f:write('_'..i..',') end
+		f:write[[N, ...) N
 
 #define VvMAGIC_C(A, B) VvMAGIC_C2(A, B)
 #define VvMAGIC_C2(A, B) A##B
@@ -189,22 +182,25 @@ do
 #define VvMAGIC(...) VvMAGIC_FA(VvMAGIC_x, __VA_ARGS__)
 
 #endif
-]]
-	f:close()
-end
+	]]
+		f:close()
+	end
 
--- And last but not least, write vivacious.h, which include's all the others.
-do
-	local f = io.open(outdir..'vivacious.h', 'w')
-	f:write[[
+	-- And last but not least, write vivacious.h, which include's all the others.
+	do
+		local f = io.open(root..'vivacious.h', 'w')
+		f:write[[
 // Generated from apis/generator/c.lua, do not edit
 #ifndef H_vivacious_vivacious
 #define H_vivacious_vivacious
 
 ]]
-	for a in pairs(envs) do
-		f:write('#include <vivacious/'..a..'.h>\n')
+		for a in pairs(envs) do
+			f:write('#include <vivacious/'..a..'.h>\n')
+		end
+		f:write'\n#endif'
+		f:close()
 	end
-	f:write'\n#endif'
-	f:close()
 end
+
+return G

@@ -1,4 +1,4 @@
-set(APIS
+set(GEN_C
 	test
 )
 
@@ -7,13 +7,13 @@ file(MAKE_DIRECTORY ${OUT})
 
 set(OUTS ${OUT}/core.h ${OUT}/vivacious.h)
 set(DEPS ../external/vulkan.lua generator/stdlib.lua)
-foreach(A ${APIS})
+foreach(A ${GEN_C})
 	set(OUTS ${OUTS} ${OUT}/${A}.h)
 	set(DEPS ${DEPS} ${A}.lua)
 endforeach()
 
 add_custom_command(OUTPUT ${OUTS}
-	COMMAND ${LUA_EXECUTABLE} generator/c.lua ${OUT} ${APIS}
+	COMMAND ${LUA_EXECUTABLE} generator/stdlib.lua c ${OUT} ${GEN_C}
 	WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 	MAIN_DEPENDENCY generator/c.lua
 	DEPENDS ${DEPS})

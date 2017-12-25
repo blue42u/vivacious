@@ -14,7 +14,7 @@
    limitations under the License.
 --]========================================================================]
 
-local G = require 'generator'
+local G
 local stdlib = setmetatable({}, {__index=_ENV})
 
 -- Handy string-application with formatting
@@ -120,15 +120,17 @@ local function T(t, extra)
 end
 
 -- A handful of types are "simple," and all generators should support them.
-assert(G.simple, 'Generator does not support simpletypes!')
-for t in pairs{
-	integer=true, number=true, boolean=true, string=true,
-	generic=true, memory=true,
-} do stdlib[t] = assert(T(G.simple[t]),
-	'Generator does not support the '..t..' simpletype!') end
+local function loadsimple()
+	assert(G.simple, 'Generator does not support simpletypes!')
+	for t in pairs{
+		integer=true, number=true, boolean=true, string=true,
+		generic=true, memory=true,
+	} do stdlib[t] = assert(T(G.simple[t]),
+		'Generator does not support the '..t..' simpletype!') end
 
--- If the generator doesn't overload it, indicies are just integers.
-stdlib.index = T(G.simple.index) or stdlib.integer
+	-- If the generator doesn't overload it, indicies are just integers.
+	stdlib.index = T(G.simple.index) or stdlib.integer
+end
 
 -- Simple optional & required argument checker. Test should error on failure.
 local function checkarg(arg, opts)
@@ -344,13 +346,14 @@ end
 	top-level Context as needed, when the referenced Type is def'd. It should
 	also be noted that the _ENV table is also a Type similar to a Behavior.
 ]]
-local R,Rn,Rt
-if G.reference then
-	R = T(G.reference)
-	Rn = assert(G.refname, 'Generator does not support reference names!')
-	Rt = assert(G.reftype, 'Generator does not support reference types!')
-end
 local function behavior(arg)
+	local R,Rn,Rt
+	if G.reference then
+		R = T(G.reference)
+		Rn = assert(G.refname, 'Generator does not support reference names!')
+		Rt = assert(G.reftype, 'Generator does not support reference types!')
+	end
+
 	checkarg(arg, {
 		_integer = function(b) assert(b'behaves') end, -- parent Behaviors
 	})
@@ -439,14 +442,22 @@ local function behavior(arg)
 	return myself
 end
 
--- The generator is the one to actually load the spec files, so we provide some
--- helper functions to make life easier.
-local sl = {lib=stdlib, T=T, C=C}
-local function stdenv()
-	local bs,ns = {},{}
+-- Now we load up the generator and run it on all the files we need to
+-- First get the options for us in particular, and get the generator ready
+function package.preload.stdlib() return {lib=stdlib, T=T, C=C} end
+package.path = './?.lua;./?/'..table.remove(arg, 1)..'.lua'
+local root = table.remove(arg, 1)..'/'
+local envs = {}
+G = require 'generator'
+loadsimple()
+
+-- Then get all the environments ready
+for _,a in ipairs(arg) do
+	print('Preparing environment for spec '..a)
+	local bs = {}
 	local env = T{
 		def = function(c, e)
-			for i,b in ipairs(bs) do b'def'(c, e..'.'..ns[i]) end
+			for _,b in ipairs(bs) do b'def'(c, e..'.'..bs[b]) end
 		end,
 		conv = error,
 	}
@@ -454,28 +465,21 @@ local function stdenv()
 	meta.__index = stdlib
 	meta.__newindex = function(_, k, v)
 		rawset(env, k, behavior(v))
-		bs[#bs+1], ns[#ns+1] = env[k], k
+		bs[#bs+1], bs[env[k]] = env[k], k
 	end
-	return env
+	envs[a] = env
 end
-function sl.load(a,b,c)
-	local env = stdenv()
-	local f,err = load(a,b,c,env)
-	if not f then env = err end
-	return f,env
-end
-function sl.loadfile(a,b)
-	local env = stdenv()
-	local f,err = loadfile(a,b,env)
-	if not f then env = err end
-	return f,env
-end
-function sl.preload(n, f)
-	local fn,err = package.searchpath(f or n, package.path)
+
+-- Then preload and load in all the specs
+for a,e in pairs(envs) do
+	print('Loading '..a)
+	local f,err = package.searchpath(a, package.path)
 	if err then error(err) end
-	local env
-	package.preload[n],env = sl.loadfile(fn, 't')
-	return env
+	f,err = loadfile(f, 't', e)
+	if err then error(err) end
+	package.preload[a] = f
 end
-function sl.require(n) local env = sl.preload(n); return require(n),env end
-return sl
+for a in pairs(envs) do require(a) end
+
+-- Finally, actually generate something!
+assert(G.generate, "Generator does not support generation!")(root, envs)
