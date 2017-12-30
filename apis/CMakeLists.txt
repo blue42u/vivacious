@@ -9,8 +9,8 @@ function(gen GEN OUT SUFF EOUTS EDEPS)
 	endforeach()
 	add_custom_command(OUTPUT ${OUTS}
 		COMMAND ${LUA_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/stdlib.lua
-			${GEN} ${OUT} ${ARGN}
-		WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+			${GEN} ${CMAKE_SOURCE_DIR}/apis ${ARGN}
+		WORKING_DIRECTORY ${OUT}
 		MAIN_DEPENDENCY generator/${GEN}.lua
 		DEPENDS stdlib.lua ${DEPS} ${EDEPS})
 	set(ALLOUTS ${ALLOUTS} ${OUTS} PARENT_SCOPE)
