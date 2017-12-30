@@ -1,24 +1,40 @@
-function(gen GEN OUT SUFF EOUTS EDEPS)
-	file(MAKE_DIRECTORY ${OUT})
-	foreach(S ${ARGN})
-		set(OUTS ${OUTS} ${OUT}/${S}${SUFF})
-		set(DEPS ${DEPS} ${S}.lua)
+function(gen A_GEN A_OUT)
+	cmake_parse_arguments(PARSE_ARGV 2 A "" "SUFFIXES" "EXTRAOUTS;EXTRADEPS;SPECS")
+	file(MAKE_DIRECTORY ${A_OUT})
+	set(SL ${CMAKE_CURRENT_SOURCE_DIR}/generator/stdlib.lua)
+	foreach(S ${A_SPECS})
+		set(S_OUTS)
+		foreach(SS ${A_SUFFIXES})
+			set(S_OUTS ${S_OUTS} ${A_OUT}/${S}${SS})
+		endforeach()
+
+		add_custom_command(OUTPUT ${S_OUTS}
+			COMMAND ${LUA_EXECUTABLE} ${SL}
+				${A_GEN} ${CMAKE_CURRENT_SOURCE_DIR} ${S}
+			WORKING_DIRECTORY ${A_OUT}
+			MAIN_DEPENDENCY generator/${A_GEN}.lua
+			DEPENDS ${SL} ${S}.lua ${A_EXTRADEPS})
+		set(MYOUTS ${MYOUTS} ${S_OUTS})
 	endforeach()
-	foreach(S ${EOUTS})
-		set(OUTS ${OUTS} ${OUT}/${S}${SUFF})
+
+	foreach(S ${A_EXTRAOUTS})
+		set(OUTS ${OUTS} ${A_OUT}/${S})
 	endforeach()
+
 	add_custom_command(OUTPUT ${OUTS}
-		COMMAND ${LUA_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/stdlib.lua
-			${GEN} ${CMAKE_SOURCE_DIR}/apis ${ARGN}
-		WORKING_DIRECTORY ${OUT}
-		MAIN_DEPENDENCY generator/${GEN}.lua
-		DEPENDS stdlib.lua ${DEPS} ${EDEPS})
-	set(ALLOUTS ${ALLOUTS} ${OUTS} PARENT_SCOPE)
+		COMMAND ${LUA_EXECUTABLE} ${SL}
+			${A_GEN} ${CMAKE_CURRENT_SOURCE_DIR} finalize ${A_SPECS}
+		WORKING_DIRECTORY ${A_OUT}
+		MAIN_DEPENDENCY generator/${A_GEN}.lua
+		DEPENDS ${SL} ${A_EXTRADEPS})
+
+	set(ALLOUTS ${ALLOUTS} ${MYOUTS} ${OUTS} PARENT_SCOPE)
 endfunction(gen)
 
 # Standard C headers, using the standard C header generator
-gen(c ${CMAKE_BINARY_DIR}/include/vivacious .h	"vivacious;core" ""
-	test
+gen(c ${CMAKE_BINARY_DIR}/include/vivacious SUFFIXES ".h"
+	EXTRAOUTS vivacious.h core.h
+	SPECS test
 )
 
 # Vulkan Vv interface generator

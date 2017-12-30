@@ -119,11 +119,10 @@ function G.behavior()
 	}
 end
 
-function G.generate(envs)
-	-- First thing to write, the API headers. Each spec turns into one of these.
-	for an,env in pairs(envs) do
-		local f = io.open(an..'.h', 'w')
-		f:write(([[
+function G.generate(an, env)
+	-- Each spec becomes an individual header.
+	local f = io.open(an..'.h', 'w')
+	f:write(([[
 // Generated file, do not edit directly, edit apis/~.lua instead
 #ifndef H_vivacious_~
 #define H_vivacious_~
@@ -132,13 +131,14 @@ function G.generate(envs)
 
 ]]):gsub('~', an)..'')
 
-		for _,e in ipairs(env'def'('Vv')) do f:write(e..'\n\n') end
+	for _,e in ipairs(env'def'('Vv')) do f:write(e..'\n\n') end
 
-		f:write('#endif // H_vivacious_'..an)
-		f:close()
-	end
+	f:write('#endif // H_vivacious_'..an)
+	f:close()
+end
 
-	-- Then write up the core.h. This is mostly hardcoded.
+function G.finalize(specs)
+	-- Write out the core.h. This is mostly hardcoded.
 	do
 		local f = io.open('core.h', 'w')
 		f:write[[
@@ -178,11 +178,11 @@ function G.generate(envs)
 #define VvMAGIC(...) VvMAGIC_FA(VvMAGIC_x, __VA_ARGS__)
 
 #endif
-	]]
+]]
 		f:close()
 	end
 
-	-- And last but not least, write vivacious.h, which include's all the others.
+	-- And finally, vivacious.h, which just includes all the others
 	do
 		local f = io.open('vivacious.h', 'w')
 		f:write[[
@@ -191,7 +191,7 @@ function G.generate(envs)
 #define H_vivacious_vivacious
 
 ]]
-		for a in pairs(envs) do
+		for _,a in ipairs(specs) do
 			f:write('#include <vivacious/'..a..'.h>\n')
 		end
 		f:write'\n#endif'

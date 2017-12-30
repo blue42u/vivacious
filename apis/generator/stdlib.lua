@@ -119,8 +119,8 @@ function std.type(t, extra)
 end
 
 -- Now enough is present to load in the generator. So do that.
-package.path = arg[2]..'/?/'..table.remove(arg, 1)..'.lua'
-local G = require 'generator'
+package.path = arg[2]..'/generator/?.lua'
+local G = require(table.remove(arg, 1))
 
 -- A handful of types are "simple," and all generators should support them.
 assert(G.simple, 'Generator does not support simpletypes!')
@@ -461,35 +461,41 @@ for _,k in ipairs{'integer', 'number', 'boolean', 'string', 'generic',
 	sandbox[k] = std[k]
 end
 
--- Get all the environments ready for loading
 package.path = table.remove(arg, 1)..'/?.lua'
-local envs = {}
-for _,a in ipairs(arg) do
-	local bs = {}
-	local env = std.type{
-		def = function(c, e)
-			for _,b in ipairs(bs) do b'def'(c, e..'.'..bs[b]) end
-		end,
-		conv = error,
-	}
-	local meta = getmetatable(env)
-	meta.__index = sandbox
-	meta.__newindex = function(_, k, v)
-		rawset(env, k, behavior(v))
-		bs[#bs+1], bs[env[k]] = env[k], k
+if arg[1] == 'finalize' then
+	-- Call the generator's finalization system
+	table.remove(arg, 1)
+	if G.finalize then G.finalize(arg) end
+else
+	-- Get all the environments ready for loading
+	local envs = {}
+	for _,a in ipairs(arg) do
+		local bs = {}
+		local env = std.type{
+			def = function(c, e)
+				for _,b in ipairs(bs) do b'def'(c, e..'.'..bs[b]) end
+			end,
+			conv = error,
+		}
+		local meta = getmetatable(env)
+		meta.__index = sandbox
+		meta.__newindex = function(_, k, v)
+			rawset(env, k, behavior(v))
+			bs[#bs+1], bs[env[k]] = env[k], k
+		end
+		envs[a] = env
 	end
-	envs[a] = env
-end
 
--- Then preload and load in all the specs
-for a,e in pairs(envs) do
-	local f,err = package.searchpath(a, package.path)
-	if err then error(err) end
-	f,err = loadfile(f, 't', e)
-	if err then error(err) end
-	package.preload[a] = f
-end
-for a in pairs(envs) do require(a) end
+	-- Then preload and load in all the specs
+	for a,e in pairs(envs) do
+		local f,err = package.searchpath(a, package.path)
+		if err then error(err) end
+		f,err = loadfile(f, 't', e)
+		if err then error(err) end
+		package.preload[a] = f
+	end
+	require(arg[1])
 
--- Finally, actually generate something!
-assert(G.generate, "Generator does not support generation!")(envs)
+	-- Finally, actually generate something!
+	if G.generate then G.generate(arg[1], envs[arg[1]]) end
+end
