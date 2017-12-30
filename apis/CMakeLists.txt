@@ -1,34 +1,18 @@
-function(gen A_GEN A_OUT)
-	cmake_parse_arguments(PARSE_ARGV 2 A "" "SUFFIXES" "EXTRAOUTS;EXTRADEPS;SPECS")
-	file(MAKE_DIRECTORY ${A_OUT})
-	set(SL ${CMAKE_CURRENT_SOURCE_DIR}/generator/stdlib.lua)
+set(OUTDIR ${CMAKE_BINARY_DIR}/include/vivacious)
+set(SL ${CMAKE_CURRENT_SOURCE_DIR}/generator/stdlib.lua)
+function(gen A_GEN)
+	cmake_parse_arguments(PARSE_ARGV 1 A "" "SUFFIXES" "EXTRAOUTS;EXTRADEPS;SPECS")
+	file(MAKE_DIRECTORY ${OUTDIR})
 	foreach(S ${A_SPECS})
-		set(S_OUTS)
-		foreach(SS ${A_SUFFIXES})
-			set(S_OUTS ${S_OUTS} ${A_OUT}/${S}${SS})
-		endforeach()
-
-		add_custom_command(OUTPUT ${S_OUTS}
+		add_custom_command(OUTPUT ${OUTDIR}/${S}.h
 			COMMAND ${LUA_EXECUTABLE} ${SL}
 				${A_GEN} ${CMAKE_CURRENT_SOURCE_DIR} ${S}
-			WORKING_DIRECTORY ${A_OUT}
+			WORKING_DIRECTORY ${OUTDIR}
 			MAIN_DEPENDENCY generator/${A_GEN}.lua
 			DEPENDS ${SL} ${S}.lua ${A_EXTRADEPS})
-		set(MYOUTS ${MYOUTS} ${S_OUTS})
+		set(MYOUTS ${MYOUTS} ${OUTDIR}/${S}.h)
 	endforeach()
-
-	foreach(S ${A_EXTRAOUTS})
-		set(OUTS ${OUTS} ${A_OUT}/${S})
-	endforeach()
-
-	add_custom_command(OUTPUT ${OUTS}
-		COMMAND ${LUA_EXECUTABLE} ${SL}
-			${A_GEN} ${CMAKE_CURRENT_SOURCE_DIR} finalize ${A_SPECS}
-		WORKING_DIRECTORY ${A_OUT}
-		MAIN_DEPENDENCY generator/${A_GEN}.lua
-		DEPENDS ${SL} ${A_EXTRADEPS})
-
-	set(ALLOUTS ${ALLOUTS} ${MYOUTS} ${OUTS} PARENT_SCOPE)
+	set(ALLOUTS ${ALLOUTS} ${MYOUTS} PARENT_SCOPE)
 endfunction(gen)
 
 # Standard C headers, using the standard C header generator
@@ -38,11 +22,16 @@ gen(c ${CMAKE_BINARY_DIR}/include/vivacious SUFFIXES ".h"
 )
 
 # Vulkan Vv interface generator
-#add_custom_command(OUTPUT ${B}/vulkan.h
-#	COMMAND ${LUA_EXECUTABLE} ${SL} vulkan ${B} vulkan
-#	generator/stdlib.lua c ${OUT} ${GEN_C}
-#	WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-#	MAIN_DEPENDENCY generator/vulkan.lua
-#	DEPENDS stdlib.lua vulkan.lua)
+#gen(cbound ${CMAKE_BINARY_DIR}/include/vivacious SUFFIXES ".h"
+#	EXTRADEPS ${CMAKE_SOURCE_DIR}/external/vulkan.lua
+#		${CMAKE_SOURCE_DIR}/external/vulkan-doc/src/spec/vk.xml
+#	SPECS vulkan)
+
+add_custom_command(OUTPUT ${OUTDIR}/vivacious.h ${OUTDIR}/core.h
+	COMMAND ${LUA_EXECUTABLE} ${SL}
+		c ${CMAKE_CURRENT_SOURCE_DIR} finalize ${A_SPECS}
+	WORKING_DIRECTORY ${OUTDIR}
+	MAIN_DEPENDENCY generator/c.lua
+	DEPENDS ${SL} ${A_EXTRADEPS})
 
 add_custom_target(include DEPENDS ${ALLOUTS})
