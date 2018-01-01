@@ -21,6 +21,8 @@ G.simple.boolean = {def='bool `e`', conv=tostring, default=false}
 G.simple.string = {def='const char* `e`', conv='`v:%q`', default=''}
 G.simple.memory = {def='void* `e`', conv=error}
 G.simple.generic = {def='void* `e`', conv=error}
+G.simple.index = {def='int `e`', conv=function(v)
+	return string.format('%u', v-1) end, default=1}
 
 function G.array(arg)
 	return {

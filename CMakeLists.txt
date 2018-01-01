@@ -78,6 +78,7 @@ function(gen)
 		add_custom_command(OUTPUT ${S_OUTS}
 			COMMAND ${LUA_EXECUTABLE} ${SL}
 				${A_GENERATOR} ${CMAKE_SOURCE_DIR}/apis ${S} ${S_OUTS}
+			WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 			MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/apis/generator/${A_GENERATOR}.lua
 			DEPENDS ${SL} ${CMAKE_SOURCE_DIR}/apis/${S}.lua ${A_DEPENDS})
 		set(MYOUTS ${MYOUTS} ${S_OUTS})

@@ -15,6 +15,7 @@
 --]========================================================================]
 
 std = {}
+local stdlib = {}
 
 -- Handy string-application with formatting
 local function strapply(s, t)
@@ -127,11 +128,13 @@ assert(G.simple, 'Generator does not support simpletypes!')
 for t in pairs{
 	integer=true, number=true, boolean=true, string=true,
 	generic=true, memory=true,
-} do std[t] = assert(std.type(G.simple[t]),
+} do stdlib[t] = assert(G.simple[t],
 	'Generator does not support the '..t..' simpletype!') end
 
+for n,t in pairs(G.simple) do stdlib[n] = std.type(t) end
+
 -- If the generator doesn't overload it, indicies are just integers.
-std.index = std.type(G.simple.index) or std.integer
+stdlib.index = std.type(G.simple.index) or stdlib.integer
 
 -- Simple optional & required argument checker. Test should error on failure.
 local function checkarg(arg, opts1, opts2)
@@ -160,7 +163,7 @@ local function checkarg(arg, opts1, opts2)
 
 	for k,v in pairs(arg) do
 		local o = optfor(k)
-		assert(o, 'Invalid argument '..tostring(k))
+		assert(o ~= nil, 'Invalid argument '..tostring(k))
 		if type(o) == 'function' then
 			local r,r2 = pcall(o, v)
 			if r2 == false then r = false end
@@ -170,7 +173,7 @@ local function checkarg(arg, opts1, opts2)
 end
 
 -- Arrays are tables in Lua. The generator can add more functionality.
-function std.array(arg)
+function stdlib.array(arg)
 	checkarg(arg, {
 		[1] = true,		-- Type of the array elements
 		fixedsize = false,	-- Maximum size of the array
@@ -182,9 +185,9 @@ function std.array(arg)
 end
 
 -- Options are strings, treated similarly to how luaL_checkoption operates.
-function std.options(arg)
+function stdlib.options(arg)
 	checkarg(arg, {
-		_integer = true,	-- Names of valid options
+		_integer = false,	-- Names of valid options
 		default = false,	-- Default option if none is given
 	}, G.optionsarg)
 	local opts = {}
@@ -199,7 +202,7 @@ end
 -- given a table with the proper names for flag values.
 -- If a value's proper name is one character long, it will accepted as
 -- shorthand, while shorthands must be one character long.
-function std.flags(arg)
+function stdlib.flags(arg)
 	checkarg(arg, {
 		_integer = function(v)
 			if type(v) == 'string' then return #v > 0 end
@@ -210,14 +213,15 @@ function std.flags(arg)
 			end
 		end,	-- proper name OR {<proper name>, <shorthand>}
 	}, G.flagsarg)
-	local shorts = {}
-	for _,e in ipairs(arg) do
+	local shorts,ga = {},setmetatable({}, {__index=arg})
+	for i,e in ipairs(arg) do
 		local p,s
 		if type(e) == 'string' then p, s = e, #e == 1 and e or nil
 		else p, s = e[1], e[2] end
 		if s then shorts[s] = p end
+		ga[i] = p
 	end
-	return std.type(assert(G.flags, 'Generator does not support flags!')(arg), {
+	return std.type(assert(G.flags, 'Generator does not support flags!')(ga), {
 		v = function(v)
 			local o = setmetatable({}, {__index=v})
 			if type(v) == 'string' then
@@ -235,7 +239,7 @@ end
 
 -- Callables are functions (since 'function' is a keyword in Lua). These have
 -- an expected set of arguments and return values, and implicitly hold context.
-function std.callable(arg)
+function stdlib.callable(arg)
 	checkarg(arg, {
 		returns = function(v)
 			for k in pairs(v) do assert(math.type(k) == 'integer') end
@@ -265,7 +269,7 @@ end
 	The generator hook is always given a 'static' case argument, and on
 	conversion default values are applied.
 ]]
-function std.compound(arg)
+function stdlib.compound(arg)
 	-- First decide between 'static' and 'mutable'.
 	local static
 	if arg[1] then static = true else
@@ -284,7 +288,7 @@ function std.compound(arg)
 		_integer = static and function(v)
 			assert(type(v[1]) == 'string' and v[2])
 		end or nil,		-- Elements, as {<name>, <Type>, [<def>]}
-		['~%d+_%d+_%d+'] = (not static) and function(v)
+		['~v%d+_%d+_%d+'] = (not static) and function(v)
 			for k,e in pairs(v) do
 				assert(math.type(k) == 'integer')
 				assert(type(e[1]) == 'string' and e[2])
@@ -365,7 +369,7 @@ local function behavior(arg)
 
 	checkarg(arg, {
 		_integer = function(b) assert(b'behaves') end, -- parent Behaviors
-	})
+	}, G.behaviorarg)
 	local g = std.type(assert(G.behavior,
 		'Generator does not support Behaviors')(arg))
 	local real,vers,subs = {},{},{}
@@ -457,15 +461,15 @@ local newenv = setmetatable({}, {__index=function(_,k)
 	if k == 'std' then return else return _ENV[k] end
 end})
 local sandbox = setmetatable({}, {__index=newenv})
-for _,k in ipairs{'integer', 'number', 'boolean', 'string', 'generic',
-	'memory', 'index', 'array', 'options', 'flags', 'compound'} do
-	sandbox[k] = std[k]
+for k,v in pairs(stdlib) do
+	sandbox[k] = v
+	std[k] = v
 end
 
 	-- Ensure that specs get loaded with the special environment
 local specpath = table.remove(arg, 1)..'/?.lua'
 assert(package.searchers, 'You must use Lua 5.2 or above!')
-package.searchers = {function(s)
+table.insert(package.searchers, 1, function(s)
 	local bs = {}
 	local env = std.type{
 		def = function(c, e)
@@ -487,7 +491,7 @@ package.searchers = {function(s)
 		f()
 		return env
 	end
-end}
+end)
 
 -- Generate the file
 assert(G.generate, 'Generator cannot generate... who wrote this???')
