@@ -119,9 +119,8 @@ function G.behavior()
 	}
 end
 
-function G.generate(an, env)
+function G.generate(an, f)
 	-- Each spec becomes an individual header.
-	local f = io.open(an..'.h', 'w')
 	f:write(([[
 // Generated file, do not edit directly, edit apis/~.lua instead
 #ifndef H_vivacious_~
@@ -131,72 +130,9 @@ function G.generate(an, env)
 
 ]]):gsub('~', an)..'')
 
-	for _,e in ipairs(env'def'('Vv')) do f:write(e..'\n\n') end
+	for _,e in ipairs(require(an)'def'('Vv')) do f:write(e..'\n\n') end
 
 	f:write('#endif // H_vivacious_'..an)
-	f:close()
-end
-
-function G.finalize(specs)
-	-- Write out the core.h. This is mostly hardcoded.
-	do
-		local f = io.open('core.h', 'w')
-		f:write[[
-// Generated from apis/generator/c.lua, do not edit
-#ifndef H_vivacious_core
-#define H_vivacious_core
-
-#include <stdlib.h>
-#include <stdbool.h>
-
-#ifndef __GNUC__
-#define __typeof__ typeof
-#endif
-
-#define Vv_LEN(...) sizeof(__VA_ARGS__)/sizeof((__VA_ARGS__)[0])
-#define Vv_ARRAY(N, ...) .N##Cnt = Vv_LEN((__VA_ARGS__)), .N=(__VA_ARGS__)
-
-#define VvMAGIC_FA_1(what, x, ...) what(x);
-]]
-		local maxmagic = 100
-		for i=2,maxmagic do
-			f:write('#define VvMAGIC_FA_'..i..'(what, x, ...) what(x); '
-				..'VvMAGIC_FA_'..(i-1)..'(__VA_ARGS__)\n')
-		end
-		f:write'#define VvMAGIC_NA(...) VvMAGIC_AN(__VA_ARGS__'
-		for i=maxmagic,0,-1 do f:write(','..i) end
-		f:write')\n#define VvMAGIC_AN('
-		for i=1,maxmagic do f:write('_'..i..',') end
-		f:write[[N, ...) N
-
-#define VvMAGIC_C(A, B) VvMAGIC_C2(A, B)
-#define VvMAGIC_C2(A, B) A##B
-#define VvMAGIC_FA(what, ...) VvMAGIC_C(VvMAGIC_FA_, \
-	VvMAGIC_NA(__VA_ARGS__))(what, __VA_ARGS__)
-
-#define VvMAGIC_x(A) _x A
-#define VvMAGIC(...) VvMAGIC_FA(VvMAGIC_x, __VA_ARGS__)
-
-#endif
-]]
-		f:close()
-	end
-
-	-- And finally, vivacious.h, which just includes all the others
-	do
-		local f = io.open('vivacious.h', 'w')
-		f:write[[
-// Generated from apis/generator/c.lua, do not edit
-#ifndef H_vivacious_vivacious
-#define H_vivacious_vivacious
-
-]]
-		for _,a in ipairs(specs) do
-			f:write('#include <vivacious/'..a..'.h>\n')
-		end
-		f:write'\n#endif'
-		f:close()
-	end
 end
 
 return G

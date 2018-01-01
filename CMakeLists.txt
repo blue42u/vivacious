@@ -9,30 +9,36 @@ if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.3")
 	cmake_policy(SET CMP0063 NEW)
 endif()
 
+# Vulkan options
 set(VULKAN_ENABLE ON CACHE BOOL "Enable Vulkan support")
 set(VULKAN_INCLUDE_DIR "" CACHE PATH "Vulkan include directory")
 
+# Lua options
 set(LUA_ENABLE ON CACHE BOOL "Enable Lua support")
 set(LUA_INCLUDE_DIR "" CACHE PATH "Lua include directory")
 set(LUA_LIB "lua5.3" CACHE PATH "Lua library")
-set(LUA_EXECUTABLE "lua" CACHE PATH "Lua executable command")
+set(LUA_EXECUTABLE "lua5.3" CACHE PATH "Lua executable command")
 
+# XCB options
 set(X_ENABLE ON CACHE BOOL "Enable X support")
 set(X_INCLUDE_DIR "" CACHE PATH "X include directory")
 if(WIN32 OR CYGWIN)
 	set(X_ENABLE OFF)
 endif()
 
+# Include it all
 include_directories(
 	${VULKAN_INCLUDE_DIR}
 	${LUA_INCLUDE_DIR}
 	${X_INCLUDE_DIR}
 	${CMAKE_BINARY_DIR}/include)
 
+# Set the output directories
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
+# Add the usual compile-time definitions
 if(VULKAN_ENABLE)
 add_definitions(-DVv_ENABLE_VULKAN)
 endif(VULKAN_ENABLE)
@@ -45,12 +51,42 @@ if(X_ENABLE)
 add_definitions(-DVv_ENABLE_X)
 endif(X_ENABLE)
 
+# A few CMake settings
 set(CMAKE_C_VISIBILITY_PRESET hidden)
 set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 set(CMAKE_C_STANDARD 99)
 
 add_definitions(-DVv_VERSION_MAJOR=0 -DVv_VERSION_MINOR=1 -DVv_VERSION_PATCH=2)
 
+# Generation helper function
+function(gen)
+	cmake_parse_arguments(PARSE_ARGV 0 A
+		""
+		"SUFFIXES;GENERATOR;DIRECTORY"
+		"DEPENDS;SPECS;OUTPUTS")
+	if(A_DIRECTORY)
+		file(MAKE_DIRECTORY ${A_DIRECTORY})
+		set(A_DIRECTORY "${A_DIRECTORY}/")
+	endif()
+	set(SL ${CMAKE_SOURCE_DIR}/apis/generator/stdlib.lua)
+	foreach(S ${A_SPECS})
+		set(S_OUTS)
+		foreach(O ${A_OUTPUTS})
+			string(REPLACE ? "${S}" O2 ${O})
+			set(S_OUTS ${S_OUTS} ${A_DIRECTORY}${O2})
+		endforeach()
+		add_custom_command(OUTPUT ${S_OUTS}
+			COMMAND ${LUA_EXECUTABLE} ${SL}
+				${A_GENERATOR} ${CMAKE_SOURCE_DIR}/apis ${S} ${S_OUTS}
+			MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/apis/generator/${A_GENERATOR}.lua
+			DEPENDS ${SL} ${CMAKE_SOURCE_DIR}/apis/${S}.lua ${A_DEPENDS})
+		set(MYOUTS ${MYOUTS} ${S_OUTS})
+	endforeach()
+	set(GEN_OUTS ${GEN_OUTS} ${MYOUTS} PARENT_SCOPE)
+	set(GEN_SPECS ${GEN_SPECS} ${A_SPECS} PARENT_SCOPE)
+endfunction(gen)
+
+# And the real meat
 add_subdirectory(apis)
 add_subdirectory(src)
 add_subdirectory(demos)

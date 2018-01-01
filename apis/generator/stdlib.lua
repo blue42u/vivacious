@@ -366,7 +366,8 @@ local function behavior(arg)
 	checkarg(arg, {
 		_integer = function(b) assert(b'behaves') end, -- parent Behaviors
 	})
-	local g = std.type(assert(G.behavior, 'Generator does not support Behaviors')(arg))
+	local g = std.type(assert(G.behavior,
+		'Generator does not support Behaviors')(arg))
 	local real,vers,subs = {},{},{}
 	local ref = R and {} or real
 	local myself = std.type{
@@ -461,41 +462,37 @@ for _,k in ipairs{'integer', 'number', 'boolean', 'string', 'generic',
 	sandbox[k] = std[k]
 end
 
-package.path = table.remove(arg, 1)..'/?.lua'
-if arg[1] == 'finalize' then
-	-- Call the generator's finalization system
-	table.remove(arg, 1)
-	if G.finalize then G.finalize(arg) end
-else
-	-- Get all the environments ready for loading
-	local envs = {}
-	for _,a in ipairs(arg) do
-		local bs = {}
-		local env = std.type{
-			def = function(c, e)
-				for _,b in ipairs(bs) do b'def'(c, e..'.'..bs[b]) end
-			end,
-			conv = error,
-		}
-		local meta = getmetatable(env)
-		meta.__index = sandbox
-		meta.__newindex = function(_, k, v)
-			rawset(env, k, behavior(v))
-			bs[#bs+1], bs[env[k]] = env[k], k
-		end
-		envs[a] = env
+	-- Ensure that specs get loaded with the special environment
+local specpath = table.remove(arg, 1)..'/?.lua'
+assert(package.searchers, 'You must use Lua 5.2 or above!')
+package.searchers = {function(s)
+	local bs = {}
+	local env = std.type{
+		def = function(c, e)
+			for _,b in ipairs(bs) do b'def'(c, e..'.'..bs[b]) end
+		end,
+		conv = error,
+	}
+	local meta = getmetatable(env)
+	meta.__index = sandbox
+	meta.__newindex = function(_, k, v)
+		rawset(env, k, behavior(v))
+		bs[#bs+1], bs[env[k]] = env[k], k
 	end
 
-	-- Then preload and load in all the specs
-	for a,e in pairs(envs) do
-		local f,err = package.searchpath(a, package.path)
-		if err then error(err) end
-		f,err = loadfile(f, 't', e)
-		if err then error(err) end
-		package.preload[a] = f
+	local f,err = package.searchpath(s, specpath)
+	if err then return err end
+	f,err = loadfile(f, 't', env)
+	return err or function()
+		f()
+		return env
 	end
-	require(arg[1])
+end}
 
-	-- Finally, actually generate something!
-	if G.generate then G.generate(arg[1], envs[arg[1]]) end
-end
+-- Generate the file
+assert(G.generate, 'Generator cannot generate... who wrote this???')
+local sn = table.remove(arg, 1)
+local fs = {}
+for i,fn in ipairs(arg) do fs[i] = io.open(fn, 'w') end
+G.generate(sn, table.unpack(fs))
+for _,f in ipairs(fs) do f:close() end
