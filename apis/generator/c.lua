@@ -45,7 +45,7 @@ function G.array(arg)
 	}
 end
 
-local void = std.type{def='void `e`', conv=error}
+local void = std.type('void', {def='void `e`', conv=error})
 function G.callable(arg)
 	local ret = table.remove(arg.returns or {}, 1) or void
 	return {

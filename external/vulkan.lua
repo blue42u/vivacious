@@ -14,7 +14,7 @@
    limitations under the License.
 --]========================================================================]
 
-local relpath = '../external/'
+local relpath = 'external/'
 
 local oldpath = package.path
 package.path = package.path .. ';' .. relpath .. '?.lua'

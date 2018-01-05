@@ -6,10 +6,10 @@ gen(GENERATOR c DIRECTORY ${OUT} OUTPUTS ?.h
 )
 
 # Vulkan Vv interface generator
-#gen(cbound ${CMAKE_BINARY_DIR}/include/vivacious SUFFIXES ".h"
-#	EXTRADEPS ${CMAKE_SOURCE_DIR}/external/vulkan.lua
-#		${CMAKE_SOURCE_DIR}/external/vulkan-doc/src/spec/vk.xml
-#	SPECS vulkan)
+gen(GENERATOR cbound OUTPUTS ${OUT}/?.h
+	DEPENDS ${CMAKE_SOURCE_DIR}/external/vulkan.lua
+		${CMAKE_SOURCE_DIR}/external/vulkan-docs/src/spec/vk.xml
+	SPECS vulkan)
 
 # core.h, included by all the other headers and has VvMAGIC
 add_custom_command(OUTPUT ${OUT}/core.h

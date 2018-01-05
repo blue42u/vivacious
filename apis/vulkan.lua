@@ -14,11 +14,11 @@
    limitations under the License.
 --]========================================================================]
 
-c_define = 'VK_NO_PROTOTYPES'
-c_include = 'vulkan/vulkan.h'
+--c_define = 'VK_NO_PROTOTYPES'
+--c_include = 'vulkan/vulkan.h'
 
 -- Load up the Vulkan registry data
-local vk = dofile '../external/vulkan.lua'
+local vk = dofile 'external/vulkan.lua'
 
 local parent_overrides = {
 	VkInstance = 'Vk',
@@ -26,10 +26,8 @@ local parent_overrides = {
 	VkDisplayModeKHR = 'VkDisplayKHR',
 }
 
-Vk = {doc="The core Vulkan binding"}
+Vk = {}
 local vktypes = {Vk=Vk}
-
-local vknulls = {}
 
 do
 	local handles = {}
@@ -47,15 +45,12 @@ do
 		for n,t in pairs(handles) do
 			if vktypes[t.parent] then
 				if t.type == 'VK_DEFINE_NON_DISPATCHABLE_HANDLE' then
-					vktypes[t.parent][n:match'Vk(.*)'] = {doc="A Vulkan Binding",
-						wrapper = c_rawtype(n)}
+					vktypes[t.parent][n:match'Vk(.*)'] = {wrapperfor = n}
 					vktypes[n] = vktypes[t.parent][n:match'Vk(.*)']
 				elseif t.type == 'VK_DEFINE_HANDLE' then
-					_ENV[n] = {doc="A Vulkan Binding", _ENV[t.parent],
-						wrapper = c_rawtype(n)}
+					_ENV[n] = {vktypes[t.parent], wrapperfor = n}
 					vktypes[n] = _ENV[n]
 				else error() end
-				vknulls[n] = {}
 				handles[n] = nil
 				stuck = false
 			end
@@ -86,79 +81,78 @@ end
 
 for n,t in pairs(vk.types) do
 	if t.category == 'enum' or t.category == 'bitmask' then
-		local vals = {}
-		for rn in pairs(t.values) do
-			table.insert(vals, {enumify(rn, t.name, t.category == 'bitmask'), rn})
-		end
-
-		local entries = {}
-		for _,v in ipairs(vals) do
-			table.insert(entries, {v[1], c_external(v[2])})
-		end
-		Vk.typedef[n:match'Vk(.*)'] = (t.category == 'enum' and enum or bitmask)(entries)
-		Vk[n:match'Vk(.*)'].c_external = n
-		vktypes[n] = Vk[n:match'Vk(.*)']
-		if t.category == 'bitmask' then vknulls[n] = {}
-		elseif #vals > 0 then vknulls[n] = vals[1][1] end
-
-		if t.category == 'bitmask' and t.requires then
-			Vk.typedef[t.requires:match'Vk(.*)'] = Vk[n:match'Vk(.*)']
-			Vk[t.requires:match'Vk(.*)'].c_external = t.requires
-			vktypes[t.requires] = Vk[t.requires:match'Vk(.*)']
-			vknulls[t.requires] = {}
+		local vals = {realname=n}
+		for rn in pairs(t.values) do table.insert(vals, rn) end
+		if t.category == 'enum' then
+			vals.default = next(t.values)
+			Vk.type[n:match'Vk(.*)'] = options(vals)
+			vktypes[n] = Vk[n:match'Vk(.*)']
+		else
+			Vk.type[n:match'Vk(.*)'] = flags(vals)
+			vktypes[n] = Vk[n:match'Vk(.*)']
+			if t.requires then
+				vals.default = next(t.values)
+				Vk.type[t.requires:match'Vk(.*)'] = options(vals)
+				vktypes[t.requires] = Vk[t.requires:match'Vk(.*)']
+			end
 		end
 	end
 end
 
-vktypes.void,vknulls.void = general, false
-vktypes.VkBool32,vknulls.VkBool32 = boolean, false
+vktypes.void = generic
+vktypes.VkBool32 = boolean
 
-vktypes.uint64_t,vknulls.uint64_t = integer, 0
-vktypes.uint32_t,vknulls.uint32_t = integer, 0
-vktypes.uint8_t,vknulls.uint8_t = integer, 0
-vktypes.int,vknulls.int = integer, 0
-vktypes.int32_t,vknulls.int32_t = integer, 0
-vktypes.float,vknulls.float = number, 0
-vktypes.size_t,vknulls.size_t = size, 0
-vktypes.VkDeviceSize,vknulls.VkDeviceSize = size, 0
+vktypes.uint64_t = integer
+vktypes.uint32_t = integer
+vktypes.uint8_t = integer
+vktypes.int = integer
+vktypes.int32_t = integer
+vktypes.float = number
+vktypes.size_t = integer
+vktypes.VkDeviceSize = integer
 
-vktypes.string,vknulls.string = str, ''
+vktypes.string = string
 
-vktypes.vksamplemask,vknulls.vksamplemask = c_bitmask('VkSampleMask'),{}
+vktypes.vksamplemask = flexmask{
+	raw{realname='VkSampleMask'},
+	bits=32, lenvar='fish',
+}
 
-vktypes.PFN_vkInternalAllocationNotification = callback{
-	{'udata', general}, {'size', size},
+vktypes.PFN_vkInternalAllocationNotification = callable{
+	realname = 'PFN_vkInternalAllocationNotification',
+	{'udata', generic}, {'size', integer},
 	{'type', Vk.InternalAllocationType}, {'scope', Vk.SystemAllocationScope},
 }
-vknulls.PFN_vkInternalAllocationNotification = true
-vktypes.PFN_vkInternalFreeNotification = callback{
-	{'udata', general}, {'size', size},
+vktypes.PFN_vkInternalFreeNotification = callable{
+	realname = 'PFN_vkInternalFreeNotification',
+	{'udata', generic}, {'size', integer},
 	{'type', Vk.InternalAllocationType}, {'scope', Vk.SystemAllocationScope},
 }
-vknulls.PFN_vkInternalFreeNotification = true
-vktypes.PFN_vkReallocationFunction = callback{
-	{'udata', general}, {'original', ptr}, {'size', size}, {'alignment', size},
+vktypes.PFN_vkReallocationFunction = callable{
+	realname = 'PFN_vkReallocationFunction',
+	{'udata', generic}, {'original', memory}, {'size', integer},
+	{'alignment', integer},
 	{'scope', Vk.SystemAllocationScope},
-	{ptr},
+	returns = {memory},
 }
-vknulls.PFN_vkReallocationFunction = true
-vktypes.PFN_vkAllocationFunction = callback{
-	{'udata', general}, {'size', size}, {'alignment', size},
+vktypes.PFN_vkAllocationFunction = callable{
+	realname = 'PFN_vkAllocationFunction',
+	{'udata', generic}, {'size', integer}, {'alignment', integer},
 	{'scope', Vk.SystemAllocationScope},
-	{ptr},
+	returns = {memory},
 }
-vknulls.PFN_vkAllocationFunction = true
-vktypes.PFN_vkFreeFunction = callback{
-	{'udata', general}, {'mem', ptr},
+vktypes.PFN_vkFreeFunction = callable{
+	realname = 'PFN_vkFreeFunction',
+	{'udata', generic}, {'mem', memory},
 }
-vknulls.PFN_vkFreeFunction = true
 
-vktypes.PFN_vkDebugReportCallbackEXT = callback{
+vktypes.PFN_vkDebugReportCallbackEXT = callable{
+	realname = 'PFN_vkDebugReportCallbackEXT',
 	{'flags', Vk.DebugReportFlagsEXT}, {'objectType', Vk.DebugReportObjectTypeEXT},
-	{'object', integer}, {'location', size}, {'mCode', integer},
-	{'layerPrefix', str}, {'message', str},
-	{'udata', general},
-	{boolean},
+	{'object', index}, {'location', index}, {'mCode', integer},
+	{'layerPrefix', string}, {'message', string},
+	{'udata', generic},
+	returns = {boolean},
 }
 
 for n in pairs{
@@ -170,7 +164,7 @@ for n in pairs{
 	HANDLE=true, LPCWSTR=true, DWORD=true, SECURITY_ATTRIBUTES=true,
 	HINSTANCE=true, HWND=true, -- windows.h
 	xcb_connection_t=true, xcb_visualid_t=true, xcb_window_t=true,	-- xcb.h
-} do vktypes[n],vknulls[n] = c_rawtype(n),c_external'NULL' end
+} do vktypes[n] = raw{realname=n} end
 
 do
 	local ex = {
@@ -200,7 +194,7 @@ do
 				elseif (m.arr or 0) > 0 and not m.len then
 					m.arr = m.arr - 1
 				end
-				if m.values and not m.values:find',' then m.def = enumify(m.values, m.type)
+				if m.values and not m.values:find',' then m.def = m.values
 				elseif m.optional == 'true' then m.def = '' end
 				m.i = i
 				mems[m.name] = m
@@ -233,7 +227,7 @@ do
 		local stuck = true
 		local missing = {}
 		for n,t in pairs(structs) do
-			local mems,def = {},{}
+			local mems = {}
 			for _,m in ipairs(t.members) do
 				if not vktypes[m.type] then missing[m.type] = true goto skip end
 			end
@@ -244,29 +238,25 @@ do
 				if m.name == 'sType' then sTyped = true end
 				if (m.arr or 0) > 0 then
 					assert(m.arr == 1)
-					table.insert(mems, {m.name, array{vktypes[m.type], c_len=m.len}})
+					table.insert(mems, {m.name,
+						array{vktypes[m.type], lenvar=m.len}, {}})
 				else
-					table.insert(mems, {m.name, vktypes[m.type]})
+					table.insert(mems, {m.name, vktypes[m.type],
+						m.def ~= '' and m.def or nil})
 				end
-				if m.def == '' then
-					if vknulls[m.type] == nil then error('No NULL for '..m.type) end
-					def[m.name] = m.arr > 0 and {} or vknulls[m.type]
-				else def[m.name] = m.def end
 			end
 
-			vktypes.Vk.typedef[pn] = compound{v1_0_0=mems, static=not sTyped}
-			Vk[pn].c_external = n
-			Vk[pn].default = def
+			vktypes.Vk.type[pn] = compound{v1_0_0=mems, addptr=not not sTyped,
+				realname=n}
 			vktypes[n] = Vk[pn]
-			vknulls[n] = {}
 			structs[n] = nil
 			stuck = false
 			::skip::
 		end
 		if stuck then
-			for t in pairs(missing) do print('>', t) end
 			for n in pairs(structs) do print('>>', n) end
-			error()
+			for t in pairs(missing) do print('>', t) end
+			error("Got stuck writing the structs")
 		end
 	until not next(structs)
 end
