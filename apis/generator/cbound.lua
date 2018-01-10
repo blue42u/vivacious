@@ -141,13 +141,10 @@ G.reference = {
 	conv=function(c, e, t) t'conv'(c, e) end,
 }
 function G.refname(e)
-	if not e:match'%.' then return e end
-	if not e:match'Vv%.(.+)' then print(e) end
-	e = e:match'Vv%.(.+)'
-	e = e:gsub('%..+%.', '.')
-	return 'Vv'..e:gsub('%.', '')
+	return 'Vv'..e:gsub('%..+%.', '.'):gsub('%.', '')
 end
 function G.reftype() end
+
 G.behaviorarg = {
 	wrapperfor = false,	-- Name of the C type that this Behavior wraps
 }
@@ -161,11 +158,11 @@ function G.behavior(arg)
 
 			local ds,du = std.context(),{}
 			for i,b in ipairs(arg) do
-				b'def'(ds, 'part'..i)
+				b'def'(ds, b'behaves':match('Vv(.+)'):lower())
 				table.insert(du, '_s->part'..i)
 			end
 			ds = ds('', function(s)
-				return '\t\t'..s:gsub('\n', '\n\t\t')..';\n' end)
+				return '\t'..s:gsub('\n', '\n\t')..';\n' end)
 			du = table.concat(du, ', ')
 
 			local ms = std.context()
@@ -191,20 +188,24 @@ function G.behavior(arg)
 	}
 end
 
-function G.generate(an, f)
-	-- Each spec becomes an individual header.
-	f:write(([[
+function G.environment(_)
+	return {
+		def = function(c, e, f)
+			f:write(([[
 // Generated file, do not edit directly, edit apis/~.lua instead
 #ifndef H_vivacious_~
 #define H_vivacious_~
 
 #include <vivacious/core.h>
 
-]]):gsub('~', an)..'')
+]]):gsub('~', e)..'')
 
-	for _,e in ipairs(require(an)'def'('Vv')) do f:write(e..'\n\n') end
+			for _,l in ipairs(c) do f:write(l..'\n\n') end
 
-	f:write('#endif // H_vivacious_'..an)
+			f:write('#endif // H_vivacious_'..e)
+		end,
+		conv = error,
+	}
 end
 
 return G

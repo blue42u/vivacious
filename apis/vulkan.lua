@@ -33,7 +33,8 @@ do
 	local handles = {}
 	for n,t in pairs(vk.types) do
 		if t.category == 'handle' then
-			if t.parent and t.parent:find',' then t.parent = nil end	-- We don't do multi-parenting
+			-- We don't do multi-parenting
+			if t.parent and t.parent:find',' then t.parent = nil end
 			t.parent = parent_overrides[n] or t.parent
 			if t.parent == nil then error(n..' has no parent!') end
 			handles[n] = t
@@ -48,8 +49,8 @@ do
 					vktypes[t.parent][n:match'Vk(.*)'] = {wrapperfor = n}
 					vktypes[n] = vktypes[t.parent][n:match'Vk(.*)']
 				elseif t.type == 'VK_DEFINE_HANDLE' then
-					_ENV[n] = {vktypes[t.parent], wrapperfor = n}
-					vktypes[n] = _ENV[n]
+					_ENV['Vk.'..n:match'Vk(.*)'] = {vktypes[t.parent], wrapperfor = n}
+					vktypes[n] = _ENV['Vk.'..n:match'Vk(.*)']
 				else error() end
 				handles[n] = nil
 				stuck = false

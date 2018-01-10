@@ -406,8 +406,11 @@ local function behavior(arg)
 		'Generator does not support Behaviors')(arg))
 	local real,vers,subs = {},{},{}
 	local ref = R and {} or real
+	local meta
 	local myself = std.type('behavior', {
 		def = function(c, e)
+			meta.behaves = Rn(e)
+
 			table.sort(vers, function(a,b)
 				if a.M ~= b.M then return a.M < b.M
 				elseif a.m ~= b.m then return a.m < b.m
@@ -436,16 +439,16 @@ local function behavior(arg)
 		conv = error,
 	})
 
-	local meta = getmetatable(myself)
+	meta = getmetatable(myself)
 	meta.behaves = true
-	local defered = {}
+	local deferred = {}
 	function meta.__index(_, k)
 		local M,m,p = string.match(tostring(k), '^v(%d+)_(%d+)_(%d+)$')
 		M,m,p = tonumber(M), tonumber(m), tonumber(p)
 		if k == 'type' then
 			return setmetatable({}, {__newindex=function(_,k2,v)
 				real[k2] = v
-				defered[k2] = std.type('deferred', {
+				deferred[k2] = std.type('deferred', {
 					def=function(...) ref[k2]'def'(...) end,
 					conv=function(...) ref[k2]'conv'(...) end,
 				})
@@ -472,17 +475,17 @@ local function behavior(arg)
 					table.insert(vr, {'m', n, std.callable(ca)})
 				end
 			})
-		else return defered[k] end
+		else return deferred[k] end
 	end
 	function meta.__newindex(_, k, ba)
 		assert(#ba == 0, "Sub-Behaviors can't have extra parents")
 		real[k] = behavior(ba)
 		subs[k] = true
-		defered[k] = std.type('deferred', {
+		deferred[k] = std.type('deferred', {
 			def=function(...) ref[k]'def'(...) end,
 			conv=function(...) ref[k]'conv'(...) end,
 		})
-		local m = getmetatable(defered[k])
+		local m = getmetatable(deferred[k])
 		m.__index, m.__newindex = real[k], real[k]
 		setmetatable(m, {__index=getmetatable(real[k])})
 	end
@@ -499,24 +502,65 @@ for k,v in pairs(stdlib) do
 	std[k] = v
 end
 
-	-- Ensure that specs get loaded with the special environment
-local specpath = table.remove(arg, 1)..'/?.lua'
-assert(package.searchers, 'You must use Lua 5.2 or above!')
-table.insert(package.searchers, 1, function(s)
+-- The last "Type" are Environments, which are not quite the same as the others.
+-- Instead of putting pieces into the given Context, they instead write out the
+-- contents of the Context into the files passed in as extra.
+local function environment(arg)
+	checkarg(arg, {})
+	local g = std.type('environment-generator', assert(G.environment,
+		'Generator does not support environments!')(arg))
+
+	local R,Rn,Rt
+	if G.reference then
+		R = std.type('reference', G.reference)
+		Rn = G.refname or function(n) return n end
+		Rt = assert(G.reftype, 'Generator does not support reference types!')
+	end
+
 	local bs = {}
-	local env = std.type('env', {
-		def = function(c, e)
-			for _,b in ipairs(bs) do b'def'(c, e..'.'..bs[b]) end
+	local real,deferred = {},{}
+	local ref = R and {} or real
+	local o = std.type('environment', {
+		def = function(_, e, ...)
+			local c = std.context()
+
+			if R then for k,t in pairs(real) do
+				local n = Rn(k)
+				ref[k] = std.type('reference-behavior', {
+					def=function(c2, e2) Rt(c, n, t) R'def'(c2, e2, n) end,
+					conv = function(c2, e2) R'conv'(c2, e2, t) end,
+				})
+			end end
+
+			for _,b in ipairs(bs) do b'def'(c, bs[b]) end
+			g'def'(c, e, ...)
 		end,
 		conv = error,
 	})
-	local meta = getmetatable(env)
-	meta.__index = sandbox
-	meta.__newindex = function(_, k, v)
-		rawset(env, k, behavior(v))
-		bs[#bs+1], bs[env[k]] = env[k], k
+	local m = getmetatable(o)
+	function m.__index(_, k)
+		return deferred[k] or sandbox[k]
+	end
+	function m.__newindex(_, k, v)
+		real[k] = behavior(v)
+		deferred[k] = std.type('deferred', {
+			def = function(...) ref[k]'def'(...) end,
+			conv = function(...) ref[k]'conv'(...) end,
+		})
+		local dm = getmetatable(deferred[k])
+		dm.__index, dm.__newindex = real[k], real[k]
+		setmetatable(dm, {__index=getmetatable(real[k])})
+		bs[#bs+1], bs[real[k]] = real[k], k
 	end
 
+	return o
+end
+
+-- Ensure that specs get loaded with the special environment
+local specpath = table.remove(arg, 1)..'/?.lua'
+assert(package.searchers, 'You must use Lua 5.2 or above!')
+table.insert(package.searchers, 1, function(s)
+	local env = environment({})
 	local f,err = package.searchpath(s, specpath)
 	if err then return err end
 	f,err = loadfile(f, 't', env)
@@ -527,9 +571,8 @@ table.insert(package.searchers, 1, function(s)
 end)
 
 -- Generate the file
-assert(G.generate, 'Generator cannot generate... who wrote this???')
 local sn = table.remove(arg, 1)
 local fs = {}
 for i,fn in ipairs(arg) do fs[i] = io.open(fn, 'w') end
-G.generate(sn, table.unpack(fs))
+require(sn)'def'(sn, table.unpack(fs))
 for _,f in ipairs(fs) do f:close() end

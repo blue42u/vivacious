@@ -80,13 +80,13 @@ G.reference = {
 	def=function(c, e, n) c[e] = n..' '..e end,
 	conv=function(c, e, t) t'conv'(c, e) end,
 }
-function G.refname(e) return e:gsub('%.', '') end
+function G.refname(e) return 'Vv'..e:gsub('%.', '') end
 function G.reftype(c, e, t)
 	c[e] = 'typedef '..t'def'(e)[1]..';'
 	c[e..'_magic'] = '#define '..e..'(...) ({ '
 		..e..' _x = '..t'conv'(e)[1]..'; VvMAGIC(__VA_ARGS__); _x; })'
 end
-function G.behavior()
+function G.behavior(arg)
 	return {
 		def = function(c, e, es)
 			c[e..'_typedef'] = '// Behavior '..e
@@ -107,6 +107,7 @@ function G.behavior()
 			elseif ed[1] == 'ro' then
 				ed[3]'def'(ds, 'const '..ed[2])
 			end end
+			for i,b in ipairs(arg) do b'def'(ds, 'part'..i) end
 			ds = ds('', function(s)
 				return '\t'..s:gsub('\n', '\n\t')..';\n' end)
 
@@ -121,20 +122,24 @@ function G.behavior()
 	}
 end
 
-function G.generate(an, f)
-	-- Each spec becomes an individual header.
-	f:write(([[
+function G.environment(arg)
+	return {
+		def = function(c, e, f)
+			f:write(([[
 // Generated file, do not edit directly, edit apis/~.lua instead
 #ifndef H_vivacious_~
 #define H_vivacious_~
 
 #include <vivacious/core.h>
 
-]]):gsub('~', an)..'')
+]]):gsub('~', e)..'')
 
-	for _,e in ipairs(require(an)'def'('Vv')) do f:write(e..'\n\n') end
+			for _,l in ipairs(c) do f:write(l..'\n\n') end
 
-	f:write('#endif // H_vivacious_'..an)
+			f:write('#endif // H_vivacious_'..e)
+		end,
+		conv = error,
+	}
 end
 
 return G
