@@ -84,43 +84,39 @@ function std.type(name, t, extra)
 	end
 
 	local function handle(key, as)
+		local inside
 		if t[key] == error then
-			m[key] = function(c, e, ...)
-				local a = table.pack(...)
-				if type(c) == 'string' then table.insert(a,1,e); c,e = std.context(),c end
-				for i,an in ipairs(as) do a[i] = tostring(ah[an](a[i])) end
+			inside = function(_, e, a, _)
 				error('Attempt to call unsupported '..name..'\'s '..key
 					..' hook (for element '..e..') with arguments ('
 					..table.concat(a, ', ')..')')
 			end
 		elseif type(t[key]) == 'function' then
-			m[key] = function(c, e, ...)
-				local a = table.pack(...)
-				if type(c) == 'string' then table.insert(a,1,e); c,e = std.context(),c end
-				for i,an in ipairs(as) do a[i] = ah[an](a[i]) end
+			inside = function(c, e, a, _)
 				t[key](c, e, table.unpack(a))
 				return c
 			end
 		elseif type(t[key]) == 'string' then
-			m[key] = function(c, e, ...)
-				local a = table.pack(...)
-				if type(c) == 'string' then table.insert(a,1,e); c,e = std.context(),c end
-				local r = {e=e}
-				for i,an in ipairs(as) do r[an] = ah[an](a[i]) end
-				c[e] = strapply(t[key], r)
+			inside = function(c, e, _, b)
+				c[e] = strapply(t[key], b)
 				return c
 			end
 		elseif type(t[key]) == 'table' then
-			m[key] = function(c, e, ...)
-				local a = table.pack(...)
-				if type(c) == 'string' then table.insert(a,1,e); c,e = std.context(),c end
-				local r = {e=e}
-				for i,an in ipairs(as) do r[an] = ah[an](a[i]) end
-				for k,v in pairs(t[key]) do
-					c[strapply(k, r)] = strapply(v, r) end
+			inside = function(c, _, _, b)
+				for k,v in pairs(t[key]) do c[strapply(k,b)] = strapply(v,b) end
 				return c
 			end
 		else error('Making a type with an odd '..key..' value!') end
+		m[key] = function(c, e, ...)
+			local a = table.pack(...)
+			if type(c) == 'string' then
+				table.insert(a, 1, e)
+				c, e = std.context(), c
+			end
+			local b = {e=e}
+			for i,an in ipairs(as) do a[i] = ah[an](a[i]); b[an] = a[i] end
+			return inside(c, e, a, b)
+		end
 	end
 
 	handle('def', {})
@@ -399,7 +395,7 @@ local function behavior(arg)
 	local R,Rn,Rt
 	if G.reference then
 		R = std.type('reference', G.reference)
-		Rn = assert(G.refname, 'Generator does not support reference names!')
+		Rn = G.refname or function(n) return n end
 		Rt = assert(G.reftype, 'Generator does not support reference types!')
 	end
 
@@ -420,20 +416,21 @@ local function behavior(arg)
 			local es = {}
 			for _,v in ipairs(vers) do table.move(v.e, 1, #v.e, #es+1, es) end
 
+			local function kdef(k, t, n)
+				if subs[k] then t'def'(c, e..'.'..k) else Rt(c, n, t) end
+			end
+
 			if R then for k,t in pairs(real) do
 				local n = Rn(e..'.'..k)
 				ref[k] = std.type('reference-behavior', {
-					def=subs[k]
-					and function(c2, e2) t'def'(c, e..'.'..k) R'def'(c2, e2, n) end
-					or function(c2, e2) Rt(c, n, t) R'def'(c2,e2,n) end,
+					def=function(c2, e2) kdef(k, t, n) R'def'(c2, e2, n) end,
 					conv = function(c2, e2) R'conv'(c2, e2, t) end,
 				})
 			end end
 			g'def'(c, Rn(e), es)
 			if R then for k,t in pairs(real) do
 				local n = Rn(e..'.'..k)
-				if not c[n] then if subs[k] then t'def'(c, e..'.'..k)
-				else Rt(c, n, t) end end
+				if not c[n] then kdef(k, t, n) end
 			end end
 		end,
 		conv = error,
