@@ -84,25 +84,26 @@ function std.type(name, t, extra)
 
 	local function handle(key, as)
 		local inside
-		if t[key] == error then
+		local tk = t[key]
+		if tk == error then
 			inside = function(_, e, a, _)
 				error('Attempt to call unsupported '..name..'\'s '..key
 					..' hook (for element '..e..') with arguments ('
 					..table.concat(a, ', ')..')')
 			end
-		elseif type(t[key]) == 'function' then
+		elseif type(tk) == 'function' then
 			inside = function(c, e, a, _)
-				t[key](c, e, table.unpack(a))
+				tk(c, e, table.unpack(a))
 				return c
 			end
-		elseif type(t[key]) == 'string' then
+		elseif type(tk) == 'string' then
 			inside = function(c, e, _, b)
-				c[e] = strapply(t[key], b)
+				c[e] = strapply(tk, b)
 				return c
 			end
-		elseif type(t[key]) == 'table' then
+		elseif type(tk) == 'table' then
 			inside = function(c, _, _, b)
-				for k,v in pairs(t[key]) do c[strapply(k,b)] = strapply(v,b) end
+				for k,v in pairs(tk) do c[strapply(k,b)] = strapply(v,b) end
 				return c
 			end
 		else error('Making a type with an odd '..key..' value!') end
@@ -167,11 +168,11 @@ local function checkarg(arg, opts1, opts2)
 
 	if opts._integer == true then assert(arg[1], 'Sequence is empty') end
 	for k,o in pairs(opts1) do
-		if o == true then
+		if o == true and k ~= '_integer' then
 			assert(arg[k] ~= nil, 'Required argument '..k..' is nil') end
 	end
 	for k,o in pairs(opts2) do
-		if o == true then
+		if o == true and k ~= '_integer' then
 			assert(arg[k] ~= nil, 'Required argument '..k..' is nil') end
 	end
 
@@ -212,7 +213,7 @@ end
 -- Options are strings, treated similarly to how luaL_checkoption operates.
 function stdlib.options(arg)
 	checkarg(arg, {
-		_integer = false,	-- Names of valid options
+		_integer = true,	-- Names of valid options
 		default = false,	-- Default option if none is given
 	}, G.optionsarg)
 	local opts = {}
@@ -222,7 +223,7 @@ function stdlib.options(arg)
 		assert(G.options, 'Generator does not support options!')(arg),
 		{v=function(v)
 			if v == nil then v = arg.default end
-			return assert(opts[v],'Invalid option '..tostring(v)
+			return assert(opts[v], 'Invalid option '..tostring(v)
 				..' is not one of {'..oerr..'}')
 		end}
 	)

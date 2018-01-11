@@ -68,13 +68,15 @@ for n,t in pairs(vk.types) do
 		local vals = {realname=n}
 		for rn in pairs(t.values) do table.insert(vals, rn) end
 		if t.category == 'enum' then
-			vals.default = next(t.values)
-			Vk.type[n:match'Vk(.*)'] = options(vals)
-			vktypes[n] = Vk[n:match'Vk(.*)']
+			if #vals > 0 then
+				vals.default = next(t.values)
+				Vk.type[n:match'Vk(.*)'] = options(vals)
+				vktypes[n] = Vk[n:match'Vk(.*)']
+			end
 		else
 			Vk.type[n:match'Vk(.*)'] = flags(vals)
 			vktypes[n] = Vk[n:match'Vk(.*)']
-			if t.requires then
+			if t.requires and #vals > 0 then
 				vals.default = next(t.values)
 				Vk.type[t.requires:match'Vk(.*)'] = options(vals)
 				vktypes[t.requires] = Vk[t.requires:match'Vk(.*)']

@@ -136,12 +136,20 @@ function G.compound(arg)
 	}
 end
 
-function G.reference(n, t)
+function G.reference(n, t, cp)
 	local d = n:gsub('.*%.', ''):gsub('%u%u%u$', ''):lower()
 	n = 'Vv'..n:gsub('%..+%.', '.'):gsub('%.', '')
 	return {
-		def = function(c, e) c[e or d] = n..' '..(e or d) end,
-		conv = function(c, e) t'conv'(c, e or d) end,
+		def = function(c, e)
+			e = e or d
+			if t then
+				cp[n] = '#define '..n..'(...) ({ '
+					..n..' _x = '..t'conv'(n)[1]..'; '
+					..'VvMAGIC(__VA_ARGS__); _x; })'
+			end
+			c[e] = n..' '..e
+		end,
+		conv = function(c, e, v) t'conv'(c, e or d, v) end,
 	}
 end
 

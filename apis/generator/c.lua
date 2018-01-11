@@ -90,7 +90,7 @@ function G.reference(n, t, cp)
 			end
 			c[e] = tn..' '..e
 		end,
-		conv = function(c, e) t'conv'(c, e) end,
+		conv = function(c, e, v) t'conv'(c, e, v) end,
 	}
 end
 
