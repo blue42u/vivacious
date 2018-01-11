@@ -63,23 +63,6 @@ do
 	until not next(handles)
 end
 
-local function enumify(rn, tn, bit)
-	local bn = tn:match((not bit) and '^(.-)%u*$' or '^(.-)Flags%u*$')
-	local tokens = {}
-	for w in bn:gmatch'%u+%l*' do table.insert(tokens, w:upper()) end
-
-	local nam = rn
-	for s in pairs(vk.vids) do if nam:match('_'..s..'$') then
-		nam = nam:gsub('_'..s..'$', '')
-		break
-	end end
-	if bit then nam:gsub('_BIT$', '') end
-	for _,s in ipairs(tokens) do if nam:match('^'..s..'_') then
-		nam = nam:gsub('^'..s..'_', '')
-	else break end end
-	return nam:lower():gsub('_.', function(s) return s:sub(2):upper() end)
-end
-
 for n,t in pairs(vk.types) do
 	if t.category == 'enum' or t.category == 'bitmask' then
 		local vals = {realname=n}

@@ -76,19 +76,29 @@ function G.compound(arg)
 	}
 end
 
-G.reference = {
-	def=function(c, e, n) c[e] = n..' '..e end,
-	conv=function(c, e, t) t'conv'(c, e) end,
-}
-function G.refname(e) return 'Vv'..e:gsub('%.', '') end
-function G.reftype(c, e, t)
-	c[e] = 'typedef '..t'def'(e)[1]..';'
-	c[e..'_magic'] = '#define '..e..'(...) ({ '
-		..e..' _x = '..t'conv'(e)[1]..'; VvMAGIC(__VA_ARGS__); _x; })'
+function G.reference(n, t, cp)
+	local tn = 'Vv'..n:gsub('%.', '')
+	local d = n:gsub('.*%.', ''):lower()
+	return {
+		def = function(c, e)
+			e = e or d
+			if t then
+				cp[n] = 'typedef '..t'def'(tn)[1]..';'
+				cp[n..'_magic'] = '#define '..tn..'(...) ({ '
+					..e..' _x = '..t'conv'(tn)[1]..'; '
+					..'VvMAGIC(__VA_ARGS__); _x; })'
+			end
+			c[e] = tn..' '..e
+		end,
+		conv = function(c, e) t'conv'(c, e) end,
+	}
 end
+
 function G.behavior(arg)
 	return {
 		def = function(c, e, es)
+			e = 'Vv'..e:gsub('%.', '')
+
 			c[e..'_typedef'] = '// Behavior '..e
 				..'\ntypedef struct '..e..'* '..e..';'
 			local ms = std.context()
@@ -107,7 +117,7 @@ function G.behavior(arg)
 			elseif ed[1] == 'ro' then
 				ed[3]'def'(ds, 'const '..ed[2])
 			end end
-			for i,b in ipairs(arg) do b'def'(ds, 'part'..i) end
+			if not arg.issub then for i,b in ipairs(arg) do b'def'(ds) end end
 			ds = ds('', function(s)
 				return '\t'..s:gsub('\n', '\n\t')..';\n' end)
 
@@ -122,7 +132,7 @@ function G.behavior(arg)
 	}
 end
 
-function G.environment(arg)
+function G.environment(_)
 	return {
 		def = function(c, e, f)
 			f:write(([[

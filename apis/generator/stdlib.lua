@@ -44,7 +44,6 @@ function std.context()
 		local i = 0
 		return function()
 			i = i + 1
-			print(i, ord[i], res[i])
 			return ord[i], res[i]
 		end
 	end
@@ -112,7 +111,7 @@ function std.type(name, t, extra)
 			if type(c) == 'string' then
 				table.insert(a, 1, e)
 				c, e = std.context(), c
-			end
+			elseif not c then c = std.context() end
 			local b = {e=e}
 			for i,an in ipairs(as) do a[i] = ah[an](a[i]); b[an] = a[i] end
 			return inside(c, e, a, b)
@@ -361,6 +360,43 @@ function stdlib.compound(arg)
 	})
 end
 
+-- Now we get into the structural Types, the first being the Reference. This is
+-- the "outlet" from the tree-based structure into the more normal nameless
+-- Types. The generator hook must allow t to be nil, for cases where the Type is
+-- not provided.
+local function ref(n, t, cp)
+	return std.type('reference',
+		assert(G.reference, 'Generator does not support references!')(n, t, cp))
+end
+local function bref(n, b, cp)
+	local r = ref(n)
+	local inside = false
+	return std.type('reference-b', {
+		def = function(c, e)
+			if b and not inside then
+				inside = true
+				b'def'(cp, n)
+				inside = false
+			end
+			r'def'(c, e)
+		end,
+		conv = error,
+	})
+end
+local function defer(refs)
+	local deferred = {}
+	return function(k, v, rs)
+		deferred[k] = std.type('deferred', {
+			def = function(...) refs[k]'def'(...) end,
+			conv = function(...) refs[k]'conv'(...) end,
+		})
+		local m = getmetatable(deferred[k])
+		m.__index, m.__newindex = v, v
+		setmetatable(m, {__index=getmetatable(v)})
+		if rs then rs[k] = v end
+	end, deferred
+end
+
 --[[
 	Behaviors form the most important part of Vv, they are opaque objects with
 	methods that allow applications to access the unknown internals, and allows
@@ -392,25 +428,16 @@ end
 	also be noted that the _ENV table is also a Type similar to a Behavior.
 ]]
 local function behavior(arg)
-	local R,Rn,Rt
-	if G.reference then
-		R = std.type('reference', G.reference)
-		Rn = G.refname or function(n) return n end
-		Rt = assert(G.reftype, 'Generator does not support reference types!')
-	end
-
 	checkarg(arg, {
 		_integer = function(b) assert(b'behaves') end, -- parent Behaviors
+		issub = false,	-- Semi-internal, for sub-behaviors
 	}, G.behaviorarg)
 	local g = std.type('generator-behavior', assert(G.behavior,
 		'Generator does not support Behaviors')(arg))
-	local real,vers,subs = {},{},{}
-	local ref = R and {} or real
-	local meta
+
+	local refs,ts,bs,vers = {},{},{},{}
 	local myself = std.type('behavior', {
 		def = function(c, e)
-			meta.behaves = Rn(e)
-
 			table.sort(vers, function(a,b)
 				if a.M ~= b.M then return a.M < b.M
 				elseif a.m ~= b.m then return a.m < b.m
@@ -419,40 +446,25 @@ local function behavior(arg)
 			local es = {}
 			for _,v in ipairs(vers) do table.move(v.e, 1, #v.e, #es+1, es) end
 
-			local function kdef(k, t, n)
-				if subs[k] then t'def'(c, e..'.'..k) else Rt(c, n, t) end
-			end
-
-			if R then for k,t in pairs(real) do
-				local n = Rn(e..'.'..k)
-				ref[k] = std.type('reference-behavior', {
-					def=function(c2, e2) kdef(k, t, n) R'def'(c2, e2, n) end,
-					conv = function(c2, e2) R'conv'(c2, e2, t) end,
-				})
-			end end
-			g'def'(c, Rn(e), es)
-			if R then for k,t in pairs(real) do
-				local n = Rn(e..'.'..k)
-				if not c[n] then kdef(k, t, n) end
-			end end
+			for k,t in pairs(ts) do refs[k] = ref(e..'.'..k, t, c) end
+			for k,b in pairs(bs) do refs[k] = bref(e..'.'..k, b, c) end
+			refs._self = ref(e)
+			g'def'(c, e, es)
+			for k,r in pairs(refs) do r'def'(k) end
 		end,
 		conv = error,
 	})
 
-	meta = getmetatable(myself)
+	local d,df = defer(refs)
+	d('_self', myself)
+
+	local meta = getmetatable(myself)
 	meta.behaves = true
-	local deferred = {}
 	function meta.__index(_, k)
 		local M,m,p = string.match(tostring(k), '^v(%d+)_(%d+)_(%d+)$')
 		M,m,p = tonumber(M), tonumber(m), tonumber(p)
 		if k == 'type' then
-			return setmetatable({}, {__newindex=function(_,k2,v)
-				real[k2] = v
-				deferred[k2] = std.type('deferred', {
-					def=function(...) ref[k2]'def'(...) end,
-					conv=function(...) ref[k2]'conv'(...) end,
-				})
-			end})
+			return setmetatable({}, {__newindex=function(_,j,v) d(j,v,ts) end})
 		elseif M then
 			if not vers[k] then
 				vers[k] = {M=M,m=m,p=p,e={}}
@@ -475,19 +487,12 @@ local function behavior(arg)
 					table.insert(vr, {'m', n, std.callable(ca)})
 				end
 			})
-		else return deferred[k] end
+		else return df[k] end
 	end
 	function meta.__newindex(_, k, ba)
 		assert(#ba == 0, "Sub-Behaviors can't have extra parents")
-		real[k] = behavior(ba)
-		subs[k] = true
-		deferred[k] = std.type('deferred', {
-			def=function(...) ref[k]'def'(...) end,
-			conv=function(...) ref[k]'conv'(...) end,
-		})
-		local m = getmetatable(deferred[k])
-		m.__index, m.__newindex = real[k], real[k]
-		setmetatable(m, {__index=getmetatable(real[k])})
+		ba.issub, ba[1] = true, df._self
+		d(k, behavior(ba), bs)
 	end
 	return myself
 end
@@ -510,47 +515,28 @@ local function environment(arg)
 	local g = std.type('environment-generator', assert(G.environment,
 		'Generator does not support environments!')(arg))
 
-	local R,Rn,Rt
-	if G.reference then
-		R = std.type('reference', G.reference)
-		Rn = G.refname or function(n) return n end
-		Rt = assert(G.reftype, 'Generator does not support reference types!')
-	end
-
 	local bs = {}
-	local real,deferred = {},{}
-	local ref = R and {} or real
+	local refs,subs = {},{}
 	local o = std.type('environment', {
 		def = function(_, e, ...)
 			local c = std.context()
-
-			if R then for k,t in pairs(real) do
-				local n = Rn(k)
-				ref[k] = std.type('reference-behavior', {
-					def=function(c2, e2) Rt(c, n, t) R'def'(c2, e2, n) end,
-					conv = function(c2, e2) R'conv'(c2, e2, t) end,
-				})
-			end end
-
+			for k,b in pairs(subs) do refs[k] = bref(k, b, c) end
 			for _,b in ipairs(bs) do b'def'(c, bs[b]) end
 			g'def'(c, e, ...)
 		end,
 		conv = error,
 	})
+
+	local d,df = defer(refs, de)
+
 	local m = getmetatable(o)
 	function m.__index(_, k)
-		return deferred[k] or sandbox[k]
+		return df[k] or sandbox[k]
 	end
 	function m.__newindex(_, k, v)
-		real[k] = behavior(v)
-		deferred[k] = std.type('deferred', {
-			def = function(...) ref[k]'def'(...) end,
-			conv = function(...) ref[k]'conv'(...) end,
-		})
-		local dm = getmetatable(deferred[k])
-		dm.__index, dm.__newindex = real[k], real[k]
-		setmetatable(dm, {__index=getmetatable(real[k])})
-		bs[#bs+1], bs[real[k]] = real[k], k
+		bs[#bs+1] = behavior(v)
+		bs[bs[#bs]] = k
+		d(k, bs[#bs], subs)
 	end
 
 	return o

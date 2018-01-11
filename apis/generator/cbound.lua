@@ -136,34 +136,40 @@ function G.compound(arg)
 	}
 end
 
-G.reference = {
-	def=function(c, e, n) c[e] = n..' '..e end,
-	conv=function(c, e, t) t'conv'(c, e) end,
-}
-function G.refname(e)
-	return 'Vv'..e:gsub('%..+%.', '.'):gsub('%.', '')
+function G.reference(n, t)
+	local d = n:gsub('.*%.', ''):gsub('%u%u%u$', ''):lower()
+	n = 'Vv'..n:gsub('%..+%.', '.'):gsub('%.', '')
+	return {
+		def = function(c, e) c[e or d] = n..' '..(e or d) end,
+		conv = function(c, e) t'conv'(c, e or d) end,
+	}
 end
-function G.reftype() end
 
 G.behaviorarg = {
 	wrapperfor = false,	-- Name of the C type that this Behavior wraps
 }
 function G.behavior(arg)
 	return {
-		def = function(c, e, es)
+		def = function(c, n, es)
+			local e = 'Vv'..n:gsub('%..+%.', '.'):gsub('%.', '')
+
 			c[e..'_typedef'] = '// Behavior '..e
 				..'\ntypedef struct '..e..'* '..e..';'
 
 			-- Data is silently ignored.
 
-			local ds,du = std.context(),{}
-			for i,b in ipairs(arg) do
-				b'def'(ds, b'behaves':match('Vv(.+)'):lower())
-				table.insert(du, '_s->part'..i)
+			local ds,du,da = std.context(),{},{}
+			for _,b in ipairs(arg) do
+				b'def'(ds)
+				table.insert(da, b'def'()[1])
+			end
+			for k in pairs(ds) do
+				table.insert(du, '_s->'..k)
 			end
 			ds = ds('', function(s)
 				return '\t'..s:gsub('\n', '\n\t')..';\n' end)
 			du = table.concat(du, ', ')
+			da = table.concat(da, ', ')
 
 			local ms = std.context()
 			for _,em in ipairs(es) do if em[1] == 'm' then
@@ -183,6 +189,10 @@ function G.behavior(arg)
 				..'\t'..(arg.wrapperfor and arg.wrapperfor..' real;'
 					or 'struct '..e..'_I _I;')..'\n'
 				..'};'
+
+			if not arg.issub then
+				c[e..'_c'] = e..' vVcreate'..e:match'Vv(.+)'..'('..da..');'
+			end
 		end,
 		conv = error,
 	}
