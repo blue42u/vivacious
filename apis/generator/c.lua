@@ -117,7 +117,7 @@ function G.behavior(arg)
 			elseif ed[1] == 'ro' then
 				ed[3]'def'(ds, 'const '..ed[2])
 			end end
-			if not arg.issub then for i,b in ipairs(arg) do b'def'(ds) end end
+			if not arg.issub then for _,b in ipairs(arg) do b'def'(ds) end end
 			ds = ds('', function(s)
 				return '\t'..s:gsub('\n', '\n\t')..';\n' end)
 

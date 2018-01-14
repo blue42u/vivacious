@@ -28,6 +28,7 @@ local parent_overrides = {
 
 Vk = {}
 local vktypes = {Vk=Vk}
+local vkbs = {}
 
 do
 	local handles = {}
@@ -52,6 +53,7 @@ do
 					_ENV['Vk.'..n:match'Vk(.*)'] = {vktypes[t.parent], wrapperfor = n}
 					vktypes[n] = _ENV['Vk.'..n:match'Vk(.*)']
 				else error() end
+				vkbs[n] = vktypes[n]
 				handles[n] = nil
 				stuck = false
 			end
@@ -245,4 +247,27 @@ do
 			error("Got stuck writing the structs")
 		end
 	until not next(structs)
+end
+
+do
+	for v,cs in pairs(vk.cmds) do
+		local M,m = v:match '(%d+)%.(%d+)'
+		v = 'v'..M..'_'..m..'_0'
+		for _,ct in ipairs(cs) do
+			local c = {returns = raw{realname=ct.ret}, realname='PFN_'..ct.name}
+			for i,a in ipairs(ct) do
+				c[i] = {a.name, raw{realname=a.type}}
+			end
+
+			local b,bn
+			if ct[2] then b,bn = vkbs[ct[2].type],ct[2].type end
+			if not b and ct[1] then b,bn = vkbs[ct[1].type],ct[1].type end
+			if not b then b,bn = Vk,'' end
+
+			local n = ct.name
+			if n == 'vkDestroy'..(bn:match'Vk(.*)' or '') then n = 'destroy' end
+
+			b[v][n] = c
+		end
+	end
 end

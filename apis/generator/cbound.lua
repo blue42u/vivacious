@@ -171,12 +171,12 @@ function G.behavior(arg)
 				b'def'(ds)
 				table.insert(da, b'def'()[1])
 			end
-			for k in pairs(ds) do
-				table.insert(du, '_s->'..k)
-			end
+			if arg.issub then for k in pairs(ds) do
+				table.insert(du, '_s->'..k..', ')
+			end end
 			ds = ds('', function(s)
 				return '\t'..s:gsub('\n', '\n\t')..';\n' end)
-			du = table.concat(du, ', ')
+			du = table.concat(du)
 			da = table.concat(da, ', ')
 
 			local ms = std.context()
@@ -184,7 +184,7 @@ function G.behavior(arg)
 				em[3]'def'(ms, em[2])
 				c[em[2]] = '#define vV'..em[2]..'(_S, ...) ({ '
 					..'__typeof__ (_S) _s = (_S); '
-					..'_s->_M->'..em[2]..'(_s->real, '..du..', __VA_ARGS__); })'
+					..'_s->_M->'..em[2]..'('..du..'_s->real, __VA_ARGS__); })'
 			end end
 			ms = ms('', function(s)
 				return '\t\t'..s:gsub('\n', '\n\t\t')..';\n' end)

@@ -117,4 +117,34 @@ for _,t in cpairs(dom.root, {name='types'}) do
 	end
 end
 
+local allcmds = {}
+for _,t in cpairs(dom.root, {name='commands'}) do
+	for _,t in cpairs(t, {name='command'}) do
+		local c = {}
+		for k,v in pairs(t.attr) do if type(k) == 'string' then c[k] = v end end
+		c.name = first(t, {name='proto'}, {name='name'}, {type='text'}).value
+		c.ret = first(t, {name='proto'}, {name='type'}, {type='text'}).value
+		for _,t in cpairs(t, {name='param'}) do
+			local a = {}
+			for k,v in pairs(t.attr) do if type(k) == 'string' then a[k] = v end end
+			a.name = first(t, {name='name'}, {type='text'}).value
+			a.type = first(t, {name='type'}, {type='text'}).value
+			table.insert(c, a)
+		end
+		allcmds[c.name] = c
+	end
+end
+
+vk.cmds = {}
+for _,t in cpairs(dom.root, {name='feature', attr={api='vulkan'}}) do
+	local cs = {}
+	for _,t in cpairs(t, {name='require'}) do
+		for _,t in cpairs(t, {name='command'}) do
+			assert(allcmds[t.attr.name])
+			table.insert(cs, allcmds[t.attr.name])
+		end
+	end
+	vk.cmds[t.attr.number] = cs
+end
+
 return vk
