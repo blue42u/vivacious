@@ -52,8 +52,8 @@ do
 				elseif t.type == 'VK_DEFINE_HANDLE' then
 					_ENV['Vk.'..n:match'Vk(.*)'] = {vktypes[t.parent], wrapperfor = n}
 					vktypes[n] = _ENV['Vk.'..n:match'Vk(.*)']
+					vkbs[n] = vktypes[n]
 				else error() end
-				vkbs[n] = vktypes[n]
 				handles[n] = nil
 				stuck = false
 			end
@@ -90,14 +90,14 @@ end
 vktypes.void = generic
 vktypes.VkBool32 = boolean
 
-vktypes.uint64_t = integer
-vktypes.uint32_t = integer
-vktypes.uint8_t = integer
+vktypes.uint64_t = unsigned
+vktypes.uint32_t = unsigned
+vktypes.uint8_t = unsigned
 vktypes.int = integer
 vktypes.int32_t = integer
 vktypes.float = number
-vktypes.size_t = integer
-vktypes.VkDeviceSize = integer
+vktypes.size_t = raw{realname='size_t', conversion='%u'}
+vktypes.VkDeviceSize = raw{realname='VkDeviceSize', conversion='%u'}
 
 vktypes.string = string
 
@@ -234,7 +234,7 @@ do
 				end
 			end
 
-			vktypes.Vk.type[pn] = compound{v1_0_0=mems, addptr=not not sTyped,
+			vktypes.Vk.type[pn] = compound{v1_0_0=mems, addptr=sTyped,
 				realname=n}
 			vktypes[n] = Vk[pn]
 			structs[n] = nil
@@ -254,11 +254,6 @@ do
 		local M,m = v:match '(%d+)%.(%d+)'
 		v = 'v'..M..'_'..m..'_0'
 		for _,ct in ipairs(cs) do
-			local c = {returns = raw{realname=ct.ret}, realname='PFN_'..ct.name}
-			for i,a in ipairs(ct) do
-				c[i] = {a.name, raw{realname=a.type}}
-			end
-
 			local b,bn
 			if ct[2] then b,bn = vkbs[ct[2].type],ct[2].type end
 			if not b and ct[1] then b,bn = vkbs[ct[1].type],ct[1].type end
@@ -267,7 +262,32 @@ do
 			local n = ct.name
 			if n == 'vkDestroy'..(bn:match'Vk(.*)' or '') then n = 'destroy' end
 
-			b[v][n] = c
+			if n:match 'vkCreate.+' then
+				local r = vktypes[ct[#ct].type]
+				table.remove(ct)
+				if ct[1].type == bn then table.remove(ct, 1) end
+
+				local c = {returns = {r, vktypes.VkResult}, {'self', b}}
+				for _,a in ipairs(ct) do
+					if a.name == 'pCreateInfo' then
+						table.insert(c, {'pCreateInfo', vktypes[a.type]})
+					elseif a.name == 'pCreateInfos' then
+						table.insert(c, {'pCreateInfos', array{vktypes[a.type],
+							lenvar='createInfoCount'}})
+						c.returns[1] = array{c.returns[1], lenvar='createInfoCount'}
+					else table.insert(c, {a.name, vktypes[a.type]}) end
+				end
+				b[v][n] = c
+			elseif n == 'destroy' then
+				b[v][n] = {{'self', b}}
+			else
+				local c = {returns = raw{realname=ct.ret},
+					realname='PFN_'..ct.name}
+				for i,a in ipairs(ct) do
+					c[i] = {a.name, raw{realname=a.type}}
+				end
+				b[v][n] = c
+			end
 		end
 	end
 end

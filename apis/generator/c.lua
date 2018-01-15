@@ -47,13 +47,19 @@ end
 
 local void = std.type('void', {def='void `e`', conv=error})
 function G.callable(arg)
-	local ret = table.remove(arg.returns or {}, 1) or void
+	local rs = arg.returns or {}
+	local ret = table.remove(rs, 1) or void
 	return {
 		def = function(c, e)
 			local args = std.context()
 			for _,a in ipairs(arg) do a[2]'def'(args, a[1]) end
-			for _,r in ipairs(arg.returns or {}) do r'def'(args, '*') end
-			ret'def'(c, '(*'..e..')('..args', '..')')
+			for i,r in ipairs(rs) do r'def'(args, '*ret'..i) end
+			local rets = ret'def'('~')
+			for i=2,#rets do
+				local ri = i-1+#rs
+				args['*ret'..ri] = rets[i]:gsub('~', '*ret'..ri)
+			end
+			c[e] = rets[1]:gsub('~', '(*'..e..')('..args', '..')')
 		end,
 		conv = function() error("Callables don't support Lua conversion") end
 	}

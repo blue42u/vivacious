@@ -14,6 +14,8 @@
    limitations under the License.
 --]========================================================================]
 
+local C = require 'c'
+
 local G = {simple={}, custom={}, customarg={}}
 G.simple.number = {def='float `e`', conv='`v:%f`', default=0}
 G.simple.integer = {def='int32_t `e`', conv='`v:%d`', default=0}
@@ -27,11 +29,12 @@ G.simple.index = {def='int `e`', conv=function(v)
 
 G.customarg.raw = {
 	realname = true,	-- The name of the bound C type
+	conversion = false,	-- Conversion string for the C type
 }
 function G.custom.raw(arg)
 	return {
 		def = arg.realname..' `e`',
-		conv = error,
+		conv = arg.conversion and '`v:'..arg.conversion..'`' or error,
 	}
 end
 
@@ -63,8 +66,10 @@ end
 
 G.arrayarg = {
 	lenvar = false,		-- The variable that will contains the length
+	includelen = false,	-- Indicates that this Type should include the length
 }
 function G.array(arg)
+	if arg.includelen then return C.array(arg) end
 	return {
 		def = function(c, e)
 			if arg.fixedsize then
@@ -109,13 +114,15 @@ function G.options(arg)
 end
 
 G.callablearg = {
-	realname = true,	-- The name of the bound C function pointer
+	realname = false,	-- The name of the bound C function pointer
 }
 function G.callable(arg)
-	return {
-		def = arg.realname..' `e`',
-		conv = error,
-	}
+	if arg.realname then
+		return {
+			def = arg.realname..' `e`',
+			conv = error,
+		}
+	else return C.callable(arg) end
 end
 
 G.compoundarg = {
@@ -126,7 +133,7 @@ function G.compound(arg)
 	local typs = {}
 	for _,e in ipairs(arg) do typs[e[1]] = e[2] end
 	return {
-		def = arg.realname..' `e`',
+		def = arg.realname..(arg.addptr and '*' or '')..' `e`',
 		conv = function(c, e, v)
 			local ps = std.context()
 			for k,sv in pairs(v) do typs[k]'conv'(ps, k, sv) end
@@ -138,7 +145,7 @@ end
 
 function G.reference(n, t, cp)
 	local d = n:gsub('.*%.', ''):gsub('%u%u%u$', ''):lower()
-	n = 'Vv'..n:gsub('%..+%.', '.'):gsub('%.', '')
+	n = (t and '' or 'Vv')..n:gsub('%..+%.', '.'):gsub('%.', '')
 	return {
 		def = function(c, e)
 			e = e or d
@@ -174,6 +181,7 @@ function G.behavior(arg)
 			if arg.issub then for k in pairs(ds) do
 				table.insert(du, '_s->'..k..', ')
 			end end
+			table.insert(du, arg.wrapperfor and '_s->real' or '_s')
 			ds = ds('', function(s)
 				return '\t'..s:gsub('\n', '\n\t')..';\n' end)
 			du = table.concat(du)
@@ -182,23 +190,27 @@ function G.behavior(arg)
 			local ms = std.context()
 			for _,em in ipairs(es) do if em[1] == 'm' then
 				em[3]'def'(ms, em[2])
+				local d = ms[em[2]]:match'%*' and '_s' or du
 				c[em[2]] = '#define vV'..em[2]..'(_S, ...) ({ '
 					..'__typeof__ (_S) _s = (_S); '
-					..'_s->_M->'..em[2]..'('..du..'_s->real, __VA_ARGS__); })'
+					..'_s->_M->'..em[2]..'('..d..', __VA_ARGS__); })'
 			end end
 			ms = ms('', function(s)
 				return '\t\t'..s:gsub('\n', '\n\t\t')..';\n' end)
+
+			local ws = ''
+			if arg.wrapperfor then ws = '\t'..arg.wrapperfor..' real;\n' end
 
 			c[e] = 'struct '..e..' {\n'
 				..'\tconst struct '..e..'_M {\n'
 				..ms
 				..'\t} * const _M;\n'
 				..ds
-				..'\t'..(arg.wrapperfor and arg.wrapperfor..' real;'
-					or 'struct '..e..'_I _I;')..'\n'
+				..ws
+				..'\tstruct '..e..'_I _I;\n'
 				..'};'
 
-			if not arg.issub then
+			if not arg.wrapperfor then
 				c[e..'_c'] = e..' vVcreate'..e:match'Vv(.+)'..'('..da..');'
 			end
 		end,

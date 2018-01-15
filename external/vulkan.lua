@@ -129,6 +129,11 @@ for _,t in cpairs(dom.root, {name='commands'}) do
 			for k,v in pairs(t.attr) do if type(k) == 'string' then a[k] = v end end
 			a.name = first(t, {name='name'}, {type='text'}).value
 			a.type = first(t, {name='type'}, {type='text'}).value
+
+			local tx = {}
+			for _,t in cpairs(t, {type='text'}) do table.insert(tx, t.value) end
+			a.arr = #(table.concat(tx):gsub('[^*[]', ''))
+
 			table.insert(c, a)
 		end
 		allcmds[c.name] = c
