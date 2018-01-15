@@ -73,14 +73,17 @@ function std.type(name, t, extra)
 	if not t then return nil end
 	local m = {name=name}
 	function m.__call(_,k) return m[k] end
+	extra = extra or {}
 
 	local ah = {}
 	function ah.e(v) return v end
 	function ah.v(v)
 		if v == nil then v = t.default end
-		if extra and extra.v then v = extra.v(v) or v end
+		if extra.v then v = extra.v(v) or v end
 		return v
 	end
+
+	local recursed = false
 
 	local function handle(key, as)
 		local inside
@@ -92,22 +95,32 @@ function std.type(name, t, extra)
 					..table.concat(a, ', ')..')')
 			end
 		elseif type(tk) == 'function' then
-			inside = function(c, e, a, _)
-				tk(c, e, table.unpack(a))
-				return c
-			end
+			inside = function(c, e, a, _) tk(c, e, table.unpack(a)) end
 		elseif type(tk) == 'string' then
-			inside = function(c, e, _, b)
-				c[e] = strapply(tk, b)
-				return c
-			end
+			inside = function(c, e, _, b) c[e] = strapply(tk, b) end
 		elseif type(tk) == 'table' then
 			inside = function(c, _, _, b)
 				for k,v in pairs(tk) do c[strapply(k,b)] = strapply(v,b) end
-				return c
 			end
 		else error('Making a type with an odd '..key..' value!') end
 		m[key] = function(c, e, ...)
+			if recursed and not extra.canrecurse then
+				local path = {}
+				local i = 2
+				repeat
+					local d = debug.getinfo(i, 'f')
+					if not d then break end
+					local j = 1
+					repeat
+						local un, u = debug.getupvalue(d.func, j)
+						if un == 'name' then table.insert(path, u) end
+						j = j + 1
+					until not un
+					i = i + 1
+				until not d
+				error('Recursed as '..name..'! Path: '..table.concat(path, ','))
+			end
+			recursed = true
 			local a = table.pack(...)
 			if type(c) == 'string' then
 				table.insert(a, 1, e)
@@ -115,7 +128,9 @@ function std.type(name, t, extra)
 			elseif not c then c = std.context() end
 			local b = {e=e}
 			for i,an in ipairs(as) do a[i] = ah[an](a[i]); b[an] = a[i] end
-			return inside(c, e, a, b)
+			inside(c, e, a, b)
+			recursed = false
+			return c
 		end
 	end
 
@@ -367,7 +382,8 @@ end
 -- not provided.
 local function ref(n, t, cp)
 	return std.type('reference',
-		assert(G.reference, 'Generator does not support references!')(n, t, cp))
+		assert(G.reference, 'Generator does not support references!')(n, t, cp),
+		{canrecurse=true})
 end
 local function bref(n, b, cp)
 	local r = ref(n)
@@ -382,7 +398,7 @@ local function bref(n, b, cp)
 			r'def'(c, e)
 		end,
 		conv = error,
-	})
+	}, {canrecurse=true})
 end
 local function defer(refs)
 	local deferred = {}
@@ -390,7 +406,7 @@ local function defer(refs)
 		deferred[k] = std.type('deferred', {
 			def = function(...) refs[k]'def'(...) end,
 			conv = function(...) refs[k]'conv'(...) end,
-		})
+		}, {canrecurse=true})
 		local m = getmetatable(deferred[k])
 		m.__index, m.__newindex = v, v
 		setmetatable(m, {__index=getmetatable(v)})
@@ -522,7 +538,7 @@ local function environment(arg)
 		def = function(_, e, ...)
 			local c = std.context()
 			for k,b in pairs(subs) do refs[k] = bref(k, b, c) end
-			for _,b in ipairs(bs) do b'def'(c, bs[b]) end
+			for k,r in pairs(refs) do r'def'(c, k) end
 			g'def'(c, e, ...)
 		end,
 		conv = error,
@@ -535,9 +551,8 @@ local function environment(arg)
 		return df[k] or sandbox[k]
 	end
 	function m.__newindex(_, k, v)
-		bs[#bs+1] = behavior(v)
-		bs[bs[#bs]] = k
-		d(k, bs[#bs], subs)
+		bs[k] = behavior(v)
+		d(k, bs[k], subs)
 	end
 
 	return o

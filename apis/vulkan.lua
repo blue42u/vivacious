@@ -52,8 +52,8 @@ do
 				elseif t.type == 'VK_DEFINE_HANDLE' then
 					_ENV['Vk.'..n:match'Vk(.*)'] = {vktypes[t.parent], wrapperfor = n}
 					vktypes[n] = _ENV['Vk.'..n:match'Vk(.*)']
-					vkbs[n] = vktypes[n]
 				else error() end
+				vkbs[n] = vktypes[n]
 				handles[n] = nil
 				stuck = false
 			end

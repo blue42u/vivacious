@@ -175,8 +175,9 @@ function G.behavior(arg)
 
 			local ds,du,da = std.context(),{},{}
 			for _,b in ipairs(arg) do
+				local l = #ds
 				b'def'(ds)
-				table.insert(da, b'def'()[1])
+				table.insert(da, ds[l+1])
 			end
 			if arg.issub then for k in pairs(ds) do
 				table.insert(du, '_s->'..k..', ')
