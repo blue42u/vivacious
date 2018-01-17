@@ -28,8 +28,7 @@ local parent_overrides = {
 
 Vk = {}
 local vktypes = {Vk=Vk}
-local vkbs = {}
-
+local vkbs,vkbps = {},{}
 do
 	local handles = {}
 	for n,t in pairs(vk.types) do
@@ -49,6 +48,7 @@ do
 				if t.type == 'VK_DEFINE_NON_DISPATCHABLE_HANDLE' then
 					vktypes[t.parent][n:match'Vk(.*)'] = {wrapperfor = n}
 					vktypes[n] = vktypes[t.parent][n:match'Vk(.*)']
+					vkbps[n] = t.parent
 				elseif t.type == 'VK_DEFINE_HANDLE' then
 					_ENV['Vk.'..n:match'Vk(.*)'] = {vktypes[t.parent], wrapperfor = n}
 					vktypes[n] = _ENV['Vk.'..n:match'Vk(.*)']
@@ -215,15 +215,13 @@ do
 		local stuck = true
 		local missing = {}
 		for n,t in pairs(structs) do
-			local mems = {}
+			local mems = {realname=n}
 			for _,m in ipairs(t.members) do
 				if not vktypes[m.type] then missing[m.type] = true goto skip end
 			end
 
-			local sTyped = false
 			local pn = n:match'Vk(.*)'
 			for _,m in ipairs(t.members) do
-				if m.name == 'sType' then sTyped = true end
 				if (m.arr or 0) > 0 then
 					assert(m.arr == 1)
 					table.insert(mems, {m.name,
@@ -234,8 +232,7 @@ do
 				end
 			end
 
-			vktypes.Vk.type[pn] = compound{v1_0_0=mems, addptr=sTyped,
-				realname=n}
+			vktypes.Vk.type[pn] = compound(mems)
 			vktypes[n] = Vk[pn]
 			structs[n] = nil
 			stuck = false
@@ -255,14 +252,15 @@ do
 		v = 'v'..M..'_'..m..'_0'
 		for _,ct in ipairs(cs) do
 			local b,bn
-			if ct[2] then b,bn = vkbs[ct[2].type],ct[2].type end
+			if ct[2] and not ct[2].optional and ct[1].type == vkbps[ct[2].type] then
+				b,bn = vkbs[ct[2].type],ct[2].type end
 			if not b and ct[1] then b,bn = vkbs[ct[1].type],ct[1].type end
 			if not b then b,bn = Vk,'' end
 
 			local n = ct.name
 			if n == 'vkDestroy'..(bn:match'Vk(.*)' or '') then n = 'destroy' end
 
-			if n:match 'vkCreate.+' then
+			if vkbs['Vk'..(n:match'vkCreate(.+)' or '')] then
 				local r = vktypes[ct[#ct].type]
 				table.remove(ct)
 				if ct[1].type == bn then table.remove(ct, 1) end
@@ -270,12 +268,17 @@ do
 				local c = {returns = {r, vktypes.VkResult}, {'self', b}}
 				for _,a in ipairs(ct) do
 					if a.name == 'pCreateInfo' then
-						table.insert(c, {'pCreateInfo', vktypes[a.type]})
+						table.insert(c, {'*pCreateInfo', vktypes[a.type]})
 					elseif a.name == 'pCreateInfos' then
-						table.insert(c, {'pCreateInfos', array{vktypes[a.type],
+						table.insert(c, {'*pCreateInfos', array{vktypes[a.type],
 							lenvar='createInfoCount'}})
 						c.returns[1] = array{c.returns[1], lenvar='createInfoCount'}
-					else table.insert(c, {a.name, vktypes[a.type]}) end
+					else
+						local n,t = a.name, vktypes[a.type]
+						if a.arr and not a.len then n = '*'..n
+						elseif a.len then t = array{t, lenvar=a.len} end
+						table.insert(c, {n, t})
+					end
 				end
 				b[v][n] = c
 			elseif n == 'destroy' then
