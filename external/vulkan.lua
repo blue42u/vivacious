@@ -151,5 +151,17 @@ for _,t in cpairs(dom.root, {name='feature', attr={api='vulkan'}}) do
 	end
 	vk.cmds[t.attr.number] = cs
 end
+for _,t in cpairs(dom.root, {name='extensions'}) do
+	for _,t in cpairs(t, {name='extension', attr={supported='vulkan'}}) do
+		local cs = {}
+		for _,t in cpairs(t, {name='require'}) do
+			for _,t in cpairs(t, {name='command'}) do
+				assert(allcmds[t.attr.name])
+				table.insert(cs, allcmds[t.attr.name])
+			end
+		end
+		vk.cmds[t.attr.number] = cs
+	end
+end
 
 return vk

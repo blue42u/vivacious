@@ -28,7 +28,7 @@ local parent_overrides = {
 
 Vk = {}
 local vktypes = {Vk=Vk}
-local vkbs,vkbps = {},{}
+local vkbs,vkbps,vkallbs = {},{},{}
 do
 	local handles = {}
 	for n,t in pairs(vk.types) do
@@ -53,6 +53,7 @@ do
 					_ENV['Vk.'..n:match'Vk(.*)'] = {vktypes[t.parent], wrapperfor = n}
 					vktypes[n] = _ENV['Vk.'..n:match'Vk(.*)']
 				else error() end
+				vkallbs[n] = true
 				vkbs[n] = vktypes[n]
 				handles[n] = nil
 				stuck = false
@@ -247,15 +248,27 @@ do
 end
 
 do
+	local fullbs = {}
 	for v,cs in pairs(vk.cmds) do
 		local M,m = v:match '(%d+)%.(%d+)'
-		v = 'v'..M..'_'..m..'_0'
+		if M then v = 'v0_'..M..'_'..m
+		else v = 'v'..v..'_0_0' end
 		for _,ct in ipairs(cs) do
 			local b,bn
 			if ct[2] and not ct[2].optional and ct[1].type == vkbps[ct[2].type] then
 				b,bn = vkbs[ct[2].type],ct[2].type end
+			if vkallbs[bn] and not b and ct.name ~= 'vkDestroy'..bn:match'Vk(.*)' then
+				io.stderr:write('WARNING: '..bn
+					..' is not a Behavior but has a method ('..ct.name..')!\n')
+			end
 			if not b and ct[1] then b,bn = vkbs[ct[1].type],ct[1].type end
+			if vkallbs[bn] and not b and ct.name ~= 'vkDestroy'..bn:match'Vk(.*)' then
+				io.stderr:write('WARNING: '..bn
+					..' is not a Behavior but has a method ('..ct.name..')!\n')
+			end
 			if not b then b,bn = Vk,'' end
+
+			fullbs[bn] = true
 
 			local n = ct.name
 			if n == 'vkDestroy'..(bn:match'Vk(.*)' or '') then n = 'destroy' end
@@ -293,4 +306,9 @@ do
 			end
 		end
 	end
+
+	for bn in pairs(vkbs) do if not fullbs[bn] then
+		io.stderr:write('WARNING: '..bn
+			..' is considered a Behavior but does not have any methods!\n')
+	end end
 end
