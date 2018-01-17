@@ -127,18 +127,16 @@ end
 
 G.compoundarg = {
 	realname = true,	-- The name of the bound C structure
-	addptr = true,		-- Add an extra pointer when converting
 }
 function G.compound(arg)
 	local typs = {}
 	for _,e in ipairs(arg) do typs[e[1]] = e[2] end
 	return {
-		def = arg.realname..(arg.addptr and '*' or '')..' `e`',
+		def = arg.realname..' `e`',
 		conv = function(c, e, v)
 			local ps = std.context()
 			for k,sv in pairs(v) do typs[k]'conv'(ps, k, sv) end
-			c[e] = '('..arg.realname..(arg.addptr and '*' or '')
-				..'){'..ps(', ', '.`e`=`v`')..'}'
+			c[e] = '('..arg.realname..'){'..ps(', ', '.`e`=`v`')..'}'
 		end,
 	}
 end
@@ -151,7 +149,7 @@ function G.reference(n, t, cp)
 			e = e or d
 			if t then
 				cp[n] = '#define '..n..'(...) ({ '
-					..n..' _x = '..t'conv'(n)[1]..'; '
+					..t'def'('_x')[1]..' = '..t'conv'(n)[1]..'; '
 					..'VvMAGIC(__VA_ARGS__); _x; })'
 			end
 			c[e] = n..' '..e
