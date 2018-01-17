@@ -382,20 +382,19 @@ end
 -- not provided.
 local function ref(n, t, cp)
 	return std.type('reference',
-		assert(G.reference, 'Generator does not support references!')(n, t, cp),
-		{canrecurse=true})
+		assert(G.reference, 'Generator does not support references!')(n, t, cp))
 end
 local function bref(n, b, cp)
 	local r = ref(n)
 	local inside = false
 	return std.type('reference-b', {
-		def = function(c, e)
+		def = function(c, e, fake)
 			if b and not inside then
 				inside = true
 				b'def'(cp, n)
 				inside = false
 			end
-			r'def'(c, e)
+			if not fake then r'def'(c, e) end
 		end,
 		conv = error,
 	}, {canrecurse=true})
@@ -404,8 +403,12 @@ local function defer(refs)
 	local deferred = {}
 	return function(k, v, rs)
 		deferred[k] = std.type('deferred', {
-			def = function(...) refs[k]'def'(...) end,
-			conv = function(...) refs[k]'conv'(...) end,
+			def = function(...)
+				assert(refs[k], 'Attempt to call deferred too early!')
+				refs[k]'def'(...) end,
+			conv = function(...)
+				assert(refs[k], 'Attempt to call deferred too early!')
+				refs[k]'conv'(...) end,
 		}, {canrecurse=true})
 		local m = getmetatable(deferred[k])
 		m.__index, m.__newindex = v, v
@@ -538,21 +541,21 @@ local function environment(arg)
 		def = function(_, e, ...)
 			local c = std.context()
 			for k,b in pairs(subs) do refs[k] = bref(k, b, c) end
-			for k,r in pairs(refs) do r'def'(c, k) end
+			for _,k in ipairs(bs) do refs[k]'def'(c, k, true) end
 			g'def'(c, e, ...)
 		end,
 		conv = error,
 	})
 
-	local d,df = defer(refs, de)
+	local d,df = defer(refs)
 
 	local m = getmetatable(o)
 	function m.__index(_, k)
 		return df[k] or sandbox[k]
 	end
 	function m.__newindex(_, k, v)
-		bs[k] = behavior(v)
-		d(k, bs[k], subs)
+		d(k, behavior(v), subs)
+		bs[#bs+1] = k
 	end
 
 	return o
