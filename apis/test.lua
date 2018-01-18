@@ -14,17 +14,29 @@
    limitations under the License.
 --]========================================================================]
 
-local relpath = '../external/'
+Test = {doc=[[Just a test]]}
 
-local oldpath = package.path
-package.path = package.path .. ';' .. relpath .. '?.lua'
-	.. ';' .. relpath .. 'luajson/lua/?.lua'
+Test.type.Def1 = integer
+Test.type.Def2 = compound{
+	{'a', integer},
+	{'b', number, 5.3},
+}
 
-local json = require 'json'
+Test.v1_2_3.testmeth = {
+	returns = {integer},
+	{'c', number}
+}
 
-package.path = oldpath
+Test.v1_2_3.rw.a = integer
+Test.v1_2_3.ro.b = array{integer}
 
-local f = io.open(relpath..'spirv/include/spirv/1.2/spirv.core.grammar.json')
-local j = f:read('a')
-f:close()
-return json.decode(j)
+Test.Little = {doc = [[ A Little Test ]]}
+Test.Little.v3_2_1.meth = {
+	{'d', boolean}
+}
+
+OtherTest = {Test.Little, doc = [[ Another Test ]]}
+OtherTest.v1_2_1.meth = {
+	returns = {Test.Def2},
+	{'a', integer},
+}

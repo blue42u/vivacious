@@ -1,5 +1,3 @@
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-initializer-overrides")
-
 add_subdirectory(vktest)
 add_subdirectory(witest)
 add_subdirectory(vkhelp)

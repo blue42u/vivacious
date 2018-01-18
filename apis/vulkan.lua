@@ -14,98 +14,254 @@
    limitations under the License.
 --]========================================================================]
 
-local std = require 'standard'
-std.define 'VK_NO_PROTOTYPES'
-std.include'vulkan/vulkan.h'
-
-local vk = {api=std.precompound{
-	shortname = 'Vk',
-	longname = 'Vulkan',
-	doc = "The binding to the Vulkan API",
-}}
-
 -- Load up the Vulkan registry data
-local vulk = dofile '../external/vulkan.lua'
+local vk = dofile 'external/vulkan.lua'
 
-local categories = {
-	basetype=false,
-	include=false, define=false,
-	stdtype=true, handle=true, enum=true, bitmask=true,
-	funcpointer=false,
-	struct=true, union=true,
-	struct_sType='ref', union_sType='ref',
+local parent_overrides = {
+	VkInstance = 'Vk',
+	VkDisplayKHR = 'VkPhysicalDevice',
+	VkDisplayModeKHR = 'VkDisplayKHR',
 }
-for n,c in pairs(vulk.types) do if categories[c] then
-	vk[n:match'Vk(.*)'] = std.external{n, notdef=true,
-		ref = categories[c] == 'ref'}
-end end
 
-vk.CmdSets = std.precompound{v0_0_0={internal=std.udata}}
-vk.Core = std.precompound{}
-local corefuncs = {}
-for n,cs in pairs(vulk.cmdsets) do
-	if n:match'%d+%.%d+' then
-		local sub = vk.Core[('v0_%d_%d'):format(n:match'(%d+)%.(%d+)')]
-		for _,c in ipairs(cs) do
-			if not corefuncs[c] then
-				corefuncs[c] = true
-				sub[c] = std.external{'PFN_vk'..c, func=true,
-					const=cs.name}
+Vk = {doc = [[
+	Main Vulkan Behavior, which grants access to the Vulkan API.
+]], directives = {'define VK_NO_PROTOTYPES', 'include <vulkan.h>'}}
+local vktypes = {Vk=Vk}
+local vkbs,vkbps = {},{}
+do
+	local handles = {}
+	for n,t in pairs(vk.types) do
+		if t.category == 'handle' then
+			-- We don't do multi-parenting
+			if t.parent and t.parent:find',' then t.parent = nil end
+			t.parent = parent_overrides[n] or t.parent
+			if t.parent == nil then error(n..' has no parent!') end
+			handles[n] = t
+		end
+	end
+
+	repeat
+		local stuck = true
+		for n,t in pairs(handles) do
+			if vktypes[t.parent] then
+				if t.type == 'VK_DEFINE_NON_DISPATCHABLE_HANDLE' then
+					vktypes[t.parent][n:match'Vk(.*)'] = {wrapperfor = n,
+						doc = [[Wrapper for ]]..n}
+					vktypes[n] = vktypes[t.parent][n:match'Vk(.*)']
+					vkbps[n] = t.parent
+				elseif t.type == 'VK_DEFINE_HANDLE' then
+					_ENV['Vk.'..n:match'Vk(.*)'] = {vktypes[t.parent],
+						wrapperfor = n, doc = [[Wrapper for ]]..n}
+					vktypes[n] = _ENV['Vk.'..n:match'Vk(.*)']
+				else error() end
+				vkbs[n] = vktypes[n]
+				handles[n] = nil
+				stuck = false
 			end
 		end
-	else
-		local e = n:match'VK_(.+)'
-		vk[e] = std.precompound{}
-		for _,c in ipairs(cs) do
-			vk[e].v0_0_0[c] = std.external{'PFN_vk'..c, func=true,
-				const=cs.name}
+		if stuck then
+			for n,t in pairs(handles) do print('>>', n, t.parent) end
+			error()
 		end
-		vk[e] = std.compound(vk[e])
-		vk.CmdSets['v0_1_'..cs.num][e] = vk[e]
+	until not next(handles)
+end
+
+for n,t in pairs(vk.types) do
+	if t.category == 'enum' or t.category == 'bitmask' then
+		local vals = {realname=n}
+		for rn in pairs(t.values) do table.insert(vals, rn) end
+		if t.category == 'enum' then
+			if #vals > 0 then
+				vals.default = next(t.values)
+				Vk.type[n:match'Vk(.*)'] = options(vals)
+				vktypes[n] = Vk[n:match'Vk(.*)']
+			end
+		else
+			Vk.type[n:match'Vk(.*)'] = flags(vals)
+			vktypes[n] = Vk[n:match'Vk(.*)']
+			if t.requires and #vals > 0 then
+				vals.default = next(t.values)
+				Vk.type[t.requires:match'Vk(.*)'] = options(vals)
+				vktypes[t.requires] = Vk[t.requires:match'Vk(.*)']
+			end
+		end
 	end
 end
-vk.Core = std.compound(vk.Core)
-vk.CmdSets.v0_0_0.core = vk.Core
-vk.CmdSets = std.compound(vk.CmdSets)
-vk.api.v0_1_1.cmds = vk.CmdSets
 
-vk.version = std.external{'uint32_t', 'VK_MAKE_VERSION(%d,%d,%d)',
-	function(v) return v:match'(%d+).(%d+).(%d+)' end}
-vk.uint32 = std.external{'uint32_t', '%u'}
+vktypes.void = generic
+vktypes.VkBool32 = boolean
 
-vk.api.v0_1_1.load = std.func{
-	doc = [[
-		Load the connection to the Vulkan loader, and set the first few
-		loading command. Must be paired with `unload` for a clean run.
-	]],
+vktypes.uint64_t = unsigned
+vktypes.uint32_t = unsigned
+vktypes.uint8_t = unsigned
+vktypes.int = integer
+vktypes.int32_t = integer
+vktypes.float = number
+vktypes.size_t = raw{realname='size_t', conversion='%u'}
+vktypes.VkDeviceSize = raw{realname='VkDeviceSize', conversion='%u'}
+
+vktypes.string = string
+
+vktypes.vksamplemask = flexmask{
+	raw{realname='VkSampleMask'},
+	bits=32, lenvar='fish',
 }
 
-vk.api.v0_1_1.unload = std.func{
-	doc = [[
-		Unload all commands, breaking the connection with the Vukan
-		loader. Must come after a call to `load`.
-	]],
+vktypes.PFN_vkInternalAllocationNotification = callable{
+	realname = 'PFN_vkInternalAllocationNotification',
+	{'udata', generic}, {'size', integer},
+	{'type', Vk.InternalAllocationType}, {'scope', Vk.SystemAllocationScope},
+}
+vktypes.PFN_vkInternalFreeNotification = callable{
+	realname = 'PFN_vkInternalFreeNotification',
+	{'udata', generic}, {'size', integer},
+	{'type', Vk.InternalAllocationType}, {'scope', Vk.SystemAllocationScope},
+}
+vktypes.PFN_vkReallocationFunction = callable{
+	realname = 'PFN_vkReallocationFunction',
+	{'udata', generic}, {'original', memory}, {'size', integer},
+	{'alignment', integer},
+	{'scope', Vk.SystemAllocationScope},
+	returns = {memory},
+}
+vktypes.PFN_vkAllocationFunction = callable{
+	realname = 'PFN_vkAllocationFunction',
+	{'udata', generic}, {'size', integer}, {'alignment', integer},
+	{'scope', Vk.SystemAllocationScope},
+	returns = {memory},
+}
+vktypes.PFN_vkFreeFunction = callable{
+	realname = 'PFN_vkFreeFunction',
+	{'udata', generic}, {'mem', memory},
 }
 
-vk.api.v0_1_1.loadInst = std.func{
-	doc = [[
-		Load all commands which require a Vulkan Instance before use.
-		If <all> is true, loads commands that indirectly require an
-		Instance. After this call, <inst> is the only usable Instance.
-	]],
-	{vk.Instance, 'inst'},
-	{std.boolean, 'all'},
+vktypes.PFN_vkDebugReportCallbackEXT = callable{
+	realname = 'PFN_vkDebugReportCallbackEXT',
+	{'flags', Vk.DebugReportFlagsEXT}, {'objectType', Vk.DebugReportObjectTypeEXT},
+	{'object', index}, {'location', index}, {'mCode', integer},
+	{'layerPrefix', string}, {'message', string},
+	{'udata', generic},
+	returns = {boolean},
 }
 
-vk.api.v0_1_1.loadDev = std.func{
-	doc = [[
-		Load all commands which require a Vulkan Device before use.
-		If <all> is true, loads commands that indirectly require a Device.
-		After this call, <dev> is the only usable Device.
-	]],
-	{vk.Device, 'dev'},
-	{std.boolean, 'all'},
-}
+for n in pairs{
+	Display=true, VisualID=true, Window=true,	-- Xlib.h
+	RROutput=true,	-- Xrandr.h
+	ANativeWindow=true,	--android/native_window.h
+	MirConnection=true, MirSurface=true,	-- mir_toolkit/client_types.h
+	wl_display=true, wl_surface=true,	-- wayland-client.h
+	HANDLE=true, LPCWSTR=true, DWORD=true, SECURITY_ATTRIBUTES=true,
+	HINSTANCE=true, HWND=true, -- windows.h
+	xcb_connection_t=true, xcb_visualid_t=true, xcb_window_t=true,	-- xcb.h
+} do vktypes[n] = raw{realname=n} end
 
-vk.api = std.compound(vk.api)
-return vk
+do
+	local ex = {
+		VkShaderModuleCreateInfo_pCode = {name='pCode', type='string', len='codeSize'},
+		VkPipelineMultisampleStateCreateInfo_pSampleMask = {name='pSampleMask',
+			type='vksamplemask', len='rasterizationSamples'}
+	}
+
+	local structs = {}
+	for n,t in pairs(vk.types) do
+		if t.category == 'struct' or t.category == 'union' then
+			structs[n] = t
+
+			local mems = {}
+			for i,m in ipairs(t.members) do
+				m = ex[n..'_'..m.name] or m
+				t.members[i] = m
+				if m.type == 'char' then
+					m.type = 'string'
+					m.arr = m.arr - 1
+					if m.len then
+						m.len = m.len:gsub(',?null%-terminated$', '')
+						if #m.len == 0 then m.len = nil end
+					end
+				elseif m.type == 'void' then
+					m.arr = m.arr - 1
+				elseif (m.arr or 0) > 0 and not m.len then
+					m.arr = m.arr - 1
+				end
+				if m.values and not m.values:find',' then m.def = m.values
+				elseif m.optional == 'true' then m.def = '' end
+				m.i = i
+				mems[m.name] = m
+			end
+
+			local rmed = {}
+			for _,m in pairs(mems) do
+				if m.len then
+					if mems[m.len] then
+						t.members[mems[m.len].i] = false
+						mems[m.len],rmed[m.len] = nil,true
+					elseif not rmed[m.len] then
+						print('>', n)
+						for mn in pairs(mems) do print('>>', mn) end
+						print('>>>', m.name, m.len, m.type)
+						error('Odd len: '..m.len)
+					end
+				end
+			end
+
+			local i = 1
+			while t.members[i] ~= nil do
+				if not t.members[i] then table.remove(t.members, i)
+				else i = i + 1 end
+			end
+		end
+	end
+
+	repeat
+		local stuck = true
+		local missing = {}
+		for n,t in pairs(structs) do
+			local mems = {realname=n}
+			for _,m in ipairs(t.members) do
+				if not vktypes[m.type] then missing[m.type] = true goto skip end
+			end
+
+			local pn = n:match'Vk(.*)'
+			for _,m in ipairs(t.members) do
+				if (m.arr or 0) > 0 then
+					assert(m.arr == 1)
+					table.insert(mems, {m.name,
+						array{vktypes[m.type], lenvar=m.len}, {}})
+				else
+					table.insert(mems, {m.name, vktypes[m.type],
+						m.def ~= '' and m.def or nil})
+				end
+			end
+
+			vktypes.Vk.type[pn] = compound(mems)
+			vktypes[n] = Vk[pn]
+			structs[n] = nil
+			stuck = false
+			::skip::
+		end
+		if stuck then
+			for n in pairs(structs) do print('>>', n) end
+			for t in pairs(missing) do print('>', t) end
+			error("Got stuck writing the structs")
+		end
+	until not next(structs)
+end
+
+do
+	for v,cs in pairs(vk.cmds) do
+		local M,m = v:match '(%d+)%.(%d+)'
+		if M then v = 'v0_'..M..'_'..m
+		else v = 'v'..v..'_0_0' end
+		for _,ct in ipairs(cs) do
+			local b
+			if ct[2] and not ct[2].optional and
+				ct[1].type == vkbps[ct[2].type] then b = vkbs[ct[2].type] end
+			if not b and ct[1] then b = vkbs[ct[1].type] end
+			if not b then b = Vk end
+
+			local c = {returns = raw{realname=ct.ret}, realname='PFN_'..ct.name}
+			for i,a in ipairs(ct) do c[i] = {a.name, raw{realname=a.type}} end
+			b[v][ct.name] = c
+		end
+	end
+end

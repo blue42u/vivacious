@@ -1,26 +1,27 @@
-set(APIS
-	vkbplate
-	vkmemory
-	vkpipeline
-	vulkan
-	window
-	vkshader
+set(OUT ${CMAKE_BINARY_DIR}/include/vivacious)
+
+# Standard C headers, using the standard C header generator
+gen(GENERATOR c DIRECTORY ${OUT} OUTPUTS ?.h
+	SPECS test
 )
 
-set(OUT ${CMAKE_BINARY_DIR}/include/vivacious)
-file(MAKE_DIRECTORY ${OUT})
+# Vulkan Vv interface generator
+gen(GENERATOR cbound OUTPUTS ${OUT}/?.h
+	DEPENDS ${CMAKE_SOURCE_DIR}/external/vulkan.lua
+		${CMAKE_SOURCE_DIR}/external/vulkan-docs/src/spec/vk.xml
+	SPECS vulkan)
 
-set(OUTS ${OUT}/core.h ${OUT}/vivacious.h)
-set(DEPS generator/stdc.lua apis.lua ../external/vulkan.lua)
-foreach(A ${APIS})
-	set(OUTS ${OUTS} ${OUT}/${A}.h)
-	set(DEPS ${DEPS} ${A}.lua)
-endforeach()
+# core.h, included by all the other headers and has VvMAGIC
+add_custom_command(OUTPUT ${OUT}/core.h
+	COMMAND ${LUA_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/core.h.lua
+	WORKING_DIRECTORY ${OUT}
+	MAIN_DEPENDENCY core.h.lua)
 
-add_custom_command(OUTPUT ${OUTS}
-	COMMAND ${LUA_EXECUTABLE} generator/c.lua ${OUT}
-	WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-	MAIN_DEPENDENCY generator/c.lua
-	DEPENDS ${DEPS})
+# vivacious.h, which includes all the other Vv headers
+add_custom_command(OUTPUT ${OUT}/vivacious.h
+	COMMAND ${LUA_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/vivacious.h.lua
+		${GEN_SPECS}
+	WORKING_DIRECTORY ${OUT}
+	MAIN_DEPENDENCY vivacious.h.lua)
 
-add_custom_target(include DEPENDS ${OUTS})
+add_custom_target(include DEPENDS ${GEN_OUTS} ${OUT}/core.h ${OUT}/vivacious.h)

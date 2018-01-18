@@ -14,193 +14,151 @@
    limitations under the License.
 --]========================================================================]
 
-package.path = './?.lua'
-local std = dofile 'generator/stdc.lua'
-package.loaded.standard = setmetatable(std,
-	{__index=function(_,k) return false end})
+local G = {simple={}}
+G.simple.number = {def='float `e`', conv='`v:%f`', default=0}
+G.simple.integer = {def='int `e`', conv='`v:%d`', default=0}
+G.simple.boolean = {def='bool `e`', conv=tostring, default=false}
+G.simple.string = {def='const char* `e`', conv='`v:%q`', default=''}
+G.simple.memory = {def='void* `e`', conv=error}
+G.simple.generic = {def='void* `e`', conv=error}
+G.simple.index = {def='int `e`', conv=function(v)
+	return string.format('%u', v-1) end, default=1}
 
-local apis = require 'apis'
-local apiset = {}
-for _,a in ipairs(apis) do apiset[a] = true end
-
-local inapi = 1
-local extras = {{}}
-local oldrequire = require
-function std.define(s) table.insert(extras[inapi], '#define '..s) end
-function std.include(s) table.insert(extras[inapi], '#include <'..s..'>') end
-function require(s)
-	local out
-	if apiset[s] then
-		table.insert(extras[inapi], '#include <vivacious/'..s..'.h>')
-		extras[s] = extras[s] or {}
-
-		local myapi = inapi
-		inapi = s
-		out = oldrequire(s)
-		inapi = myapi
-	else out = oldrequire(s) end
-	return out
-end
-
--- First write up all of the API headers
-for _,a in ipairs(apis) do
-	local f = io.open(arg[1]..'/'..a..'.h', 'w')
-	f:write('// File generated from apis/'..a..'.lua, do not edit\n')
-	f:write('#ifndef H_vivacious_'..a..'\n')
-	f:write('#define H_vivacious_'..a..'\n\n')
-
-	local api = require(a)
-	local names = {}
-	for n,t in pairs(api) do if not t.notdef then
-		names[t] = 'Vv'..api.api.shortname..'_'..n
-	end end
-	names[api.api] = 'Vv'..api.api.shortname
-
-	f:write'#include <vivacious/core.h>\n'
-	if #extras[a] > 0 then f:write(table.concat(extras[a], '\n')..'\n') end
-	f:write'\n'
-
-	local Vv = {std.external{'const Vv*'}}
-	local function modfunc(t)
-		if t._from == 'func' then table.insert(t, 1, Vv)
-		else t:_def(modfunc) end
-	end
-	modfunc(api.api)
-
-	local tdefd = {}
-	local function writetdef(t)
-		if not tdefd[t] then
-			t:_def(writetdef)
-
-			if names[t] then
-				local ref = t._ref
-				function t:_ref(w, n)
-					t:_sref(w, names[self], n)
-				end
-				ref(t, function(s)
-					f:write('typedef ')
-					f:write(s)
-					f:write(';\n')
-				end, names[t], true)
-
-				if t._macro then
-					t:_macro(function(s)
-						f:write(s..'\n')
-					end, names[t])
-				end
-
-				f:write('\n')
-			end
-
-			tdefd[t] = true
-		end
-	end
-	for _,t in pairs(api) do writetdef(t) end
-
-	local aName, aname = api.api.shortname, api.api.shortname:lower()
-	f:write('const Vv'..aName..'* vV'..aname..'(const Vv*);\n')
-
-	f:write('#ifdef Vv_'..aname..'_ENABLED\n')
-	local function writedef(t, name, path)
-		if t._from == 'func' then
-			if #t > 1 or #t.returns > 1 then
-				f:write('#define vV'..aname..'_'..name
-					..'(...) '..path
-					..'(&(Vv_CHOICE), __VA_ARGS__)\n')
+function G.array(arg)
+	return {
+		def = function(c, e)
+			if arg.fixedsize then
+				arg[1]'def'(c, e..'['..arg.fixedsize..']')
 			else
-				f:write('#define vV'..aname..'_'..name
-					..'() '..path
-					..'(&(Vv_CHOICE))\n')
+				c[e..'Cnt'] = 'size_t '..e..'Cnt'
+				arg[1]'def'(c, '*'..e)
 			end
-		elseif t._from == 'external' and t.func then
-			f:write('#define vV'..aname..'_'..name
-				..'(...) '..path
-				..'(__VA_ARGS__)\n')
-		else
-			t:_def(function(st, pre, post, nam)
-				writedef(st, nam or name, pre..path..post)
-			end)
-		end
-	end
-	writedef(api.api, nil, '(Vv_CHOICE).'..aname)
-	f:write'#endif\n\n'
-
-	f:write('#endif')
-	f:close()
-end
-
--- Then write up the core.h
-do
-	local f = io.open(arg[1]..'/core.h', 'w')
-	f:write'// Generated from apis/generator/c.lua, do not edit\n'
-	f:write'#ifndef H_vivacious_core\n'
-	f:write'#define H_vivacious_core\n\n'
-	f:write'#include <stdlib.h>\n\n'
-
-	-- First the "choice" structure, Vv
-	f:write'typedef struct {\n'
-	for _,a in ipairs(apis) do
-		local api = require(a)
-		f:write('\tconst struct Vv'..api.api.shortname..'* '
-			..api.api.shortname:lower()..';\n')
-	end
-	f:write'} Vv;\n\n'
-
-	-- Then the implementation defines (ad nauseum)
-	local function allowlayer(l)
-		for _,v in ipairs(l) do
-			if type(v) == 'table' then allowlayer(v)
-			else
-				local api = require(v)
-				local n = api.api.shortname:lower()
-				f:write('#define Vv_'..n..'_ENABLED\n')
+		end,
+		conv = function(c, e, v)
+			if not arg.fixedsize then c[e..'Cnt'] = ('%d'):format(#v) end
+			if #v == 0 then c[e] = 'NULL' else
+				local els = std.context()
+				for i,vv in ipairs(v) do arg[1]'conv'(els, i, vv) end
+				c[e] = '{'..els', '..'}'
 			end
-		end
-	end
-	f:write'#if 0\n'
-	for i=#apis,1,-1 do
-		local a = apis[i]
-		local api = require(a)
-		local N,n = api.api.shortname, api.api.shortname:lower()
-		f:write('#elif defined(Vv_IMP_'..n..')\n')
-		for _,v in ipairs(apis.layers[a]) do
-			if type(v) == 'table' then allowlayer(v) end
-		end
-	end
-	f:write'#else\n'
-	for _,a in ipairs(apis) do allowlayer({a}) end
-	f:write'#endif\n\n'
-
-	f:write[[
-#define Vv_LEN(...) sizeof(__VA_ARGS__)/sizeof((__VA_ARGS__)[0])
-#define Vv_ARRAY(N, ...) .N##Cnt = Vv_LEN((__VA_ARGS__)), .N=(__VA_ARGS__)
-
-#endif
-]]
-	f:close()
+		end,
+	}
 end
 
--- And finish up with vivacious.h
-do
-	local f = io.open(arg[1]..'/vivacious.h', 'w')
-	f:write'// Generated from apis/generator/c.lua, do not edit\n'
-	f:write'#ifndef H_vivacious_vivacious\n'
-	f:write'#define H_vivacious_vivacious\n\n'
-
-	-- Include all the API headers
-	for _,a in ipairs(apis) do
-		f:write('#include <vivacious/'..a..'.h>\n')
-	end
-	f:write'\n'
-
-	-- Add a macro to get the default Vv.
-	f:write'#define vV() ({ \\\n	Vv V; \\\n'
-	for _,a in ipairs(apis) do
-		local n = require(a).api.shortname:lower()
-		f:write('\tV.'..n..' = vV'..n..'(&V); \\\n')
-	end
-	f:write'	V; \\\n})\n\n'
-
-	f:write'#endif'
-	f:close()
+local void = std.type('void', {def='void `e`', conv=error})
+function G.callable(arg)
+	local rs = arg.returns or {}
+	local ret = table.remove(rs, 1) or void
+	return {
+		def = function(c, e)
+			local args = std.context()
+			for _,a in ipairs(arg) do a[2]'def'(args, a[1]) end
+			for i,r in ipairs(rs) do r'def'(args, '*ret'..i) end
+			local rets = ret'def'('~')
+			for i=2,#rets do
+				local ri = i-1+#rs
+				args['*ret'..ri] = rets[i]:gsub('~', '*ret'..ri)
+			end
+			c[e] = rets[1]:gsub('~', '(*'..e..')('..args', '..')')
+		end,
+		conv = function() error("Callables don't support Lua conversion") end
+	}
 end
+
+function G.compound(arg)
+	local ents = std.context()
+	for _,e in ipairs(arg) do e[2]'def'(ents, e[1]) end
+	ents = ents('', function(e) return '\t'..e:gsub('\n', '\n\t')..';\n' end)
+
+	local typs = {}
+	for _,e in ipairs(arg) do typs[e[1]] = e[2] end
+	return {
+		def = 'struct `e` {\n'..ents..'} `e`',
+		conv = function(c, e, v)
+			local ps = std.context()
+			for k,sv in pairs(v) do typs[k]'conv'(ps, k, sv) end
+			c[e] = '{'..ps(', ', '.`e`=`v`')..'}'
+		end,
+	}
+end
+
+function G.reference(n, t, cp)
+	local tn = 'Vv'..n:gsub('%.', '')
+	local d = n:gsub('.*%.', ''):lower()
+	return {
+		def = function(c, e)
+			e = e or d
+			if t then
+				cp[n] = 'typedef '..t'def'(tn)[1]..';'
+				cp[n..'_magic'] = '#define '..tn..'(...) ({ '
+					..e..' _x = '..t'conv'(tn)[1]..'; '
+					..'VvMAGIC(__VA_ARGS__); _x; })'
+			end
+			c[e] = tn..' '..e
+		end,
+		conv = function(c, e, v) t'conv'(c, e, v) end,
+	}
+end
+
+function G.behavior(arg)
+	return {
+		def = function(c, e, es)
+			e = 'Vv'..e:gsub('%.', '')
+
+			c[e..'_doc'] = '/* Behavior '..e
+				..'\n\t'..arg.doc:gsub('\n', '\n\t')
+				..'\n*/'
+
+			c[e..'_typedef'] = 'typedef struct '..e..'* '..e..';'
+			local ms = std.context()
+			for _,em in ipairs(es) do if em[1] == 'm' then
+				em[3]'def'(ms, em[2])
+				c[em[2]] = '#define vV'..em[2]..'(_S, ...) ({ '
+					..'__typeof__ (_S) _s = (_S); '
+					..'_s->_M->'..em[2]..'(_s, __VA_ARGS__); })'
+			end end
+			ms = ms('', function(s)
+				return '\t\t'..s:gsub('\n', '\n\t\t')..';\n' end)
+
+			local ds = std.context()
+			for _,ed in ipairs(es) do if ed[1] == 'rw' then
+				ed[3]'def'(ds, ed[2])
+			elseif ed[1] == 'ro' then
+				ed[3]'def'(ds, 'const '..ed[2])
+			end end
+			if not arg.issub then for _,b in ipairs(arg) do b'def'(ds) end end
+			ds = ds('', function(s)
+				return '\t'..s:gsub('\n', '\n\t')..';\n' end)
+
+			c[e] = 'struct '..e..' {\n'
+				..'\tconst struct '..e..'_M {\n'
+				..ms
+				..'\t} * const _M;\n'
+				..ds
+				..'};'
+		end,
+		conv = error,
+	}
+end
+
+function G.environment(_)
+	return {
+		def = function(c, e, f)
+			f:write(([[
+// Generated file, do not edit directly, edit apis/~.lua instead
+#ifndef H_vivacious_~
+#define H_vivacious_~
+
+#include <vivacious/core.h>
+
+]]):gsub('~', e)..'')
+
+			for _,l in ipairs(c) do f:write(l..'\n\n') end
+
+			f:write('#endif // H_vivacious_'..e)
+		end,
+		conv = error,
+	}
+end
+
+return G
