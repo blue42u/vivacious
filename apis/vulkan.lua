@@ -28,7 +28,7 @@ local parent_overrides = {
 
 Vk = {}
 local vktypes = {Vk=Vk}
-local vkbs,vkbps,vkallbs = {},{},{}
+local vkbs,vkbps = {},{}
 do
 	local handles = {}
 	for n,t in pairs(vk.types) do
@@ -53,7 +53,6 @@ do
 					_ENV['Vk.'..n:match'Vk(.*)'] = {vktypes[t.parent], wrapperfor = n}
 					vktypes[n] = _ENV['Vk.'..n:match'Vk(.*)']
 				else error() end
-				vkallbs[n] = true
 				vkbs[n] = vktypes[n]
 				handles[n] = nil
 				stuck = false
@@ -248,67 +247,20 @@ do
 end
 
 do
-	local fullbs = {}
 	for v,cs in pairs(vk.cmds) do
 		local M,m = v:match '(%d+)%.(%d+)'
 		if M then v = 'v0_'..M..'_'..m
 		else v = 'v'..v..'_0_0' end
 		for _,ct in ipairs(cs) do
-			local b,bn
-			if ct[2] and not ct[2].optional and ct[1].type == vkbps[ct[2].type] then
-				b,bn = vkbs[ct[2].type],ct[2].type end
-			if vkallbs[bn] and not b and ct.name ~= 'vkDestroy'..bn:match'Vk(.*)' then
-				io.stderr:write('WARNING: '..bn
-					..' is not a Behavior but has a method ('..ct.name..')!\n')
-			end
-			if not b and ct[1] then b,bn = vkbs[ct[1].type],ct[1].type end
-			if vkallbs[bn] and not b and ct.name ~= 'vkDestroy'..bn:match'Vk(.*)' then
-				io.stderr:write('WARNING: '..bn
-					..' is not a Behavior but has a method ('..ct.name..')!\n')
-			end
-			if not b then b,bn = Vk,'' end
+			local b
+			if ct[2] and not ct[2].optional and
+				ct[1].type == vkbps[ct[2].type] then b = vkbs[ct[2].type] end
+			if not b and ct[1] then b = vkbs[ct[1].type] end
+			if not b then b = Vk end
 
-			fullbs[bn] = true
-
-			local n = ct.name
-			if n == 'vkDestroy'..(bn:match'Vk(.*)' or '') then n = 'destroy' end
-
-			if vkbs['Vk'..(n:match'vkCreate(.+)' or '')] then
-				local r = vktypes[ct[#ct].type]
-				table.remove(ct)
-				if ct[1].type == bn then table.remove(ct, 1) end
-
-				local c = {returns = {r, vktypes.VkResult}, {'self', b}}
-				for _,a in ipairs(ct) do
-					if a.name == 'pCreateInfo' then
-						table.insert(c, {'*pCreateInfo', vktypes[a.type]})
-					elseif a.name == 'pCreateInfos' then
-						table.insert(c, {'*pCreateInfos', array{vktypes[a.type],
-							lenvar='createInfoCount'}})
-						c.returns[1] = array{c.returns[1], lenvar='createInfoCount'}
-					else
-						local n,t = a.name, vktypes[a.type]
-						if a.arr and not a.len then n = '*'..n
-						elseif a.len then t = array{t, lenvar=a.len} end
-						table.insert(c, {n, t})
-					end
-				end
-				b[v][n] = c
-			elseif n == 'destroy' then
-				b[v][n] = {{'self', b}}
-			else
-				local c = {returns = raw{realname=ct.ret},
-					realname='PFN_'..ct.name}
-				for i,a in ipairs(ct) do
-					c[i] = {a.name, raw{realname=a.type}}
-				end
-				b[v][n] = c
-			end
+			local c = {returns = raw{realname=ct.ret}, realname='PFN_'..ct.name}
+			for i,a in ipairs(ct) do c[i] = {a.name, raw{realname=a.type}} end
+			b[v][ct.name] = c
 		end
 	end
-
-	for bn in pairs(vkbs) do if not fullbs[bn] then
-		io.stderr:write('WARNING: '..bn
-			..' is considered a Behavior but does not have any methods!\n')
-	end end
 end

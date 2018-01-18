@@ -114,7 +114,7 @@ function G.options(arg)
 end
 
 G.callablearg = {
-	realname = false,	-- The name of the bound C function pointer
+	realname = true,	-- The name of the bound C function pointer
 }
 function G.callable(arg)
 	if arg.realname then
@@ -122,7 +122,7 @@ function G.callable(arg)
 			def = arg.realname..' `e`',
 			conv = error,
 		}
-	else return C.callable(arg) end
+	end
 end
 
 G.compoundarg = {
@@ -172,6 +172,7 @@ function G.behavior(arg)
 			-- Data is silently ignored.
 
 			local ds,du,da = std.context(),{},{}
+			if arg.wrapperfor then table.insert(da, arg.wrapperfor) end
 			for _,b in ipairs(arg) do
 				local l = #ds
 				b'def'(ds)
@@ -189,10 +190,9 @@ function G.behavior(arg)
 			local ms = std.context()
 			for _,em in ipairs(es) do if em[1] == 'm' then
 				em[3]'def'(ms, em[2])
-				local d = ms[em[2]]:match'%*' and '_s' or du
 				c[em[2]] = '#define vV'..em[2]..'(_S, ...) ({ '
 					..'__typeof__ (_S) _s = (_S); '
-					..'_s->_M->'..em[2]..'('..d..', __VA_ARGS__); })'
+					..'_s->_M->'..em[2]..'('..du..', __VA_ARGS__); })'
 			end end
 			ms = ms('', function(s)
 				return '\t\t'..s:gsub('\n', '\n\t\t')..';\n' end)
@@ -200,18 +200,22 @@ function G.behavior(arg)
 			local ws = ''
 			if arg.wrapperfor then ws = '\t'..arg.wrapperfor..' real;\n' end
 
+			c['destroy'] = '#define vVdestroy(_S, ...) ({ '
+				..'__typeof__ (_S) _s = (_S); '
+				..'_s->_M->destroy(_s, __VA_ARGS__); })'
+
 			c[e] = 'struct '..e..' {\n'
+				..ws
 				..'\tconst struct '..e..'_M {\n'
+				..'\t\tvoid destroy('..e..(arg.wrapperfor and ', bool full' or '')..');\n'
 				..ms
 				..'\t} * const _M;\n'
 				..ds
-				..ws
 				..'\tstruct '..e..'_I _I;\n'
 				..'};'
 
-			if not arg.wrapperfor then
-				c[e..'_c'] = e..' vVcreate'..e:match'Vv(.+)'..'('..da..');'
-			end
+			c[e..'_c'] = e..' vV'..(arg.wrapperfor and 'wrap' or 'create')
+				..e:match'Vv(.+)'..'('..da..');'
 		end,
 		conv = error,
 	}
