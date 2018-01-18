@@ -31,24 +31,24 @@ local vk = {}
 local bitmasked = {}
 
 vk.vids = {}
-for _,t in cpairs(dom.root, {name='tags'}) do
-	for _,t in cpairs(t, {name='tag'}) do
+for _,ts in cpairs(dom.root, {name='tags'}) do
+	for _,t in cpairs(ts, {name='tag'}) do
 		vk.vids[t.attr.name] = true
 	end
 end
 
 vk.types = {}
-for _,t in cpairs(dom.root, {name='types'}) do
-	for _,t in cpairs(t, {name='type'}) do
+for _,ts in cpairs(dom.root, {name='types'}) do
+	for _,t in cpairs(ts, {name='type'}) do
 		local o = {}
 		for k,v in pairs(t.attr) do o[k] = v end
 		if not o.type then
-			local t = first(t, {name='type'}, {type='text'})
-			if t then o.type = t.value end
+			local tt = first(t, {name='type'}, {type='text'})
+			if tt then o.type = tt.value end
 		end
 		if not o.name then
-			local t = first(t, {name='name'}, {type='text'})
-			if t then o.name = t.value end
+			local tt = first(t, {name='name'}, {type='text'})
+			if tt then o.name = tt.value end
 		end
 
 		if o.category == 'enum' or o.category == 'bitmask' then
@@ -63,9 +63,9 @@ for _,t in cpairs(dom.root, {name='types'}) do
 			}
 
 			if nam then
-				local t = first(dom.root, {name='enums', attr={name=nam, type=o.category}})
-				if t then
-					for _,e in cpairs(t, {name='enum'}) do
+				local tes = first(dom.root, {name='enums', attr={name=nam, type=o.category}})
+				if tes then
+					for _,e in cpairs(tes, {name='enum'}) do
 						local v = e.attr.value and e.attr.value:gsub('[f()]', '')
 						if hard[v] then v = hard[v] end
 						v = tonumber(v) or 1<<e.attr.bitpos
@@ -73,8 +73,8 @@ for _,t in cpairs(dom.root, {name='types'}) do
 						o.values[e.attr.name] = v
 					end
 				end
-				for _,ex in cpairs(dom.root, {name='extensions'}) do
-					for _,ex in cpairs(ex, {name='extension'}) do
+				for _,exs in cpairs(dom.root, {name='extensions'}) do
+					for _,ex in cpairs(exs, {name='extension'}) do
 						for _,r in cpairs(ex, {name='require'}) do
 							for _,e in cpairs(r, {name='enum', attr={extends=nam}}) do
 								local v
@@ -105,7 +105,7 @@ for _,t in cpairs(dom.root, {name='types'}) do
 				m.name = first(mt, {name='name'}, {type='text'}).value
 
 				local tx = {}
-				for _,t in cpairs(mt, {type='text'}) do table.insert(tx, t.value) end
+				for _,tt in cpairs(mt, {type='text'}) do table.insert(tx, tt.value) end
 				m.arr = #(table.concat(tx):gsub('[^*[]', ''))
 
 				table.insert(o.members, m)
@@ -118,20 +118,20 @@ for _,t in cpairs(dom.root, {name='types'}) do
 end
 
 local allcmds = {}
-for _,t in cpairs(dom.root, {name='commands'}) do
-	for _,t in cpairs(t, {name='command'}) do
+for _,ts in cpairs(dom.root, {name='commands'}) do
+	for _,t in cpairs(ts, {name='command'}) do
 		local c = {}
 		for k,v in pairs(t.attr) do if type(k) == 'string' then c[k] = v end end
 		c.name = first(t, {name='proto'}, {name='name'}, {type='text'}).value
 		c.ret = first(t, {name='proto'}, {name='type'}, {type='text'}).value
-		for _,t in cpairs(t, {name='param'}) do
+		for _,tp in cpairs(t, {name='param'}) do
 			local a = {}
 			for k,v in pairs(t.attr) do if type(k) == 'string' then a[k] = v end end
-			a.name = first(t, {name='name'}, {type='text'}).value
-			a.type = first(t, {name='type'}, {type='text'}).value
+			a.name = first(tp, {name='name'}, {type='text'}).value
+			a.type = first(tp, {name='type'}, {type='text'}).value
 
 			local tx = {}
-			for _,t in cpairs(t, {type='text'}) do table.insert(tx, t.value) end
+			for _,tt in cpairs(tp, {type='text'}) do table.insert(tx, tt.value) end
 			a.arr = #(table.concat(tx):gsub('[^*[]', ''))
 
 			table.insert(c, a)
@@ -143,21 +143,21 @@ end
 vk.cmds = {}
 for _,t in cpairs(dom.root, {name='feature', attr={api='vulkan'}}) do
 	local cs = {}
-	for _,t in cpairs(t, {name='require'}) do
-		for _,t in cpairs(t, {name='command'}) do
-			assert(allcmds[t.attr.name])
-			table.insert(cs, allcmds[t.attr.name])
+	for _,r in cpairs(t, {name='require'}) do
+		for _,c in cpairs(r, {name='command'}) do
+			assert(allcmds[c.attr.name])
+			table.insert(cs, allcmds[c.attr.name])
 		end
 	end
 	vk.cmds[t.attr.number] = cs
 end
-for _,t in cpairs(dom.root, {name='extensions'}) do
-	for _,t in cpairs(t, {name='extension', attr={supported='vulkan'}}) do
+for _,ts in cpairs(dom.root, {name='extensions'}) do
+	for _,t in cpairs(ts, {name='extension', attr={supported='vulkan'}}) do
 		local cs = {}
-		for _,t in cpairs(t, {name='require'}) do
-			for _,t in cpairs(t, {name='command'}) do
-				assert(allcmds[t.attr.name])
-				table.insert(cs, allcmds[t.attr.name])
+		for _,r in cpairs(t, {name='require'}) do
+			for _,c in cpairs(r, {name='command'}) do
+				assert(allcmds[c.attr.name])
+				table.insert(cs, allcmds[c.attr.name])
 			end
 		end
 		vk.cmds[t.attr.number] = cs
