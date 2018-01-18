@@ -154,7 +154,7 @@ for t in pairs{
 for n,t in pairs(G.simple) do stdlib[n] = std.type(n, t) end
 
 -- If the generator doesn't overload it, indicies are just integers.
-stdlib.index = std.type(n, G.simple.index) or stdlib.integer
+stdlib.index = std.type('index', G.simple.index) or stdlib.integer
 
 -- Simple optional & required argument checker. Test should error on failure.
 local function checkarg(arg, opts1, opts2)

@@ -58,8 +58,8 @@ function G.custom.flexmask(arg)
 						els[i] = els[i] | 1<<(j-1)
 					end end
 				end
+				c[e] = '{'..table.concat(els, ', ')..'}'
 			end
-			c[e] = '{'..table.concat(els, ', ')..'}'
 		end,
 	}
 end

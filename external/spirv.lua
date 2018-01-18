@@ -20,7 +20,9 @@ local oldpath = package.path
 package.path = package.path .. ';' .. relpath .. '?.lua'
 	.. ';' .. relpath .. 'luajson/lua/?.lua'
 
-require 'json'
+local json = require 'json'
+
+package.path = oldpath
 
 local f = io.open(relpath..'spirv/include/spirv/1.2/spirv.core.grammar.json')
 local j = f:read('a')
