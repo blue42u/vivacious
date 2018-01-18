@@ -160,11 +160,18 @@ end
 
 G.behaviorarg = {
 	wrapperfor = false,	-- Name of the C type that this Behavior wraps
+	directives = false,	-- List of extra directives to add to this Behavior
 }
 function G.behavior(arg)
 	return {
 		def = function(c, n, es)
 			local e = 'Vv'..n:gsub('%..+%.', '.'):gsub('%.', '')
+
+			if arg.directives then
+				local d = {}
+				for i,l in ipairs(arg.directives) do d[i] = '#'..l end
+				c[e..'_dir'] = table.concat(d, '\n')
+			end
 
 			c[e..'_doc'] = '/* Behavior '..e
 				..'\n\t'..arg.doc:gsub('\n', '\n\t')

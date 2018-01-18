@@ -14,9 +14,6 @@
    limitations under the License.
 --]========================================================================]
 
---c_define = 'VK_NO_PROTOTYPES'
---c_include = 'vulkan/vulkan.h'
-
 -- Load up the Vulkan registry data
 local vk = dofile 'external/vulkan.lua'
 
@@ -28,7 +25,7 @@ local parent_overrides = {
 
 Vk = {doc = [[
 	Main Vulkan Behavior, which grants access to the Vulkan API.
-]]}
+]], directives = {'define VK_NO_PROTOTYPES', 'include <vulkan.h>'}}
 local vktypes = {Vk=Vk}
 local vkbs,vkbps = {},{}
 do
