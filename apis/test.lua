@@ -14,7 +14,7 @@
    limitations under the License.
 --]========================================================================]
 
-Test = {}
+Test = {doc=[[Just a test]]}
 
 Test.type.Def1 = integer
 Test.type.Def2 = compound{
@@ -30,12 +30,12 @@ Test.v1_2_3.testmeth = {
 Test.v1_2_3.rw.a = integer
 Test.v1_2_3.ro.b = array{integer}
 
-Test.Little = {}
+Test.Little = {doc = [[ A Little Test ]]}
 Test.Little.v3_2_1.meth = {
 	{'d', boolean}
 }
 
-OtherTest = {Test.Little}
+OtherTest = {Test.Little, doc = [[ Another Test ]]}
 OtherTest.v1_2_1.meth = {
 	returns = {Test.Def2},
 	{'a', integer},

@@ -26,7 +26,9 @@ local parent_overrides = {
 	VkDisplayModeKHR = 'VkDisplayKHR',
 }
 
-Vk = {}
+Vk = {doc = [[
+	Main Vulkan Behavior, which grants access to the Vulkan API.
+]]}
 local vktypes = {Vk=Vk}
 local vkbs,vkbps = {},{}
 do
@@ -46,11 +48,13 @@ do
 		for n,t in pairs(handles) do
 			if vktypes[t.parent] then
 				if t.type == 'VK_DEFINE_NON_DISPATCHABLE_HANDLE' then
-					vktypes[t.parent][n:match'Vk(.*)'] = {wrapperfor = n}
+					vktypes[t.parent][n:match'Vk(.*)'] = {wrapperfor = n,
+						doc = [[Wrapper for ]]..n}
 					vktypes[n] = vktypes[t.parent][n:match'Vk(.*)']
 					vkbps[n] = t.parent
 				elseif t.type == 'VK_DEFINE_HANDLE' then
-					_ENV['Vk.'..n:match'Vk(.*)'] = {vktypes[t.parent], wrapperfor = n}
+					_ENV['Vk.'..n:match'Vk(.*)'] = {vktypes[t.parent],
+						wrapperfor = n, doc = [[Wrapper for ]]..n}
 					vktypes[n] = _ENV['Vk.'..n:match'Vk(.*)']
 				else error() end
 				vkbs[n] = vktypes[n]

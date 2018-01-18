@@ -105,8 +105,11 @@ function G.behavior(arg)
 		def = function(c, e, es)
 			e = 'Vv'..e:gsub('%.', '')
 
-			c[e..'_typedef'] = '// Behavior '..e
-				..'\ntypedef struct '..e..'* '..e..';'
+			c[e..'_doc'] = '/* Behavior '..e
+				..'\n\t'..arg.doc:gsub('\n', '\n\t')
+				..'\n*/'
+
+			c[e..'_typedef'] = 'typedef struct '..e..'* '..e..';'
 			local ms = std.context()
 			for _,em in ipairs(es) do if em[1] == 'm' then
 				em[3]'def'(ms, em[2])

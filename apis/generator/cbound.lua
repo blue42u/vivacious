@@ -166,8 +166,11 @@ function G.behavior(arg)
 		def = function(c, n, es)
 			local e = 'Vv'..n:gsub('%..+%.', '.'):gsub('%.', '')
 
-			c[e..'_typedef'] = '// Behavior '..e
-				..'\ntypedef struct '..e..'* '..e..';'
+			c[e..'_doc'] = '/* Behavior '..e
+				..'\n\t'..arg.doc:gsub('\n', '\n\t')
+				..'\n*/'
+
+			c[e..'_typedef'] = 'typedef struct '..e..'* '..e..';'
 
 			-- Data is silently ignored.
 

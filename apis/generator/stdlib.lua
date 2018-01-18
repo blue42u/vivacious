@@ -230,6 +230,7 @@ function stdlib.options(arg)
 	checkarg(arg, {
 		_integer = true,	-- Names of valid options
 		default = false,	-- Default option if none is given
+		doc = false,		-- Documentation for the meaning of this option
 	}, G.optionsarg)
 	local opts = {}
 	for _,o in ipairs(arg) do opts[o] = o end
@@ -259,6 +260,7 @@ function stdlib.flags(arg)
 				return #v[1] > 0 and #v[2] == 1
 			end
 		end,	-- proper name OR {<proper name>, <shorthand>}
+		doc = false,	-- Documentation
 	}, G.flagsarg)
 	local shorts,ga = {},setmetatable({}, {__index=arg})
 	for i,e in ipairs(arg) do
@@ -295,6 +297,7 @@ function stdlib.callable(arg)
 		_integer = function(a)
 			assert(type(a[1]) == 'string' and a[2])
 		end,	-- Arguments, as {<name>, <Type>}
+		doc = false,	-- Documentation
 	}, G.callablearg)
 	return std.type('callable',
 		assert(G.callable, 'Generator does not support callables!')(arg))
@@ -342,6 +345,7 @@ function stdlib.compound(arg)
 				assert(type(e[1]) == 'string' and e[2])
 			end
 		end or nil,		-- Elements, as {<name>, <Type>, [<def>]}
+		doc = false,	-- Documentation
 	}, G.compoundarg)
 
 	-- Now if its mutable, order the elements for the generator
@@ -451,6 +455,7 @@ local function behavior(arg)
 	checkarg(arg, {
 		_integer = function(b) assert(b'behaves') end, -- parent Behaviors
 		issub = false,	-- Semi-internal, for sub-behaviors
+		doc = true,		-- Documentation, required for such complex types.
 	}, G.behaviorarg)
 	local g = std.type('generator-behavior', assert(G.behavior,
 		'Generator does not support Behaviors')(arg))
