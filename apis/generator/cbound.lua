@@ -14,8 +14,6 @@
    limitations under the License.
 --]========================================================================]
 
-local C = require 'c'
-
 local G = {simple={}, custom={}, customarg={}}
 G.simple.number = {def='float `e`', conv='`v:%f`', default=0}
 G.simple.integer = {def='int32_t `e`', conv='`v:%d`', default=0}
@@ -66,10 +64,8 @@ end
 
 G.arrayarg = {
 	lenvar = false,		-- The variable that will contains the length
-	includelen = false,	-- Indicates that this Type should include the length
 }
 function G.array(arg)
-	if arg.includelen then return C.array(arg) end
 	return {
 		def = function(c, e)
 			if arg.fixedsize then
@@ -81,7 +77,7 @@ function G.array(arg)
 		conv = function(c, e, v)
 			if not arg.fixedsize then c[arg.lenvar] = ('%d'):format(#v) end
 			if #v == 0 then c[e] = 'NULL' else
-				local els = std.context()
+				local els = newcontext()
 				for i,vv in ipairs(v) do arg[1]'conv'(els, i, vv) end
 				c[e] = '{'..els', '..'}'
 			end
@@ -134,16 +130,17 @@ function G.compound(arg)
 	return {
 		def = arg.realname..' `e`',
 		conv = function(c, e, v)
-			local ps = std.context()
+			local ps = newcontext()
 			for k,sv in pairs(v) do typs[k]'conv'(ps, k, sv) end
 			c[e] = '('..arg.realname..'){'..ps(', ', '.`e`=`v`')..'}'
 		end,
 	}
 end
 
-function G.reference(n, t, cp)
-	local d = n:gsub('.*%.', ''):gsub('%u%u%u$', ''):lower()
-	n = (t and '' or 'Vv')..n:gsub('%..+%.', '.'):gsub('%.', '')
+function G.reference(n, t, cp, ex)
+	local d = n:gsub('.*%.', ''):gsub('%u?%u%u$', ''):lower()
+	n = n:gsub('.*%.', '')
+	if n ~= ex.prefix then n = ex.prefix..n end
 	return {
 		def = function(c, e)
 			e = e or d
@@ -152,21 +149,20 @@ function G.reference(n, t, cp)
 					..t'def'('_x')[1]..' = '..t'conv'(n)[1]..'; '
 					..'VvMAGIC(__VA_ARGS__); _x; })'
 			end
-			c[e] = n..' '..e
+			c[e] = (t and '' or 'Vv')..n..' '..e
 		end,
 		conv = function(c, e, v) t'conv'(c, e or d, v) end,
-	}
+	}, 'Vv'..n
 end
 
 G.behaviorarg = {
 	wrapperfor = false,	-- Name of the C type that this Behavior wraps
 	directives = false,	-- List of extra directives to add to this Behavior
+	prefix = true,		-- Extra prefix for contents of this Behavior
 }
 function G.behavior(arg)
 	return {
-		def = function(c, n, es)
-			local e = 'Vv'..n:gsub('%..+%.', '.'):gsub('%.', '')
-
+		def = function(c, e, es)
 			if arg.directives then
 				local d = {}
 				for i,l in ipairs(arg.directives) do d[i] = '#'..l end
@@ -181,7 +177,7 @@ function G.behavior(arg)
 
 			-- Data is silently ignored.
 
-			local ds,du,da = std.context(),{},{}
+			local ds,du,da = newcontext(),{},{}
 			if arg.wrapperfor then table.insert(da, arg.wrapperfor) end
 			for _,b in ipairs(arg) do
 				local l = #ds
@@ -197,7 +193,7 @@ function G.behavior(arg)
 			du = table.concat(du)
 			da = table.concat(da, ', ')
 
-			local ms = std.context()
+			local ms = newcontext()
 			for _,em in ipairs(es) do if em[1] == 'm' then
 				em[3]'def'(ms, em[2])
 				c[em[2]] = '#define vV'..em[2]..'(_S, ...) ({ '
@@ -217,7 +213,7 @@ function G.behavior(arg)
 			c[e] = 'struct '..e..' {\n'
 				..ws
 				..'\tconst struct '..e..'_M {\n'
-				..'\t\tvoid destroy('..e..(arg.wrapperfor and ', bool full' or '')..');\n'
+				..'\t\tvoid destroy('..e..' self);\n'
 				..ms
 				..'\t} * const _M;\n'
 				..ds
@@ -228,21 +224,22 @@ function G.behavior(arg)
 				..e:match'Vv(.+)'..'('..da..');'
 		end,
 		conv = error,
-	}
+	}, {prefix=arg.prefix}
 end
 
-function G.environment(_)
+function G.environment()
 	return {
-		def = function(c, e, f)
+		def = function(c, e, ds, f)
 			f:write(([[
 // Generated file, do not edit directly, edit apis/~.lua instead
 #ifndef H_vivacious_~
 #define H_vivacious_~
 
 #include <vivacious/core.h>
-
 ]]):gsub('~', e)..'')
-
+			for _,d in ipairs(ds) do
+				f:write('#include <vivacious/'..d..'.h>\n') end
+			f:write('\n')
 			for _,l in ipairs(c) do f:write(l..'\n\n') end
 
 			f:write('#endif // H_vivacious_'..e)

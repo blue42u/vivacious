@@ -37,7 +37,7 @@ function G.array(arg)
 		conv = function(c, e, v)
 			if not arg.fixedsize then c[e..'Cnt'] = ('%d'):format(#v) end
 			if #v == 0 then c[e] = 'NULL' else
-				local els = std.context()
+				local els = newcontext()
 				for i,vv in ipairs(v) do arg[1]'conv'(els, i, vv) end
 				c[e] = '{'..els', '..'}'
 			end
@@ -45,13 +45,13 @@ function G.array(arg)
 	}
 end
 
-local void = std.type('void', {def='void `e`', conv=error})
+local void = newtype('void', {def='void `e`', conv=error})
 function G.callable(arg)
 	local rs = arg.returns or {}
 	local ret = table.remove(rs, 1) or void
 	return {
 		def = function(c, e)
-			local args = std.context()
+			local args = newcontext()
 			for _,a in ipairs(arg) do a[2]'def'(args, a[1]) end
 			for i,r in ipairs(rs) do r'def'(args, '*ret'..i) end
 			local rets = ret'def'('~')
@@ -66,7 +66,7 @@ function G.callable(arg)
 end
 
 function G.compound(arg)
-	local ents = std.context()
+	local ents = newcontext()
 	for _,e in ipairs(arg) do e[2]'def'(ents, e[1]) end
 	ents = ents('', function(e) return '\t'..e:gsub('\n', '\n\t')..';\n' end)
 
@@ -75,7 +75,7 @@ function G.compound(arg)
 	return {
 		def = 'struct `e` {\n'..ents..'} `e`',
 		conv = function(c, e, v)
-			local ps = std.context()
+			local ps = newcontext()
 			for k,sv in pairs(v) do typs[k]'conv'(ps, k, sv) end
 			c[e] = '{'..ps(', ', '.`e`=`v`')..'}'
 		end,
@@ -97,20 +97,18 @@ function G.reference(n, t, cp)
 			c[e] = tn..' '..e
 		end,
 		conv = function(c, e, v) t'conv'(c, e, v) end,
-	}
+	}, tn
 end
 
 function G.behavior(arg)
 	return {
 		def = function(c, e, es)
-			e = 'Vv'..e:gsub('%.', '')
-
 			c[e..'_doc'] = '/* Behavior '..e
 				..'\n\t'..arg.doc:gsub('\n', '\n\t')
 				..'\n*/'
 
 			c[e..'_typedef'] = 'typedef struct '..e..'* '..e..';'
-			local ms = std.context()
+			local ms = newcontext()
 			for _,em in ipairs(es) do if em[1] == 'm' then
 				em[3]'def'(ms, em[2])
 				c[em[2]] = '#define vV'..em[2]..'(_S, ...) ({ '
@@ -120,7 +118,7 @@ function G.behavior(arg)
 			ms = ms('', function(s)
 				return '\t\t'..s:gsub('\n', '\n\t\t')..';\n' end)
 
-			local ds = std.context()
+			local ds = newcontext()
 			for _,ed in ipairs(es) do if ed[1] == 'rw' then
 				ed[3]'def'(ds, ed[2])
 			elseif ed[1] == 'ro' then
@@ -135,6 +133,7 @@ function G.behavior(arg)
 				..ms
 				..'\t} * const _M;\n'
 				..ds
+				..'\tstruct '..e..'_I _I;\n'
 				..'};'
 		end,
 		conv = error,
@@ -143,16 +142,17 @@ end
 
 function G.environment(_)
 	return {
-		def = function(c, e, f)
+		def = function(c, e, ds, f)
 			f:write(([[
 // Generated file, do not edit directly, edit apis/~.lua instead
 #ifndef H_vivacious_~
 #define H_vivacious_~
 
 #include <vivacious/core.h>
-
 ]]):gsub('~', e)..'')
-
+			for _,d in ipairs(ds) do
+				f:write('#include <vivacious/'..d..'.h>\n') end
+			f:write('\n')
 			for _,l in ipairs(c) do f:write(l..'\n\n') end
 
 			f:write('#endif // H_vivacious_'..e)

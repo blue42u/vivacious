@@ -14,6 +14,9 @@
    limitations under the License.
 --]========================================================================]
 
+-- This spec uses the intricacies specified by the *bound varient
+--!bound
+
 -- Load up the Vulkan registry data
 local vk = dofile 'external/vulkan.lua'
 
@@ -25,7 +28,9 @@ local parent_overrides = {
 
 Vk = {doc = [[
 	Main Vulkan Behavior, which grants access to the Vulkan API.
-]], directives = {'define VK_NO_PROTOTYPES', 'include <vulkan.h>'}}
+]],
+	directives = {'define VK_NO_PROTOTYPES', 'include <vulkan.h>'},
+	prefix = 'Vk'}
 local vktypes = {Vk=Vk}
 local vkbs,vkbps = {},{}
 do
@@ -46,13 +51,13 @@ do
 			if vktypes[t.parent] then
 				if t.type == 'VK_DEFINE_NON_DISPATCHABLE_HANDLE' then
 					vktypes[t.parent][n:match'Vk(.*)'] = {wrapperfor = n,
-						doc = [[Wrapper for ]]..n}
+						doc = [[Wrapper for ]]..n, prefix='Vk'}
 					vktypes[n] = vktypes[t.parent][n:match'Vk(.*)']
 					vkbps[n] = t.parent
 				elseif t.type == 'VK_DEFINE_HANDLE' then
-					_ENV['Vk.'..n:match'Vk(.*)'] = {vktypes[t.parent],
-						wrapperfor = n, doc = [[Wrapper for ]]..n}
-					vktypes[n] = _ENV['Vk.'..n:match'Vk(.*)']
+					_ENV[n:match'Vk(.*)'] = {vktypes[t.parent],
+						wrapperfor = n, doc = [[Wrapper for ]]..n, prefix='Vk'}
+					vktypes[n] = _ENV[n:match'Vk(.*)']
 				else error() end
 				vkbs[n] = vktypes[n]
 				handles[n] = nil

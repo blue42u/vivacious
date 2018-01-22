@@ -14,134 +14,8 @@
    limitations under the License.
 --]========================================================================]
 
-std = {}
+local G = ...
 local stdlib = {}
-
--- Handy string-application with formatting
-local function strapply(s, t)
-	return string.gsub(s, '`(%a+):?(.-)`', function(k, f)
-		assert(t[k], 'Invalid strapply for key '..k..':'..string.format('%q',s))
-		if #f > 0 then return string.format(f, t[k])
-		else return t[k] end
-	end)
-end
-
--- Contexts are returned from calling Type's hooks, and are designed to help
--- with common operations on the results of the hook. In particular:
--- 1. c[e] -> Result for element e
--- 2. c[i] -> Result for the i'th element
--- 3. pairs(c) -> Iterate over elements
--- 4. c() -> table.concat(<results>)
--- 5. c(s) -> table.concat(<results>, s)
--- 6. c(s, f) -> table.concat({f(<result>, <elem name>), ...}, s)
--- 7. c(s, fs) -> table.concat(strapply(fs, {e=<elem name>, v=<result>}), s)
--- 8. #c -> Number of elements
-function std.context()
-	local m = {}
-
-	local ord,res = {},{}
-	function m.__pairs()
-		local i = 0
-		return function()
-			i = i + 1
-			return ord[i], res[i]
-		end
-	end
-	function m.__len() return #ord end
-	function m:__index(k) return rawget(self, ord[k]) end
-	function m:__newindex(k,v)
-		rawset(self, k, v)
-		table.insert(ord, k)
-		table.insert(res, v)
-	end
-	function m.__call(_,s,f)
-		local r = {}
-		if f then for i,v in ipairs(res) do
-			if type(f) == 'string' then r[i] = strapply(f, {e=ord[i],v=v})
-			else r[i] = f(v) end
-		end end
-		return table.concat(f and r or res, s)
-	end
-
-	return setmetatable({}, m)
-end
-
--- Construct a Type from the functions or strings that make it up.
--- Types are called with one of the "hook" names ('def' or 'conv'),
--- and the resulting function is called with a Context and element name.
-function std.type(name, t, extra)
-	if not t then return nil end
-	local m = {name=name}
-	function m.__call(_,k) return m[k] end
-	extra = extra or {}
-
-	local ah = {}
-	function ah.e(v) return v end
-	function ah.v(v)
-		if v == nil then v = t.default end
-		if extra.v then v = extra.v(v) or v end
-		return v
-	end
-
-	local recursed = false
-
-	local function handle(key, as)
-		local inside
-		local tk = t[key]
-		if tk == error then
-			inside = function(_, e, a, _)
-				error('Attempt to call unsupported '..name..'\'s '..key
-					..' hook (for element '..e..') with arguments ('
-					..table.concat(a, ', ')..')')
-			end
-		elseif type(tk) == 'function' then
-			inside = function(c, e, a, _) tk(c, e, table.unpack(a)) end
-		elseif type(tk) == 'string' then
-			inside = function(c, e, _, b) c[e] = strapply(tk, b) end
-		elseif type(tk) == 'table' then
-			inside = function(c, _, _, b)
-				for k,v in pairs(tk) do c[strapply(k,b)] = strapply(v,b) end
-			end
-		else error('Making a type with an odd '..key..' value!') end
-		m[key] = function(c, e, ...)
-			if recursed and not extra.canrecurse then
-				local path = {}
-				local i = 2
-				repeat
-					local d = debug.getinfo(i, 'f')
-					if not d then break end
-					local j = 1
-					repeat
-						local un, u = debug.getupvalue(d.func, j)
-						if un == 'name' then table.insert(path, u) end
-						j = j + 1
-					until not un
-					i = i + 1
-				until not d
-				error('Recursed as '..name..'! Path: '..table.concat(path, ','))
-			end
-			recursed = true
-			local a = table.pack(...)
-			if type(c) == 'string' then
-				table.insert(a, 1, e)
-				c, e = std.context(), c
-			elseif not c then c = std.context() end
-			local b = {e=e}
-			for i,an in ipairs(as) do a[i] = ah[an](a[i]); b[an] = a[i] end
-			inside(c, e, a, b)
-			recursed = false
-			return c
-		end
-	end
-
-	handle('def', {})
-	handle('conv', {'v'})
-	return setmetatable({}, m)
-end
-
--- Now enough is present to load in the generator. So do that.
-package.path = arg[2]..'/generator/?.lua'
-local G = require(table.remove(arg, 1))
 
 -- A handful of types are "simple," and all generators should support them.
 assert(G.simple, 'Generator does not support simpletypes!')
@@ -151,10 +25,10 @@ for t in pairs{
 } do stdlib[t] = assert(G.simple[t],
 	'Generator does not support the '..t..' simpletype!') end
 
-for n,t in pairs(G.simple) do stdlib[n] = std.type(n, t) end
+for n,t in pairs(G.simple) do stdlib[n] = newtype(n, t) end
 
 -- If the generator doesn't overload it, indicies are just integers.
-stdlib.index = std.type('index', G.simple.index) or stdlib.integer
+stdlib.index = newtype('index', G.simple.index) or stdlib.integer
 
 -- Simple optional & required argument checker. Test should error on failure.
 local function checkarg(arg, opts1, opts2)
@@ -208,7 +82,7 @@ if G.custom then for k,f in pairs(G.custom) do
 	local opts = (G.customarg or {})[k] or {}
 	stdlib[k] = function(arg)
 		checkarg(arg, opts)
-		return std.type(k, f(arg))
+		return newtype(k, f(arg))
 	end
 end end
 
@@ -218,7 +92,7 @@ function stdlib.array(arg)
 		[1] = true,		-- Type of the array elements
 		fixedsize = false,	-- Maximum size of the array
 	}, G.arrayarg)
-	return std.type('array',
+	return newtype('array',
 		assert(G.array, 'Generator does not support arrays!')(arg),
 		arg.fixedsize and {
 			v=function(v) assert(#v < arg.fixedsize, "Array is too large!") end
@@ -235,7 +109,7 @@ function stdlib.options(arg)
 	local opts = {}
 	for _,o in ipairs(arg) do opts[o] = o end
 	local oerr = table.concat(arg, ', ')
-	return std.type('options',
+	return newtype('options',
 		assert(G.options, 'Generator does not support options!')(arg),
 		{v=function(v)
 			if v == nil then v = arg.default end
@@ -270,7 +144,7 @@ function stdlib.flags(arg)
 		if s then shorts[s] = p end
 		ga[i] = p
 	end
-	return std.type('flags',
+	return newtype('flags',
 		assert(G.flags, 'Generator does not support flags!')(ga),
 		{v = function(v)
 			local o = setmetatable({}, {__index=v})
@@ -299,7 +173,7 @@ function stdlib.callable(arg)
 		end,	-- Arguments, as {<name>, <Type>}
 		doc = false,	-- Documentation
 	}, G.callablearg)
-	return std.type('callable',
+	return newtype('callable',
 		assert(G.callable, 'Generator does not support callables!')(arg))
 end
 
@@ -372,7 +246,7 @@ function stdlib.compound(arg)
 	for _,e in ipairs(garg) do def[e[1]], e[3] = e[3], nil end
 
 	local g = assert(G.compound, 'Generator does not support compounds!')(garg)
-	return std.type('compound', g, {v=function(v)
+	return newtype('compound', g, {v=function(v)
 			local o = setmetatable({}, {__index=v})
 			for k,d in pairs(def) do if o[k] == nil then o[k] = d end end
 			return o
@@ -382,23 +256,24 @@ end
 
 -- Now we get into the structural Types, the first being the Reference. This is
 -- the "outlet" from the tree-based structure into the more normal nameless
--- Types. The generator hook must allow t to be nil, for cases where the Type is
--- not provided.
-local function ref(n, t, cp)
-	return std.type('reference',
-		assert(G.reference, 'Generator does not support references!')(n, t, cp))
+-- Types.
+local function ref(n, t, cp, ex)
+	local g,be = assert(G.reference,
+		'Generator does not support references!')(n, t, cp, ex)
+	assert(be, 'Generator references should return Behavior name too!')
+	return newtype('reference', g), be
 end
-local function bref(n, b, cp)
-	local r = ref(n)
+local function bref(n, b, cp, ex)
+	local r,be = ref(n, nil, nil, ex)
 	local inside = false
-	return std.type('reference-b', {
-		def = function(c, e, fake)
+	return newtype('reference-b', {
+		def = function(c, e)
+			r'def'(c, e)
 			if b and not inside then
 				inside = true
-				b'def'(cp, n)
+				b'def'(cp, n, be)
 				inside = false
 			end
-			if not fake then r'def'(c, e) end
 		end,
 		conv = error,
 	}, {canrecurse=true})
@@ -406,12 +281,12 @@ end
 local function defer(refs)
 	local deferred = {}
 	return function(k, v, rs)
-		deferred[k] = std.type('deferred', {
+		deferred[k] = newtype('deferred', {
 			def = function(...)
-				assert(refs[k], 'Attempt to call deferred too early!')
+				assert(refs[k], 'Attempt to call deferred for '..k..' too early!')
 				refs[k]'def'(...) end,
 			conv = function(...)
-				assert(refs[k], 'Attempt to call deferred too early!')
+				assert(refs[k], 'Attempt to call deferred for '..k..' too early!')
 				refs[k]'conv'(...) end,
 		}, {canrecurse=true})
 		local m = getmetatable(deferred[k])
@@ -457,12 +332,12 @@ local function behavior(arg)
 		issub = false,	-- Semi-internal, for sub-behaviors
 		doc = true,		-- Documentation, required for such complex types.
 	}, G.behaviorarg)
-	local g = std.type('generator-behavior', assert(G.behavior,
-		'Generator does not support Behaviors')(arg))
+	local g,rex = assert(G.behavior,'Generator does not support Behaviors')(arg)
+	g = newtype('generator-behavior', g)
 
 	local refs,ts,bs,vers = {},{},{},{}
-	local myself = std.type('behavior', {
-		def = function(c, e)
+	local myself = newtype('behavior', {
+		def = function(c, e, ge)
 			table.sort(vers, function(a,b)
 				if a.M ~= b.M then return a.M < b.M
 				elseif a.m ~= b.m then return a.m < b.m
@@ -471,10 +346,10 @@ local function behavior(arg)
 			local es = {}
 			for _,v in ipairs(vers) do table.move(v.e, 1, #v.e, #es+1, es) end
 
-			for k,t in pairs(ts) do refs[k] = ref(e..'.'..k, t, c) end
-			for k,b in pairs(bs) do refs[k] = bref(e..'.'..k, b, c) end
-			refs._self = ref(e)
-			g'def'(c, e, es)
+			for k,t in pairs(ts) do refs[k] = ref(e..'.'..k, t, c, rex) end
+			for k,b in pairs(bs) do refs[k] = bref(e..'.'..k, b, c, rex) end
+			refs._self = ref(e, nil, nil, rex)
+			g'def'(c, ge, es)
 			for k,r in pairs(refs) do r'def'(k) end
 		end,
 		conv = error,
@@ -509,7 +384,7 @@ local function behavior(arg)
 					end
 				end,
 				__newindex = function(_, n, ca)
-					table.insert(vr, {'m', n, std.callable(ca)})
+					table.insert(vr, {'m', n, stdlib.callable(ca)})
 				end
 			})
 		else return df[k] end
@@ -519,35 +394,29 @@ local function behavior(arg)
 		ba.issub, ba[1] = true, df._self
 		d(k, behavior(ba), bs)
 	end
-	return myself
-end
-
--- Setup the sandbox that the specs are wrapped up in.
-local newenv = setmetatable({}, {__index=function(_,k)
-	if k == 'std' then return else return _ENV[k] end
-end})
-local sandbox = setmetatable({}, {__index=newenv})
-for k,v in pairs(stdlib) do
-	sandbox[k] = v
-	std[k] = v
+	return myself, rex
 end
 
 -- The last "Type" are Environments, which are not quite the same as the others.
 -- Instead of putting pieces into the given Context, they instead write out the
 -- contents of the Context into the files passed in as extra.
 local function environment(arg)
-	checkarg(arg, {})
-	local g = std.type('environment-generator', assert(G.environment,
-		'Generator does not support environments!')(arg))
+	checkarg(arg, {
+		sandbox = true,		-- Sandbox this will defer to on __index
+		name = true,		-- Name of this environment, for dependecies
+	})
+	local g = newtype('environment-generator', assert(G.environment,
+		'Generator does not support environments!')())
 
-	local bs = {}
-	local refs,subs = {},{}
-	local o = std.type('environment', {
+	local bs,es,ens = {},{},{}
+	local refs,rex,subs = {},{},{}
+	local o = newtype('environment', {
 		def = function(_, e, ...)
-			local c = std.context()
-			for k,b in pairs(subs) do refs[k] = bref(k, b, c) end
-			for _,k in ipairs(bs) do refs[k]'def'(c, k, true) end
-			g'def'(c, e, ...)
+			local c = newcontext()
+			for _,k in ipairs(es) do es[k]'def'() end
+			for k,b in pairs(subs) do refs[k] = bref(k, b, c, rex[k]) end
+			for _,k in ipairs(bs) do refs[k]'def'(k) end
+			if e then g'def'(c, e, ens, ...) end
 		end,
 		conv = error,
 	})
@@ -555,34 +424,22 @@ local function environment(arg)
 	local d,df = defer(refs)
 
 	local m = getmetatable(o)
+	m.envname = arg.name
 	function m.__index(_, k)
-		return df[k] or sandbox[k]
+		return df[k] or es[k] or arg.sandbox[k]
 	end
 	function m.__newindex(_, k, v)
-		d(k, behavior(v), subs)
-		bs[#bs+1] = k
+		if getmetatable(v) and getmetatable(v).envname then
+			es[k],es[#es+1],ens[#ens+1] = v,k,getmetatable(v).envname
+		else
+			local b,x = behavior(v)
+			d(k, b, subs)
+			rex[k] = x
+			bs[#bs+1] = k
+		end
 	end
 
 	return o
 end
 
--- Ensure that specs get loaded with the special environment
-local specpath = table.remove(arg, 1)..'/?.lua'
-assert(package.searchers, 'You must use Lua 5.2 or above!')
-table.insert(package.searchers, 1, function(s)
-	local env = environment({})
-	local f,err = package.searchpath(s, specpath)
-	if err then return err end
-	f,err = loadfile(f, 't', env)
-	return err or function()
-		f()
-		return env
-	end
-end)
-
--- Generate the file
-local sn = table.remove(arg, 1)
-local fs = {}
-for i,fn in ipairs(arg) do fs[i] = io.open(fn, 'w') end
-require(sn)'def'(sn, table.unpack(fs))
-for _,f in ipairs(fs) do f:close() end
+return stdlib, environment

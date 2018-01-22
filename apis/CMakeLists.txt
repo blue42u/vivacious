@@ -1,15 +1,9 @@
 set(OUT ${CMAKE_BINARY_DIR}/include/vivacious)
 
 # Standard C headers, using the standard C header generator
-gen(GENERATOR c DIRECTORY ${OUT} OUTPUTS ?.h
-	SPECS test
+gen(GENERATOR c VARIANTS bound DIRECTORY ${OUT} OUTPUTS ?.h
+	SPECS vulkan test vkmemorypool
 )
-
-# Vulkan Vv interface generator
-gen(GENERATOR cbound OUTPUTS ${OUT}/?.h
-	DEPENDS ${CMAKE_SOURCE_DIR}/external/vulkan.lua
-		${CMAKE_SOURCE_DIR}/external/vulkan-docs/src/spec/vk.xml
-	SPECS vulkan)
 
 # core.h, included by all the other headers and has VvMAGIC
 add_custom_command(OUTPUT ${OUT}/core.h

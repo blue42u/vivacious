@@ -22,7 +22,9 @@ package.path = package.path .. ';' .. relpath .. '?.lua'
 local trav = require 'traversal'
 local cpairs, first = trav.cpairs, trav.first
 
-local xml = io.open(relpath .. 'vulkan-docs/src/spec/vk.xml', 'r'):read('a')
+local xml,err = io.open(relpath .. 'vulkan-docs/src/spec/vk.xml', 'r')
+if err then error(err) end
+xml = xml:read('a')
 local dom = require('slaxdom'):dom(xml, {stripWhitespace=true})
 
 package.path = oldpath
