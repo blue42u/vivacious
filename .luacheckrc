@@ -1,7 +1,8 @@
 std = 'lua53'
+ignore = {'212', '432'}
 files['.luacheckrc'].global = false
 
-stds.stdlib = {read_globals = {'newcontext', 'newtype'}}
+stds.stdlib = {read_globals = {'newcontext', 'newtype', 'std'}}
 stds.stdlib_w = {globals = {'newcontext', 'newtype'}}
 stds.stdlib_g = {read_globals = {
 	'integer','number','boolean','string','generic','memory','index',

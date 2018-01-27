@@ -22,8 +22,7 @@ assert(G.simple, 'Generator does not support simpletypes!')
 for t in pairs{
 	integer=true, number=true, boolean=true, string=true,
 	generic=true, memory=true,
-} do stdlib[t] = assert(G.simple[t],
-	'Generator does not support the '..t..' simpletype!') end
+} do assert(G.simple[t],'Generator does not support the '..t..' simpletype!')end
 
 for n,t in pairs(G.simple) do stdlib[n] = newtype(n, t) end
 
@@ -82,9 +81,19 @@ if G.custom then for k,f in pairs(G.custom) do
 	local opts = (G.customarg or {})[k] or {}
 	stdlib[k] = function(arg)
 		checkarg(arg, opts)
-		return newtype(k, f(arg))
+		local t = {}
+		f(t, arg)
+		return newtype(k, t)
 	end
 end end
+
+-- Generator standard type-functions are methods, where `self` is the table to
+-- fill that goes to newtype. For convience, gcall will create the table.
+local function gcall(n, ...)
+	local t = {}
+	local f = assert(G[n], 'Generator does not support '..n..'s!')
+	return t, f(t, ...)
+end
 
 -- Arrays are tables in Lua. The generator can add more functionality.
 function stdlib.array(arg)
@@ -92,8 +101,7 @@ function stdlib.array(arg)
 		[1] = true,		-- Type of the array elements
 		fixedsize = false,	-- Maximum size of the array
 	}, G.arrayarg)
-	return newtype('array',
-		assert(G.array, 'Generator does not support arrays!')(arg),
+	return newtype('array', gcall('array', arg),
 		arg.fixedsize and {
 			v=function(v) assert(#v < arg.fixedsize, "Array is too large!") end
 		})
@@ -109,8 +117,7 @@ function stdlib.options(arg)
 	local opts = {}
 	for _,o in ipairs(arg) do opts[o] = o end
 	local oerr = table.concat(arg, ', ')
-	return newtype('options',
-		assert(G.options, 'Generator does not support options!')(arg),
+	return newtype('options', gcall('options', arg),
 		{v=function(v)
 			if v == nil then v = arg.default end
 			return assert(opts[v], 'Invalid option '..tostring(v)
@@ -144,8 +151,7 @@ function stdlib.flags(arg)
 		if s then shorts[s] = p end
 		ga[i] = p
 	end
-	return newtype('flags',
-		assert(G.flags, 'Generator does not support flags!')(ga),
+	return newtype('flags', gcall('flags', ga),
 		{v = function(v)
 			local o = setmetatable({}, {__index=v})
 			if type(v) == 'string' then
@@ -173,8 +179,7 @@ function stdlib.callable(arg)
 		end,	-- Arguments, as {<name>, <Type>}
 		doc = false,	-- Documentation
 	}, G.callablearg)
-	return newtype('callable',
-		assert(G.callable, 'Generator does not support callables!')(arg))
+	return newtype('callable', gcall('callable', arg))
 end
 
 --[[
@@ -245,7 +250,7 @@ function stdlib.compound(arg)
 	local def = {}
 	for _,e in ipairs(garg) do def[e[1]], e[3] = e[3], nil end
 
-	local g = assert(G.compound, 'Generator does not support compounds!')(garg)
+	local g = gcall('compound', garg)
 	return newtype('compound', g, {v=function(v)
 			local o = setmetatable({}, {__index=v})
 			for k,d in pairs(def) do if o[k] == nil then o[k] = d end end
@@ -258,8 +263,7 @@ end
 -- the "outlet" from the tree-based structure into the more normal nameless
 -- Types.
 local function ref(n, t, cp, ex)
-	local g,be = assert(G.reference,
-		'Generator does not support references!')(n, t, cp, ex)
+	local g,be = gcall('reference', n, t, cp, ex)
 	assert(be, 'Generator references should return Behavior name too!')
 	return newtype('reference', g), be
 end
@@ -267,7 +271,7 @@ local function bref(n, b, cp, ex)
 	local r,be = ref(n, nil, nil, ex)
 	local inside = false
 	return newtype('reference-b', {
-		def = function(c, e)
+		def = function(_, c, e)
 			r'def'(c, e)
 			if b and not inside then
 				inside = true
@@ -282,10 +286,10 @@ local function defer(refs)
 	local deferred = {}
 	return function(k, v, rs)
 		deferred[k] = newtype('deferred', {
-			def = function(...)
+			def = function(_, ...)
 				assert(refs[k], 'Attempt to call deferred for '..k..' too early!')
 				refs[k]'def'(...) end,
-			conv = function(...)
+			conv = function(_, ...)
 				assert(refs[k], 'Attempt to call deferred for '..k..' too early!')
 				refs[k]'conv'(...) end,
 		}, {canrecurse=true})
@@ -332,12 +336,11 @@ local function behavior(arg)
 		issub = false,	-- Semi-internal, for sub-behaviors
 		doc = true,		-- Documentation, required for such complex types.
 	}, G.behaviorarg)
-	local g,rex = assert(G.behavior,'Generator does not support Behaviors')(arg)
-	g = newtype('generator-behavior', g)
+	local g,rex = gcall('behavior', arg)
 
 	local refs,ts,bs,vers = {},{},{},{}
 	local myself = newtype('behavior', {
-		def = function(c, e, ge)
+		def = function(_, c, e, ge)
 			table.sort(vers, function(a,b)
 				if a.M ~= b.M then return a.M < b.M
 				elseif a.m ~= b.m then return a.m < b.m
@@ -357,6 +360,8 @@ local function behavior(arg)
 
 	local d,df = defer(refs)
 	d('_self', myself)
+
+	g = newtype('generator-behavior', g, {self = df._self})
 
 	local meta = getmetatable(myself)
 	meta.behaves = true
@@ -405,13 +410,12 @@ local function environment(arg)
 		sandbox = true,		-- Sandbox this will defer to on __index
 		name = true,		-- Name of this environment, for dependecies
 	})
-	local g = newtype('environment-generator', assert(G.environment,
-		'Generator does not support environments!')())
+	local g = newtype('environment-generator', gcall('environment'))
 
 	local bs,es,ens = {},{},{}
 	local refs,rex,subs = {},{},{}
 	local o = newtype('environment', {
-		def = function(_, e, ...)
+		def = function(_, _, e, ...)
 			local c = newcontext()
 			for _,k in ipairs(es) do es[k]'def'() end
 			for k,b in pairs(subs) do refs[k] = bref(k, b, c, rex[k]) end

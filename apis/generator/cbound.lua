@@ -14,6 +14,8 @@
    limitations under the License.
 --]========================================================================]
 
+local C = require 'c'.sl
+
 local G = {simple={}, custom={}, customarg={}}
 G.simple.number = {def='float `e`', conv='`v:%f`', default=0}
 G.simple.integer = {def='int32_t `e`', conv='`v:%d`', default=0}
@@ -22,18 +24,16 @@ G.simple.boolean = {def='bool `e`', conv=tostring, default=false}
 G.simple.string = {def='const char* `e`', conv='`v:%q`', default=''}
 G.simple.memory = {def='void* `e`', conv=error}
 G.simple.generic = {def='void* `e`', conv=error}
-G.simple.index = {def='int `e`', conv=function(v)
-	return string.format('%u', v-1) end, default=1}
+G.simple.index = {def='int `e`', default=1}
+function G.simple.index:conv(c, e, v) c[e] = string.format('%u', v-1) end
 
 G.customarg.raw = {
 	realname = true,	-- The name of the bound C type
 	conversion = false,	-- Conversion string for the C type
 }
-function G.custom.raw(arg)
-	return {
-		def = arg.realname..' `e`',
-		conv = arg.conversion and '`v:'..arg.conversion..'`' or error,
-	}
+function G.custom:raw(arg)
+	self.def = arg.realname..' `e`'
+	self.conv = arg.conversion and '`v:'..arg.conversion..'`' or error
 end
 
 G.customarg.flexmask = {
@@ -41,118 +41,103 @@ G.customarg.flexmask = {
 	bits = true,	-- Number of bits per element
 	lenvar = true,	-- Length variable
 }
-function G.custom.flexmask(arg)
-	return {
-		def = function(c, e) arg[1]'def'(c, '*'..e) end,
-		conv = function(c, e, v)
-			local maxbit = 0
-			for i in pairs(v) do maxbit = math.max(maxbit, i) end
-			c[arg.lenvar] = ('%d'):format(math.ceil(maxbit / arg.bits))
-			if maxbit == 0 then c[e] = 'NULL' else
-				local els = {}
-				for i=1,math.ceil(maxbit / arg.bits) do
-					els[i] = tostring(e)
-					for j=1,arg.bits do if v[(i-1)*arg.bits+j] then
-						els[i] = els[i] | 1<<(j-1)
-					end end
-				end
-				c[e] = '{'..table.concat(els, ', ')..'}'
+function G.custom:flexmask(arg)
+	function self:def(c, e) arg[1]'def'(c, '*'..e) end
+	function self:conv(c, e, v)
+		local maxbit = 0
+		for i in pairs(v) do maxbit = math.max(maxbit, i) end
+		c[arg.lenvar] = ('%d'):format(math.ceil(maxbit / arg.bits))
+		if maxbit == 0 then c[e] = 'NULL' else
+			local els = {}
+			for i=1,math.ceil(maxbit / arg.bits) do
+				els[i] = tostring(e)
+				for j=1,arg.bits do if v[(i-1)*arg.bits+j] then
+					els[i] = els[i] | 1<<(j-1)
+				end end
 			end
-		end,
-	}
+			c[e] = '{'..table.concat(els, ', ')..'}'
+		end
+	end
 end
 
 G.arrayarg = {
 	lenvar = false,		-- The variable that will contains the length
 }
-function G.array(arg)
-	return {
-		def = function(c, e)
-			if arg.fixedsize then
-				arg[1]'def'(c, e..'['..arg.fixedsize..']')
-			else
-				arg[1]'def'(c, '*'..e)
-			end
-		end,
-		conv = function(c, e, v)
-			if not arg.fixedsize then c[arg.lenvar] = ('%d'):format(#v) end
-			if #v == 0 then c[e] = 'NULL' else
-				local els = newcontext()
-				for i,vv in ipairs(v) do arg[1]'conv'(els, i, vv) end
-				c[e] = '{'..els', '..'}'
-			end
-		end,
-	}
+function G:array(arg)
+	function self:def(c, e)
+		if arg.fixedsize then
+			arg[1]'def'(c, e..'['..arg.fixedsize..']')
+		else
+			arg[1]'def'(c, '*'..e)
+		end
+	end
+	function self:conv(c, e, v)
+		if not arg.fixedsize then c[arg.lenvar] = ('%d'):format(#v) end
+		if #v == 0 then c[e] = 'NULL' else
+			local els = newcontext()
+			for i,vv in ipairs(v) do arg[1]'conv'(els, i, vv) end
+			c[e] = '{'..els', '..'}'
+		end
+	end
 end
 
 G.flagsarg = {
 	realname = true,	-- The name of the bound C enum
 }
-function G.flags(arg)
-	return {
-		def = arg.realname..' `e`',
-		conv = function(c,e,v)
-			local bs = {}
-			for k in pairs(v) do table.insert(bs, k) end
-			c[e] = table.concat(bs, ' | ')
-		end,
-	}
+function G:flags(arg)
+	self.def = arg.realname..' `e`'
+	function self:conv(c, e, v)
+		local bs = {}
+		for k in pairs(v) do table.insert(bs, k) end
+		c[e] = table.concat(bs, ' | ')
+	end
 end
 
 G.optionsarg = {
 	realname = true,	-- The name of the bound C enum
 }
-function G.options(arg)
-	return {
-		def = arg.realname..' `e`',
-		conv = '`v`',
-	}
+function G:options(arg)
+	self.def = arg.realname..' `e`'
+	self.conv = '`v`'
 end
 
 G.callablearg = {
 	realname = true,	-- The name of the bound C function pointer
 }
-function G.callable(arg)
-	if arg.realname then
-		return {
-			def = arg.realname..' `e`',
-			conv = error,
-		}
-	end
+function G:callable(arg)
+	self.def = arg.realname..' `e`'
+	self.conv = error
 end
 
 G.compoundarg = {
 	realname = true,	-- The name of the bound C structure
 }
-function G.compound(arg)
+function G:compound(arg)
 	local typs = {}
 	for _,e in ipairs(arg) do typs[e[1]] = e[2] end
-	return {
-		def = arg.realname..' `e`',
-		conv = function(c, e, v)
-			local ps = newcontext()
-			for k,sv in pairs(v) do typs[k]'conv'(ps, k, sv) end
-			c[e] = '('..arg.realname..'){'..ps(', ', '.`e`=`v`')..'}'
-		end,
-	}
+	self.def = arg.realname..' `e`'
+	function self:conv(c, e, v)
+		local ps = newcontext()
+		for k,sv in pairs(v) do typs[k]'conv'(ps, k, sv) end
+		c[e] = '('..arg.realname..'){'..ps(', ', '.`e`=`v`')..'}'
+	end
 end
 
-function G.reference(n, t, cp, ex)
+function G:reference(n, t, cp, ex)
 	local d = n:gsub('.*%.', ''):gsub('%u?%u%u$', ''):lower()
 	n = n:gsub('.*%.', '')
 	if n ~= ex.prefix then n = ex.prefix..n end
-	return {
-		def = function(c, e)
-			e = e or d
-			if t then
-				cp[n] = '#define '..n..'(...) ({ '
-					..t'def'('_x')[1]..' = '..t'conv'(n)[1]..'; '
-					..'VvMAGIC(__VA_ARGS__); _x; })'
-			end
-			c[e] = (t and '' or 'Vv')..n..' '..e
-		end,
-		conv = function(c, e, v) t'conv'(c, e or d, v) end,
-	}, 'Vv'..n
+	function self:def(c, e)
+		e = e or d
+		if t then
+			cp[n] = '#define '..n..'(...) ({ '
+				..t'def'('_x')[1]..' = '..t'conv'(n)[1]..'; '
+				..'VvMAGIC(__VA_ARGS__); _x; })'
+		end
+		c[e] = (t and '' or 'Vv')..n..' '..e
+	end
+	function self:conv(c, e, v) t'conv'(c, e or d, v) end
+	return 'Vv'..n
 end
 
 G.behaviorarg = {
@@ -160,92 +145,85 @@ G.behaviorarg = {
 	directives = false,	-- List of extra directives to add to this Behavior
 	prefix = true,		-- Extra prefix for contents of this Behavior
 }
-function G.behavior(arg)
-	return {
-		def = function(c, e, es)
-			if arg.directives then
-				local d = {}
-				for i,l in ipairs(arg.directives) do d[i] = '#'..l end
-				c[e..'_dir'] = table.concat(d, '\n')
-			end
+function G:behavior(arg)
+	function self:def(c, e, es)
+		if arg.directives then
+			local d = {}
+			for i,l in ipairs(arg.directives) do d[i] = '#'..l end
+			c[e..'_dir'] = table.concat(d, '\n')
+		end
 
-			c[e..'_doc'] = '/* Behavior '..e
-				..'\n\t'..arg.doc:gsub('\n', '\n\t')
-				..'\n*/'
+		c[e..'_doc'] = '/* Behavior '..e
+			..'\n\t'..arg.doc:gsub('\n', '\n\t')
+			..'\n*/'
 
-			c[e..'_typedef'] = 'typedef struct '..e..'* '..e..';'
+		c[e..'_typedef'] = 'typedef struct '..e..'* '..e..';'
 
-			-- Data is silently ignored.
+		-- Data is silently ignored.
 
-			local ds,du,da = newcontext(),{},{}
-			if arg.wrapperfor then table.insert(da, arg.wrapperfor) end
-			for _,b in ipairs(arg) do
-				local l = #ds
-				b'def'(ds)
-				table.insert(da, ds[l+1])
-			end
-			if arg.issub then for k in pairs(ds) do
-				table.insert(du, '_s->'..k..', ')
-			end end
-			table.insert(du, arg.wrapperfor and '_s->real' or '_s')
-			ds = ds('', function(s)
-				return '\t'..s:gsub('\n', '\n\t')..';\n' end)
-			du = table.concat(du)
-			da = table.concat(da, ', ')
+		local ds,du,da = newcontext(),{},{returns={self}}
+		if arg.wrapperfor then
+			table.insert(da, {'real', std.raw{realname=arg.wrapperfor}}) end
+		for _,b in ipairs(arg) do
+			b'def'(ds)
+			table.insert(da, {'', b})
+		end
+		if arg.issub then for k in pairs(ds) do
+			table.insert(du, '_s->'..k..', ')
+		end end
+		table.insert(du, arg.wrapperfor and '_s->real' or '_s')
+		ds = ds('', function(s)
+			return '\t'..s:gsub('\n', '\n\t')..';\n' end)
+		du = table.concat(du)
+		da = C.callable(da)
 
-			local ms = newcontext()
-			for _,em in ipairs(es) do if em[1] == 'm' then
-				em[3]'def'(ms, em[2])
-				c[em[2]] = '#define vV'..em[2]..'(_S, ...) ({ '
-					..'__typeof__ (_S) _s = (_S); '
-					..'_s->_M->'..em[2]..'('..du..', __VA_ARGS__); })'
-			end end
-			ms = ms('', function(s)
-				return '\t\t'..s:gsub('\n', '\n\t\t')..';\n' end)
-
-			local ws = ''
-			if arg.wrapperfor then ws = '\t'..arg.wrapperfor..' real;\n' end
-
-			c['destroy'] = '#define vVdestroy(_S, ...) ({ '
+		table.insert(es, 1, {'m', 'destroy', C.callable{{'self', self}}})
+		local ms = newcontext()
+		for _,em in ipairs(es) do if em[1] == 'm' then
+			em[3]'def'(ms, em[2])
+			c[em[2]] = '#define vV'..em[2]..'(_S, ...) ({ '
 				..'__typeof__ (_S) _s = (_S); '
-				..'_s->_M->destroy(_s, __VA_ARGS__); })'
+				..'_s->_M->'..em[2]..'('..du..', __VA_ARGS__); })'
+		end end
+		ms = ms('', function(s)
+			return '\t\t'..s:gsub('\n', '\n\t\t')..';\n' end)
 
-			c[e] = 'struct '..e..' {\n'
-				..ws
-				..'\tconst struct '..e..'_M {\n'
-				..'\t\tvoid destroy('..e..' self);\n'
-				..ms
-				..'\t} * const _M;\n'
-				..ds
-				..'\tstruct '..e..'_I _I;\n'
-				..'};'
+		local ws = ''
+		if arg.wrapperfor then ws = '\t'..arg.wrapperfor..' real;\n' end
 
-			c[e..'_c'] = e..' vV'..(arg.wrapperfor and 'wrap' or 'create')
-				..e:match'Vv(.+)'..'('..da..');'
-		end,
-		conv = error,
-	}, {prefix=arg.prefix}
+		c[e] = 'struct '..e..' {\n'
+			..ws
+			..'\tconst struct '..e..'_M {\n'
+			..ms
+			..'\t} * const _M;\n'
+			..ds
+			..'\tstruct '..e..'_I _I;\n'
+			..'};'
+
+		c[e..'_c'] = da'def'('~')[1]:gsub('%(%*~%)',
+			'vV'..(arg.wrapperfor and 'wrap' or 'create')..e:match'Vv(.+)')..';'
+	end
+	self.conv = error
+	return {prefix=arg.prefix}
 end
 
-function G.environment()
-	return {
-		def = function(c, e, ds, f)
-			f:write(([[
+function G:environment()
+	function self:def(c, e, ds, f, ...)
+		f:write(([[
 // Generated file, do not edit directly, edit apis/~.lua instead
 #ifndef H_vivacious_~
 #define H_vivacious_~
 
 #include <vivacious/core.h>
 ]]):gsub('~', e)..'')
-			for _,d in ipairs(ds) do
-				f:write('#include <vivacious/'..d..'.h>\n') end
-			f:write('\n')
-			for _,l in ipairs(c) do f:write(l..'\n\n') end
+		for _,d in ipairs(ds) do
+			f:write('#include <vivacious/'..d..'.h>\n') end
+		f:write('\n')
+		for _,l in ipairs(c) do f:write(l..'\n\n') end
 
-			f:write('#endif // H_vivacious_'..e)
-		end,
-		conv = error,
-	}
+		f:write('#endif // H_vivacious_'..e)
+	end
+	self.conv = error
 end
 
 return G

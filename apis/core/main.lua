@@ -80,6 +80,8 @@ local function newtype(name, t, extra)
 		return v
 	end
 
+	local trueself = extra.self or nil
+
 	local recursed = false
 
 	local function handle(key, as)
@@ -92,7 +94,7 @@ local function newtype(name, t, extra)
 					..table.concat(a, ', ')..')')
 			end
 		elseif type(tk) == 'function' then
-			inside = function(c, e, a, _) tk(c, e, table.unpack(a)) end
+			inside = function(c, e, a, _) tk(trueself, c, e, table.unpack(a)) end
 		elseif type(tk) == 'string' then
 			inside = function(c, e, _, b) c[e] = strapply(tk, b) end
 		elseif type(tk) == 'table' then
@@ -133,7 +135,9 @@ local function newtype(name, t, extra)
 
 	handle('def', {})
 	handle('conv', {'v'})
-	return setmetatable({}, m)
+	local myself = setmetatable({}, m)
+	if not trueself then trueself = myself end
+	return myself
 end
 
 -- Usage: lua main.lua <generator> <path/to/apis> <api> <output files...>
@@ -155,11 +159,13 @@ assert(package.searchers, 'You must use Lua 5.2 or above!')
 table.insert(package.searchers, 1, function(s)
 	local f,err = package.searchpath(s, root..'/generator/?.lua')
 	if err then return err end
-	f,err = loadfile(f, 't',
-		setmetatable({newtype=newtype, newcontext=newcontext}, {__index=_ENV}))
+	local genenv = setmetatable({newtype=newtype, newcontext=newcontext},
+		{__index=_ENV})
+	f,err = loadfile(f, 't', genenv)
 	if err then return err end
 	local sl,envf = gw(f())
 	setmetatable(sl, {__index=_ENV})
+	genenv.std = sl
 	return function() return {sl=sl, envf=envf} end
 end)
 
