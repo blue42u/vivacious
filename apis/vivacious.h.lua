@@ -1,6 +1,6 @@
 local f = io.open('vivacious.h', 'w')
 f:write[[
-// Generated from apis/vivacious.lua, do not edit
+// Generated from apis/vivacious.h.lua, do not edit
 
 ]]
 
