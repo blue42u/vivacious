@@ -86,7 +86,7 @@ local function newtype(name, t, extra)
 
 	local function handle(key, as)
 		local inside
-		local tk = t[key]
+		local tk,tr = t[key],t[key..'_recursive']
 		if tk == error then
 			inside = function(_, e, a, _)
 				error('Attempt to call unsupported '..name..'\'s '..key
@@ -94,7 +94,10 @@ local function newtype(name, t, extra)
 					..table.concat(a, ', ')..')')
 			end
 		elseif type(tk) == 'function' then
-			inside = function(c, e, a, _) tk(trueself, c, e, table.unpack(a)) end
+			inside = function(c, e, a, _, r)
+				if not r then tk(trueself, c, e, table.unpack(a)) end
+				if tr then tr(trueself, c, e, table.unpack(a)) end
+			end
 		elseif type(tk) == 'string' then
 			inside = function(c, e, _, b) c[e] = strapply(tk, b) end
 		elseif type(tk) == 'table' then
@@ -103,23 +106,6 @@ local function newtype(name, t, extra)
 			end
 		else error('Making a type with an odd '..key..' value!') end
 		m[key] = function(c, e, ...)
-			if recursed and not extra.canrecurse then
-				local path = {}
-				local i = 2
-				repeat
-					local d = debug.getinfo(i, 'f')
-					if not d then break end
-					local j = 1
-					repeat
-						local un, u = debug.getupvalue(d.func, j)
-						if un == 'name' then table.insert(path, u) end
-						j = j + 1
-					until not un
-					i = i + 1
-				until not d
-				error('Recursed as '..name..'! Path: '..table.concat(path, ','))
-			end
-			recursed = true
 			local a = table.pack(...)
 			if type(c) == 'string' then
 				table.insert(a, 1, e)
@@ -127,8 +113,10 @@ local function newtype(name, t, extra)
 			elseif not c then c = newcontext() end
 			local b = {e=e}
 			for i,an in ipairs(as) do a[i] = ah[an](a[i]); b[an] = a[i] end
-			inside(c, e, a, b)
-			recursed = false
+			local oldrecursed = recursed
+			recursed = true
+			inside(c, e, a, b, oldrecursed)
+			recursed = oldrecursed
 			return c
 		end
 	end

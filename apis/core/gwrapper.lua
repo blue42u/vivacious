@@ -252,7 +252,8 @@ function stdlib.compound(arg)
 
 	local g = gcall('compound', garg)
 	return newtype('compound', g, {v=function(v)
-			local o = setmetatable({}, {__index=v})
+			local o = {}
+			for k,a in pairs(v or {}) do o[k] = a end
 			for k,d in pairs(def) do if o[k] == nil then o[k] = d end end
 			return o
 		end,

@@ -20,7 +20,8 @@ local G = {simple={}, custom={}, customarg={}}
 G.simple.number = {def='float `e`', conv='`v:%f`', default=0}
 G.simple.integer = {def='int32_t `e`', conv='`v:%d`', default=0}
 G.simple.unsigned = {def='uint32_t `e`', conv='`v:%d`', default=0}
-G.simple.boolean = {def='bool `e`', conv=tostring, default=false}
+G.simple.boolean = {def='bool `e`', default=false}
+function G.simple.boolean:conv(c, e, v) c[e] = v and 'true' or 'false' end
 G.simple.string = {def='const char* `e`', conv='`v:%q`', default=''}
 G.simple.memory = {def='void* `e`', conv=error}
 G.simple.generic = {def='void* `e`', conv=error}
@@ -89,7 +90,8 @@ function G:flags(arg)
 	function self:conv(c, e, v)
 		local bs = {}
 		for k in pairs(v) do table.insert(bs, k) end
-		c[e] = table.concat(bs, ' | ')
+		if #bs == 0 then c[e] = '0'
+		else c[e] = table.concat(bs, ' | ') end
 	end
 end
 

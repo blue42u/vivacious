@@ -17,7 +17,8 @@
 local G = {simple={}}
 G.simple.number = {def='float `e`', conv='`v:%f`', default=0}
 G.simple.integer = {def='int `e`', conv='`v:%d`', default=0}
-G.simple.boolean = {def='bool `e`', conv=tostring, default=false}
+G.simple.boolean = {def='bool `e`', default=false}
+function G.simple.boolean:conv(c, e, v) c[e] = v and 'true' or 'false' end
 G.simple.string = {def='const char* `e`', conv='`v:%q`', default=''}
 G.simple.memory = {def='void* `e`', conv=error}
 G.simple.generic = {def='void* `e`', conv=error}
@@ -47,28 +48,36 @@ local void = newtype('void', {def='void `e`', conv=error})
 function G:callable(arg)
 	local rs = arg.returns or {}
 	local ret = table.remove(rs, 1) or void
-	function self:def(c, e)
+	function self:def(c, e, ex)
+		ex = ex or {}
 		local args = newcontext()
-		for _,a in ipairs(arg) do a[2]'def'(args, a[1]) end
+		if ex.asarg then std.generic'def'(args, 'udata') end
+		for _,a in ipairs(arg) do a[2]'def'(args, a[1], {asarg=true}) end
 		for i,r in ipairs(rs) do r'def'(args, '*ret'..i) end
 		local rets = ret'def'('~')
 		for i=2,#rets do
 			local ri = i-1+#rs
 			args['*ret'..ri] = rets[i]:gsub('~', '*ret'..ri)
 		end
+		if ex.asarg then std.generic'def'(c, e..'_udata') end
 		c[e] = rets[1]:gsub('~', '(*'..e..')('..args', '..')')
 	end
 	self.conv = error
 end
 
 function G:compound(arg)
-	local ents = newcontext()
-	for _,e in ipairs(arg) do e[2]'def'(ents, e[1]) end
-	ents = ents('', function(e) return '\t'..e:gsub('\n', '\n\t')..';\n' end)
-
 	local typs = {}
 	for _,e in ipairs(arg) do typs[e[1]] = e[2] end
-	self.def = 'struct `e` {\n'..ents..'} `e`'
+	function self:def(c, e, ex)
+		ex = ex or {}
+		if ex.simple then c[e] = 'struct '..e..' '..e else
+			local ents = newcontext()
+			for _,a in ipairs(arg) do a[2]'def'(ents, a[1]) end
+			ents = ents('', function(e) return '\t'..e:gsub('\n', '\n\t')..';\n' end)
+			if ex.named then c[e] = 'struct '..e..' {\n'..ents..'}'
+			else c[e] = 'struct {\n'..ents..'} '..e end
+		end
+	end
 	function self:conv(c, e, v)
 		local ps = newcontext()
 		for k,sv in pairs(v) do typs[k]'conv'(ps, k, sv) end
@@ -80,13 +89,16 @@ function G:reference(n, t, cp)
 	local tn = 'Vv'..n:gsub('%.', '')
 	local d = n:gsub('.*%.', ''):lower()
 	function self:def(c, e)
-		e = e or d
 		if t then
-			cp[n] = 'typedef '..t'def'(tn)[1]..';'
+			cp[n] = 'typedef '..t'def'(tn, {simple=true})[1]..';'
+			cp[n..'_real'] = t'def'(tn, {named=true})[1]..';'
 			cp[n..'_magic'] = '#define '..tn..'(...) ({ '
-				..e..' _x = '..t'conv'(tn)[1]..'; '
+				..tn..' _x = '..t'conv'(tn)[1]..'; '
 				..'VvMAGIC(__VA_ARGS__); _x; })'
 		end
+	end
+	function self:def_recursive(c, e, ex)
+		e = e or d
 		c[e] = tn..' '..e
 	end
 	function self:conv(c, e, v) t'conv'(c, e, v) end
