@@ -26,3 +26,60 @@ VkMemoryPool.v0_1_1.registerBuffer = {
 	{'buff', vk.Device.Buffer},
 	{'ideal', vk.Vk.MemoryPropertyFlags}, {'required', vk.Vk.MemoryPropertyFlags}
 }
+VkMemoryPool.v0_1_1.registerImage = {
+	doc = "Register a VkImage with the Pool, with access restrictions.",
+	{'buff', vk.Device.Buffer},
+	{'ideal', vk.Vk.MemoryPropertyFlags}, {'required', vk.Vk.MemoryPropertyFlags}
+}
+
+VkMemoryPool.v0_1_1.bind = {
+	doc = "Ensure that all regestered currently have memory assigned and bound",
+	returns = {vk.Result},
+}
+
+VkMemoryPool.v0_1_1.mapBuffer = {
+	doc = "Map the bound memory for a Buffer into host-memory space",
+	returns = {vk.Vk.Result, memory},
+	{'buff', vk.Device.Buffer},
+}
+VkMemoryPool.v0_1_1.mapImage = {
+	doc = "Map the bound memory for an Image into host-memory space",
+	returns = {vk.Vk.Result, memory},
+	{'img', vk.Device.Image},
+}
+
+VkMemoryPool.v0_1_1.unmapBuffer = {
+	doc = "Unmap the memory for a Buffer",
+	{'buff', vk.Device.Buffer},
+}
+VkMemoryPool.v0_1_1.unmapImage = {
+	doc = "Unmap the memory for an Image",
+	{'img', vk.Device.Image},
+}
+
+VkMemoryPool.v0_1_1.getRangeBuffer = {
+	doc = "Get the assigned memory range for a Buffer, for flushing, etc.",
+	returns = {vk.Vk.MappedMemoryRange}, {'buff', vk.Device.Buffer},
+}
+VkMemoryPool.v0_1_1.getRangeImage = {
+	doc = "Get the assigned memory range for an Image, for flushing, etc.",
+	returns = {vk.Vk.MappedMemoryRange}, {'img', vk.Device.Image},
+}
+
+VkMemoryPool.v0_1_1.unbindBuffer = {
+	doc = "Unassign a Buffer's memory, registering it for a later `bind`.",
+	{'buff', vk.Device.Buffer},
+}
+VkMemoryPool.v0_1_1.unbindImage = {
+	doc = "Unassign an Image's memory, registering it for a later `bind`.",
+	{'img', vk.Device.Image},
+}
+
+VkMemoryPool.v0_1_1.destroyBuffer = {
+	doc = "Destroy a Buffer, unallocating its memory if needed.",
+	{'buff', vk.Device.Buffer},
+}
+VkMemoryPool.v0_1_1.destroyImage = {
+	doc = "Destroy an Image, unallocating its memory if needed.",
+	{'img', vk.Device.Image},
+}

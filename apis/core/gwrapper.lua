@@ -389,6 +389,7 @@ local function behavior(arg)
 					end
 				end,
 				__newindex = function(_, n, ca)
+					table.insert(ca, 1, {'self', df._self})
 					table.insert(vr, {'m', n, stdlib.callable(ca)})
 				end
 			})

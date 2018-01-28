@@ -100,6 +100,7 @@ function G:behavior(arg)
 			..'\n*/'
 
 		c[e..'_typedef'] = 'typedef struct '..e..'* '..e..';'
+		table.insert(es, 1, {'m', 'destroy', std.callable{{'self', self}}})
 		local ms = newcontext()
 		for _,em in ipairs(es) do if em[1] == 'm' then
 			em[3]'def'(ms, em[2])
