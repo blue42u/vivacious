@@ -34,7 +34,11 @@ G.customarg.raw = {
 }
 function G.custom:raw(arg)
 	self.def = arg.realname..' `e`'
-	self.conv = arg.conversion and '`v:'..arg.conversion..'`' or error
+	if type(arg.conversion) == 'string' then
+		self.conv = '`v:'..arg.conversion..'`'
+	elseif type(arg.conversion) == 'function' then
+		function self:conv(c, e, v) c[e] = arg.conversion(v) end
+	else self.conv = error end
 end
 
 G.customarg.flexmask = {

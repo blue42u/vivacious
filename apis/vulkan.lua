@@ -93,6 +93,21 @@ for n,t in pairs(vk.types) do
 	end
 end
 
+Vk.type.version = raw{
+	realname = 'uint32_t',
+	conversion = function(v)
+		if type(v) == 'number' then return ('%u'):format(v)
+		elseif type(v) == 'string' then
+			return ('VK_MAKE_VERSION(%u,%u,%u)'):format(
+				v:match'(%d+)%.(%d+)%.(%d+)')
+		elseif type(v) == 'table' then
+			return ('VK_MAKE_VERSION(%u,%u,%u)'):format(
+				v.M or v[1], v.m or v[2], v.p or v[3])
+		elseif type(v) == 'nil' then return '0'
+		else error('Non-version conversion: '..tostring(v)) end
+	end
+}
+
 vktypes.void = generic
 vktypes.VkBool32 = boolean
 
