@@ -128,7 +128,8 @@ local function newtype(name, t, extra)
 	return myself
 end
 
--- Usage: lua main.lua <generator> <path/to/apis> <api> <output files...>
+-- Usage: lua main.lua <path/to/generators> <generator> <path/to/apis> <api> <output files...>
+local genpath = table.remove(arg, 1)
 local generator = table.remove(arg, 1)
 local root = table.remove(arg, 1)
 local api = table.remove(arg, 1)
@@ -145,7 +146,7 @@ assert(package.searchers, 'You must use Lua 5.2 or above!')
 
 -- Setup a searcher for the generators, to get them wrapped with the gwrapper.
 table.insert(package.searchers, 1, function(s)
-	local f,err = package.searchpath(s, root..'/generator/?.lua')
+	local f,err = package.searchpath(s, genpath..'/?.lua')
 	if err then return err end
 	local genenv = setmetatable({newtype=newtype, newcontext=newcontext},
 		{__index=_ENV})

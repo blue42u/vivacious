@@ -69,6 +69,8 @@ function(gen)
 		set(A_DIRECTORY "${A_DIRECTORY}/")
 	endif()
 	set(SL ${CMAKE_SOURCE_DIR}/apis/core/main.lua)
+	get_filename_component(GD ${CMAKE_CURRENT_SOURCE_DIR}/${A_GENERATOR} DIRECTORY)
+	get_filename_component(GN ${CMAKE_CURRENT_SOURCE_DIR}/${A_GENERATOR} NAME)
 	foreach(S ${A_SPECS})
 		set(S_OUTS)
 		foreach(O ${A_OUTPUTS})
@@ -76,16 +78,14 @@ function(gen)
 			set(S_OUTS ${S_OUTS} ${A_DIRECTORY}${O2})
 		endforeach()
 		set(S_DEPS ${SL} ${CMAKE_SOURCE_DIR}/apis/core/gwrapper.lua
-			${CMAKE_SOURCE_DIR}/apis/${S}.lua ${A_DEPENDS})
+			${CMAKE_SOURCE_DIR}/apis/${S}.lua ${A_DEPENDS} ${GD}/${GN}.lua )
 		foreach(V ${A_VARIANTS})
-			set(S_DEPS ${S_DEPS} ${CMAKE_SOURCE_DIR}/apis/generator/${A_GENERATOR}${V}.lua)
+			set(S_DEPS ${S_DEPS} ${GD}/${GN}${V}.lua)
 		endforeach()
 		add_custom_command(OUTPUT ${S_OUTS}
-			COMMAND ${LUA_EXECUTABLE} ${SL}
-				${A_GENERATOR} ${CMAKE_SOURCE_DIR}/apis ${S} ${S_OUTS}
-			WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-			MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/apis/generator/${A_GENERATOR}.lua
-			DEPENDS ${S_DEPS})
+			COMMAND ${LUA_EXECUTABLE} ${SL} ${GD} ${GN}
+				${CMAKE_SOURCE_DIR}/apis ${S} ${S_OUTS}
+			WORKING_DIRECTORY ${CMAKE_SOURCE_DIR} DEPENDS ${S_DEPS})
 		set(MYOUTS ${MYOUTS} ${S_OUTS})
 	endforeach()
 	set(GEN_OUTS ${GEN_OUTS} ${MYOUTS} PARENT_SCOPE)

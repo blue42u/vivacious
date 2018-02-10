@@ -1,7 +1,7 @@
 set(OUT ${CMAKE_BINARY_DIR}/include/vivacious)
 
 # Standard C headers, using the standard C header generator
-gen(GENERATOR c VARIANTS bound DIRECTORY ${OUT} OUTPUTS ?.h
+gen(GENERATOR generator/c VARIANTS bound DIRECTORY ${OUT} OUTPUTS ?.h
 	SPECS vulkan devicememorypool rendergraph shaderbank vkinitializer
 )
 
