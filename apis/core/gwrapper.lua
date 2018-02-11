@@ -14,20 +14,16 @@
    limitations under the License.
 --]========================================================================]
 
-local G = ...
+local G,D = ...
+G.behavior = G.behavior or D.behavior
+G.environment = G.environment or D.environment
 local stdlib = {}
 
 -- A handful of types are "simple," and all generators should support them.
-assert(G.simple, 'Generator does not support simpletypes!')
-for t in pairs{
-	integer=true, number=true, boolean=true, string=true,
-	generic=true, memory=true,
-} do assert(G.simple[t],'Generator does not support the '..t..' simpletype!')end
-
-for n,t in pairs(G.simple) do stdlib[n] = newtype(n, t) end
+for n,t in pairs(G.simple or {}) do stdlib[n] = newtype(n, t) end
 
 -- If the generator doesn't overload it, indicies are just integers.
-stdlib.index = newtype('index', G.simple.index) or stdlib.integer
+if not stdlib.index then stdlib.index = stdlib.integer end
 
 -- Simple optional & required argument checker. Test should error on failure.
 local function checkarg(arg, opts1, opts2)
@@ -77,15 +73,15 @@ end
 
 -- Generators are able to add custom functions for more specific cases. The
 -- main specs shouldn't use these to improve the portability.
-if G.custom then for k,f in pairs(G.custom) do
-	local opts = (G.customarg or {})[k] or {}
+if G.custom then for k,f in pairs(G.custom) do if not k:match'_arg$' then
+	local opts = G.custom[k..'_arg'] or {}
 	stdlib[k] = function(arg)
 		checkarg(arg, opts)
 		local t = {}
 		f(t, arg)
 		return newtype(k, t)
 	end
-end end
+end end end
 
 -- Generator standard type-functions are methods, where `self` is the table to
 -- fill that goes to newtype. For convience, gcall will create the table.
@@ -96,24 +92,24 @@ local function gcall(n, ...)
 end
 
 -- Arrays are tables in Lua. The generator can add more functionality.
-function stdlib.array(arg)
+if G.array then function stdlib.array(arg)
 	checkarg(arg, {
 		[1] = true,		-- Type of the array elements
 		fixedsize = false,	-- Maximum size of the array
-	}, G.arrayarg)
+	}, G.array_arg)
 	return newtype('array', gcall('array', arg),
 		arg.fixedsize and {
 			v=function(v) assert(#v < arg.fixedsize, "Array is too large!") end
 		})
-end
+end end
 
 -- Options are strings, treated similarly to how luaL_checkoption operates.
-function stdlib.options(arg)
+if G.options then function stdlib.options(arg)
 	checkarg(arg, {
 		_integer = true,	-- Names of valid options
 		default = false,	-- Default option if none is given
 		doc = false,		-- Documentation for the meaning of this option
-	}, G.optionsarg)
+	}, G.options_arg)
 	local opts = {}
 	for _,o in ipairs(arg) do opts[o] = o end
 	local oerr = table.concat(arg, ', ')
@@ -124,14 +120,14 @@ function stdlib.options(arg)
 				..' is not one of {'..oerr..'}')
 		end}
 	)
-end
+end end
 
 -- Flags are strings or tables, with the strings using the shorthand names for
 -- the flag values, and the table can use either. The generator will always be
 -- given a table with the proper names for flag values.
 -- If a value's proper name is one character long, it will accepted as
 -- shorthand, while shorthands must be one character long.
-function stdlib.flags(arg)
+if G.flags then function stdlib.flags(arg)
 	checkarg(arg, {
 		_integer = function(v)
 			if type(v) == 'string' then return #v > 0 end
@@ -142,7 +138,7 @@ function stdlib.flags(arg)
 			end
 		end,	-- proper name OR {<proper name>, <shorthand>}
 		doc = false,	-- Documentation
-	}, G.flagsarg)
+	}, G.flags_arg)
 	local shorts,ga = {},setmetatable({}, {__index=arg})
 	for i,e in ipairs(arg) do
 		local p,s
@@ -165,11 +161,11 @@ function stdlib.flags(arg)
 			return o
 		end}
 	)
-end
+end end
 
 -- Callables are functions (since 'function' is a keyword in Lua). These have
 -- an expected set of arguments and return values, and implicitly hold context.
-function stdlib.callable(arg)
+if G.callable then function stdlib.callable(arg)
 	checkarg(arg, {
 		returns = function(v)
 			for k in pairs(v) do assert(math.type(k) == 'integer') end
@@ -178,9 +174,9 @@ function stdlib.callable(arg)
 			assert(type(a[1]) == 'string' and a[2])
 		end,	-- Arguments, as {<name>, <Type>}
 		doc = false,	-- Documentation
-	}, G.callablearg)
+	}, G.callable_arg)
 	return newtype('callable', gcall('callable', arg))
-end
+end end
 
 --[[
 	Compounds are tables, with defaults for when a value is not given (or nil).
@@ -199,7 +195,7 @@ end
 	The generator hook is always given a 'static' case argument, and on
 	conversion default values are applied.
 ]]
-function stdlib.compound(arg)
+if G.compound then function stdlib.compound(arg)
 	-- First decide between 'static' and 'mutable'.
 	local static
 	if arg[1] then static = true else
@@ -225,7 +221,7 @@ function stdlib.compound(arg)
 			end
 		end or nil,		-- Elements, as {<name>, <Type>, [<def>]}
 		doc = false,	-- Documentation
-	}, G.compoundarg)
+	}, G.compound_arg)
 
 	-- Now if its mutable, order the elements for the generator
 	local garg
@@ -258,7 +254,7 @@ function stdlib.compound(arg)
 			return o
 		end,
 	})
-end
+end end
 
 -- Now we get into the structural Types, the first being the Reference. This is
 -- the "outlet" from the tree-based structure into the more normal nameless
@@ -336,7 +332,7 @@ local function behavior(arg)
 		_integer = function(b) assert(b'behaves') end, -- parent Behaviors
 		issub = false,	-- Semi-internal, for sub-behaviors
 		doc = true,		-- Documentation, required for such complex types.
-	}, G.behaviorarg)
+	}, G.behavior_arg)
 	local g,rex = gcall('behavior', arg)
 
 	local refs,ts,bs,vers = {},{},{},{}

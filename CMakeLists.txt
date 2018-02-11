@@ -63,7 +63,7 @@ function(gen)
 	cmake_parse_arguments(PARSE_ARGV 0 A
 		""
 		"SUFFIXES;GENERATOR;DIRECTORY"
-		"VARIANTS;DEPENDS;SPECS;OUTPUTS")
+		"DEPENDS;SPECS;OUTPUTS")
 	if(A_DIRECTORY)
 		file(MAKE_DIRECTORY ${A_DIRECTORY})
 		set(A_DIRECTORY "${A_DIRECTORY}/")
@@ -77,15 +77,13 @@ function(gen)
 			string(REPLACE ? "${S}" O2 ${O})
 			set(S_OUTS ${S_OUTS} ${A_DIRECTORY}${O2})
 		endforeach()
-		set(S_DEPS ${SL} ${CMAKE_SOURCE_DIR}/apis/core/gwrapper.lua
-			${CMAKE_SOURCE_DIR}/apis/${S}.lua ${A_DEPENDS} ${GD}/${GN}.lua )
-		foreach(V ${A_VARIANTS})
-			set(S_DEPS ${S_DEPS} ${GD}/${GN}${V}.lua)
-		endforeach()
 		add_custom_command(OUTPUT ${S_OUTS}
 			COMMAND ${LUA_EXECUTABLE} ${SL} ${GD} ${GN}
 				${CMAKE_SOURCE_DIR}/apis ${S} ${S_OUTS}
-			WORKING_DIRECTORY ${CMAKE_SOURCE_DIR} DEPENDS ${S_DEPS})
+			WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+			MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/apis/${S}.lua
+			DEPENDS ${SL} ${CMAKE_SOURCE_DIR}/apis/core/gwrapper.lua
+				${GD}/${GN}.lua ${A_DEPENDS})
 		set(MYOUTS ${MYOUTS} ${S_OUTS})
 	endforeach()
 	set(GEN_OUTS ${GEN_OUTS} ${MYOUTS} PARENT_SCOPE)

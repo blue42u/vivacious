@@ -152,10 +152,23 @@ table.insert(package.searchers, 1, function(s)
 		{__index=_ENV})
 	f,err = loadfile(f, 't', genenv)
 	if err then return err end
-	local sl,envf = gw(f())
-	setmetatable(sl, {__index=_ENV})
-	genenv.std = sl
-	return function() return {sl=sl, envf=envf} end
+	local g = f()
+
+	local r,sls = {},{}
+
+	assert(g.default, 'Generator does not have a default varient!')
+	local sld,efd = gw(g.default, g.default)
+	r.default,sls.default = {sl=sld, envf=efd}, sld
+	setmetatable(sld, {__index=_ENV})
+	for v,vg in pairs(g) do if v ~= 'default' then
+		local sl,ef = gw(vg, g.default)
+		r[v],sls[v] = {sl=sl, envf=ef}, sl
+		setmetatable(sl, {__index=sls.default})
+	end end
+
+	genenv.std = sls
+	return function() return setmetatable(r,
+		{__index=function() return {sl=sld, envf=efd} end}) end
 end)
 
 -- Setup a searcher to handle the extra pieces behind how specs are loaded.
@@ -163,18 +176,11 @@ table.insert(package.searchers, 1, function(s)
 	local f,err = package.searchpath(s, root..'/?.lua')
 	if err then return err end
 
-	local g = generator
+	local g = require(generator).default
 	for l in io.lines(f) do
 		local c = l:match '%-%-!(.+)'
-		if c then
-			local t = {}
-			for w in c:gmatch '%S+' do table.insert(t, w) end
-
-			g = generator..table.remove(t, 1)
-			break
-		end
+		if c then g = require(generator)[c:match'%S+']; break end
 	end
-	g = require(g)
 
 	local env = g.envf{sandbox = g.sl, name=s}
 	f,err = loadfile(f, 't', env)
