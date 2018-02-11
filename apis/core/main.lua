@@ -90,8 +90,7 @@ local function newtype(name, t, extra)
 		if tk == error then
 			inside = function(_, e, a, _)
 				error('Attempt to call unsupported '..name..'\'s '..key
-					..' hook (for element '..e..') with arguments ('
-					..table.concat(a, ', ')..')')
+					..' hook (for element '..e..')')
 			end
 		elseif type(tk) == 'function' then
 			inside = function(c, e, a, _, r)
@@ -156,14 +155,28 @@ table.insert(package.searchers, 1, function(s)
 
 	local r,sls = {},{}
 
-	assert(g.default, 'Generator does not have a default varient!')
+	local req = {'integer', 'number', 'boolean', 'string', 'generic', 'memory'}
+
+	if not g.default then
+		local meta = {__index=function(_, k)
+			if k:match'_arg$' then return nil else
+				return function(self)
+					self.def,self.conv = error,error
+				end
+			end
+		end}
+		g.default = setmetatable({simple={},custom=setmetatable({},meta)}, meta)
+		for _,k in ipairs(req) do g.default.simple[k] = {def=error,conv=error} end
+	end
 	local sld,efd = gw(g.default, g.default)
+	for _,k in ipairs(req) do assert(sld[k], 'Default varients must support '..k) end
+	sld.index = sld.index or sld.integer
 	r.default,sls.default = {sl=sld, envf=efd}, sld
 	setmetatable(sld, {__index=_ENV})
 	for v,vg in pairs(g) do if v ~= 'default' then
-		local sl,ef = gw(vg, g.default)
+		local sl,ef = gw(vg, g.default or {})
 		r[v],sls[v] = {sl=sl, envf=ef}, sl
-		setmetatable(sl, {__index=sls.default})
+		setmetatable(sl, {__index=sld})
 	end end
 
 	genenv.std = sls

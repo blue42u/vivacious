@@ -17,7 +17,6 @@ set(HEADS
 	libvivacious.h
 )
 set(LUA
-	vulkan/libdl.lua
 	vkshader/mcopy-idshift.lua
 )
 set(LUAH
@@ -30,6 +29,10 @@ set(LDEPS
 	${CMAKE_CURRENT_SOURCE_DIR}/../external/traversal.lua
 	${CMAKE_CURRENT_SOURCE_DIR}/../external/vulkan-docs/src/spec/vk.xml
 )
+
+gen(GENERATOR vulkan/libdl OUTPUTS ${CMAKE_CURRENT_BINARY_DIR}/?.c SPECS vulkan)
+set(${SRC} ${GEN_OUTS} ${SRC})
+add_custom_target(testtarget DEPENDS ${GEN_OUTS})
 
 set(FULLSRC ${SRC})
 foreach(L ${LUA})

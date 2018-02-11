@@ -17,3 +17,5 @@ files['apis/*.lua'] = {
 	allow_defined_top = true,
 }
 files['apis/vulkan.lua'].std = '+cbound'
+
+files['src/vulkan/libdl.lua'].std = '+stdlib'

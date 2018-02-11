@@ -14,39 +14,12 @@
    limitations under the License.
 --]========================================================================]
 
-local vulk = dofile'../external/vulkan.lua'
+local G = {_internal={}, bound={custom={}, simple={}}}
 
-io.output(arg[1])
-local function out(s, ...) io.write(s:format(...)..'\n') end
-local function rout(s) io.write(s..'\n') end
-
-local function setcmds(lvl, patt)
-	local test
-	if lvl >= 0 then function test(t) return t == lvl end
-	else function test(t) return -lvl < t end end
-	for n,v in pairs(vulk.cmdsets) do
-		local id = n:match'%d+%.%d+' and 'core' or n:match'VK_(.+)'
-		local con = n:match'%d+%.%d+'
-			and ('VK_VERSION_%d_%d'):format(n:match'(%d+)%.(%d+)')
-			or n
-		local anyhere = false
-		for _,c in ipairs(v) do if test(vulk.cmdlevels[c]) then
-			if not anyhere then
-				anyhere = true
-				out('#ifdef %s', con)
-			end
-			out('\t\tf = '..patt:gsub('`', c)..';')
-			out('\t\tcmdsets.%s->%s = f ? (PFN_vk%s)f : cmdsets.%s->%s;',
-				id, c, c, id, c)
-		end end
-		if anyhere then out('#endif') end
-	end
-end
-
-out[[
-// WARNING: Generated file. Do not edit manually.
-
-#ifdef Vv_ENABLE_VULKAN
+function G.bound:environment()
+	function self:def(c, e, ds, f)
+		f:write[[
+// Generated file, do not edit directly, edit src/vulkan/libdl.lua
 
 #ifdef Vv_ENABLE_X
 #define VK_USE_PLATFORM_XLIB_KHR
@@ -68,86 +41,113 @@ out[[
 #include "cpdl.h"
 #include <stdlib.h>
 
-struct Internal {
-	void* libvk;
-	VvVk_Core core;]]
-for n in pairs(vulk.cmdsets) do if not n:match'%d+%.%d+' then
-	n = n:match'VK_(.+)'
-	out([[
-#ifdef VK_%s
-	VvVk_%s %s;
-#endif]], n,n,n)
-end end
-out[[
-};
-
-static VvVk_CmdSets cmdsets;
-
-static void load(const Vv* V) {
-	struct Internal* I = malloc(sizeof(struct Internal));
-	I->libvk = _vVopendl("libvulkan.so","libvulkan.dynlib","vulkan-1.dll");
-	if(!I->libvk) {
-		free(I);
-		return;
-	}
-
-	I->core.GetInstanceProcAddr = _vVsymdl(I->libvk,
-		"vkGetInstanceProcAddr");
-	if(!I->core.GetInstanceProcAddr) {
-		_vVclosedl(I->libvk);
-		free(I);
-		return;
-	}
-
-	cmdsets = VvVk_CmdSets(
-		.core = &I->core, .internal = I,]]
-for n in pairs(vulk.cmdsets) do if not n:match'%d+%.%d+' then
-	n = n:match'VK_(.+)'
-	out([[
-#ifdef VK_%s
-	.%s = &I->%s,
-#else
-	.%s = NULL,
-#endif]], n, n, n, n)
-end end
-rout[[
-	);
-
-	PFN_vkVoidFunction f;
 ]]
-setcmds(0, 'I->core.GetInstanceProcAddr(NULL, "vk`")')
-out[[
-}
+		for _,l in ipairs(c) do f:write(l..'\n\n') end
+	end
+	self.conv = error
+end
 
-static void loadInst(const Vv* V, VkInstance inst, int all) {
-	PFN_vkVoidFunction f;
-]]
-setcmds(1, 'cmdsets.core->GetInstanceProcAddr(inst, "vk`")')
-out'\n\tif(!all) return;\n'
-setcmds(-1, 'cmdsets.core->GetInstanceProcAddr(inst, "vk`")')
-out[[
-}
+function G.bound:reference(n, t, cp, ex)
+	local d = n:gsub('.*%.', ''):gsub('%u?%u%u$', ''):lower()
+	n = n:gsub('.*%.', '')
+	if n ~= ex.prefix then n = ex.prefix..n end
+	function self:def(c, e) c[e or d] = (t and '' or 'Vv')..n..' '..e end
+	function self:conv(c, e, v) t'conv'(c, e or d, v) end
+	return 'Vv'..n
+end
 
-static void loadDev(const Vv* V, VkDevice dev, int all) {
-	PFN_vkVoidFunction f;
-]]
-setcmds(2, 'cmdsets.core->GetDeviceProcAddr(dev, "vk`")')
-out'\n\tif(!all) return;\n'
-setcmds(-2, 'cmdsets.core->GetDeviceProcAddr(dev, "vk`")')
-rout[[
-}
+G.bound.behavior_arg = {directives=false, wrapperfor=false, prefix=true}
+function G.bound:behavior(arg)
+	function self:def(c, e, es)
+		local da = {returns={self}}
+		if arg.wrapperfor then
+			table.insert(da, {'real', std.bound.raw{realname=arg.wrapperfor}}) end
+		for _,b in ipairs(arg) do table.insert(da, {'parent', b}) end
+		da = std._internal.callable(da)
 
-static void unload(const Vv* V) {
-	struct Internal* I = cmdsets.internal;
-	_vVclosedl(I->libvk);
-	free(I);
-	cmdsets = VvVk_CmdSets();
-}
+		local ms = newcontext()
+		for _,m in ipairs(es) do if m[1] == 'm' and not m[2]:match'ProcAddr$' then
+			m[3]'conv'(ms, m[2])
+		end end
 
-const VvVk libVv_vk_libdl = {
-	.cmds = &cmdsets,
-	.load = load, .loadDev = loadDev, .loadInst = loadInst,
-	.unload = unload,
-};
+		local funcname = da'def'(
+			'vV'..(arg.wrapperfor and 'wrap' or 'create')..e:match'Vv(.+)'
+		)[1]
+		if arg.wrapperfor == 'VkInstance' then
+			c[e] = 'struct '..e..[[_I {
+	struct VvVk_M* M;
+	VvVkInstance inst;
+};]]
+			c[e..'_d'] = 'static void destroy'..e..'('..self'def'('self')[1]..[[) {
+	free(self->_I.M);
+	free(self);
+}]]
+			c[e..'_c'] = funcname..[[ {
+	VvVkInstance self = malloc(sizeof(struct VvVkInstance));
+	self->real = real;
+	self->_I.M = malloc(sizeof(struct VvVkInstance_M));
+	self->_I.inst = self;
+	self->_I.M.destroy = destroy]]..e..[[;
+	self->_I.M.vkGetInstanceProcAddr = _vVsymdl(parent->_I.lib, "vkGetInstanceProcAddr");
+]]..ms('\n', '\tself->_I.M.`e` = vVvkGetInstanceProcAddr(self, `v`);')..'\n\treturn self;\n}'
+		elseif arg.wrapperfor then
+		else
+			c[e] = 'struct '..e..[[_I {
+	struct VvVk_M* M;
+	void* lib;
+};]]
+			c[e..'_d'] = 'static void destroy'..e..'('..self'def'('self')[1]..[[) {
+	_vVclosedl(self->I.lib);
+	free(self->_I.M);
+	free(self);
+}]]
+			c[e..'_c'] = funcname..[[ {
+	VvVk vk = malloc(sizeof(struct VvVk));
+	vk->_I.lib = _vVopendl("libvulkan.so", "libvulkan.dynlib", "vulkan-1.dll");
+	vk->_I.M = malloc(sizeof(struct VvVk_M));
+	vk->_I.M.destroy = destroy]]..e..[[;
+	PFN_vkGetInstanceProcAddr gipa = _vVsymdl(vk->_I.lib, "vkGetInstanceProcAddr");
+]]..ms('\n', '\tvk->_I.M.`e` = gipa(NULL, `v`);')..'\n\treturn vk;\n}'
+		end
+	end
+	self.conv = error
+	return {prefix = arg.prefix}
+end
 
-#endif // Vv_ENABLE_VULKAN]]
+G.bound.custom.raw_arg = {realname=true, conversion=false}
+function G.bound.custom:raw(arg)
+	self.def = arg.realname..' `e`'
+	self.conv = error
+end
+
+function G._internal:callable(arg)
+	local rs = arg.returns or {}
+	local ret = assert(table.remove(rs, 1))
+	function self:def(c, e)
+		local args = newcontext()
+		for _,a in ipairs(arg) do a[2]'def'(args, a[1], {asarg=true}) end
+		for i,r in ipairs(rs) do r'def'(args, '*ret'..i) end
+		local rets = ret'def'('~')
+		for i=2,#rets do
+			local ri = i-1+#rs
+			args['*ret'..ri] = rets[i]:gsub('~', '*ret'..ri)
+		end
+		c[e] = rets[1]:gsub('~', e..'('..args', '..')')
+	end
+	self.conv = error
+end
+G.bound.callable_arg = {realname=true}
+function G.bound:callable(arg)
+	self.def = arg.realname..' `e`'
+	function self:conv(c, e) c[e] = '"'..e..'"' end
+end
+
+-- Stuff for the bound varient
+G.bound.simple.unsigned = {def=error, conv=error}
+G.bound.flags_arg = {realname=true}
+G.bound.options_arg = {realname=true}
+G.bound.custom.flexmask_arg = {true, bits=true, lenvar=true}
+G.bound.compound_arg = {realname=true}
+G.bound.array_arg = {lenvar=false}
+
+return G

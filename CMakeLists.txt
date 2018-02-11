@@ -77,13 +77,24 @@ function(gen)
 			string(REPLACE ? "${S}" O2 ${O})
 			set(S_OUTS ${S_OUTS} ${A_DIRECTORY}${O2})
 		endforeach()
+		if(S MATCHES vulkan)
+			set(S_DEPS
+				${CMAKE_SOURCE_DIR}/external/vulkan.lua
+				${CMAKE_SOURCE_DIR}/external/slaxdom.lua
+				${CMAKE_SOURCE_DIR}/external/slaxml.lua
+				${CMAKE_SOURCE_DIR}/external/traversal.lua
+				${CMAKE_SOURCE_DIR}/external/vulkan-docs/src/spec/vk.xml
+			)
+		else()
+			set(S_DEPS)
+		endif()
 		add_custom_command(OUTPUT ${S_OUTS}
 			COMMAND ${LUA_EXECUTABLE} ${SL} ${GD} ${GN}
 				${CMAKE_SOURCE_DIR}/apis ${S} ${S_OUTS}
 			WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 			MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/apis/${S}.lua
 			DEPENDS ${SL} ${CMAKE_SOURCE_DIR}/apis/core/gwrapper.lua
-				${GD}/${GN}.lua ${A_DEPENDS})
+				${GD}/${GN}.lua ${A_DEPENDS} ${S_DEPS})
 		set(MYOUTS ${MYOUTS} ${S_OUTS})
 	endforeach()
 	set(GEN_OUTS ${GEN_OUTS} ${MYOUTS} PARENT_SCOPE)

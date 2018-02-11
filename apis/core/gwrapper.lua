@@ -22,11 +22,8 @@ local stdlib = {}
 -- A handful of types are "simple," and all generators should support them.
 for n,t in pairs(G.simple or {}) do stdlib[n] = newtype(n, t) end
 
--- If the generator doesn't overload it, indicies are just integers.
-if not stdlib.index then stdlib.index = stdlib.integer end
-
 -- Simple optional & required argument checker. Test should error on failure.
-local function checkarg(arg, opts1, opts2)
+local function checkarg(name, arg, opts1, opts2)
 	local opts
 	if opts2 then opts = setmetatable({}, {__index=function(_,k)
 			local v = opts1[k]
@@ -50,50 +47,52 @@ local function checkarg(arg, opts1, opts2)
 		end
 	end
 
-	if opts._integer == true then assert(arg[1], 'Sequence is empty') end
+	if opts._integer == true then assert(arg[1], 'Sequence for '..name..' is empty') end
 	for k,o in pairs(opts1) do
 		if o == true and k ~= '_integer' then
-			assert(arg[k] ~= nil, 'Required argument '..k..' is nil') end
+			assert(arg[k] ~= nil, 'Required argument '..k..' for '..name..' is nil') end
 	end
 	for k,o in pairs(opts2) do
 		if o == true and k ~= '_integer' then
-			assert(arg[k] ~= nil, 'Required argument '..k..' is nil') end
+			assert(arg[k] ~= nil, 'Required argument '..k..' for '..name..' is nil') end
 	end
 
 	for k,v in pairs(arg) do
 		local o = optfor(k)
-		assert(o ~= nil, 'Invalid argument '..tostring(k))
+		assert(o ~= nil, 'Invalid argument '..tostring(k)..' for '..name)
 		if type(o) == 'function' then
 			local r,r2 = pcall(o, v)
 			if r2 == false then r = false end
-			assert(r, 'Malformed argument '..k)
+			assert(r, 'Malformed argument '..k..' for '..name)
 		end
 	end
 end
 
 -- Generators are able to add custom functions for more specific cases. The
 -- main specs shouldn't use these to improve the portability.
-if G.custom then for k,f in pairs(G.custom) do if not k:match'_arg$' then
+if G.custom then for k,f in pairs(G.custom) do
+	if k:match'_arg$' then k = k:gsub('_arg$', '') end
 	local opts = G.custom[k..'_arg'] or {}
+	f = G.custom[k] or D.custom[k]
 	stdlib[k] = function(arg)
-		checkarg(arg, opts)
+		checkarg(k, arg, opts)
 		local t = {}
 		f(t, arg)
 		return newtype(k, t)
 	end
-end end end
+end end
 
 -- Generator standard type-functions are methods, where `self` is the table to
 -- fill that goes to newtype. For convience, gcall will create the table.
 local function gcall(n, ...)
 	local t = {}
-	local f = assert(G[n], 'Generator does not support '..n..'s!')
+	local f = assert(G[n] or D[n], 'Generator does not support '..n..'!')
 	return t, f(t, ...)
 end
 
 -- Arrays are tables in Lua. The generator can add more functionality.
-if G.array then function stdlib.array(arg)
-	checkarg(arg, {
+if G.array or G.array_arg then function stdlib.array(arg)
+	checkarg('array', arg, {
 		[1] = true,		-- Type of the array elements
 		fixedsize = false,	-- Maximum size of the array
 	}, G.array_arg)
@@ -104,8 +103,8 @@ if G.array then function stdlib.array(arg)
 end end
 
 -- Options are strings, treated similarly to how luaL_checkoption operates.
-if G.options then function stdlib.options(arg)
-	checkarg(arg, {
+if G.options or G.options_arg then function stdlib.options(arg)
+	checkarg('options', arg, {
 		_integer = true,	-- Names of valid options
 		default = false,	-- Default option if none is given
 		doc = false,		-- Documentation for the meaning of this option
@@ -127,8 +126,8 @@ end end
 -- given a table with the proper names for flag values.
 -- If a value's proper name is one character long, it will accepted as
 -- shorthand, while shorthands must be one character long.
-if G.flags then function stdlib.flags(arg)
-	checkarg(arg, {
+if G.flags or G.flags_arg then function stdlib.flags(arg)
+	checkarg('flags', arg, {
 		_integer = function(v)
 			if type(v) == 'string' then return #v > 0 end
 			if type(v) == 'table' then
@@ -165,8 +164,8 @@ end end
 
 -- Callables are functions (since 'function' is a keyword in Lua). These have
 -- an expected set of arguments and return values, and implicitly hold context.
-if G.callable then function stdlib.callable(arg)
-	checkarg(arg, {
+if G.callable or G.callable_arg then function stdlib.callable(arg)
+	checkarg('callable', arg, {
 		returns = function(v)
 			for k in pairs(v) do assert(math.type(k) == 'integer') end
 		end,	-- Sequence of Types for returned values
@@ -195,7 +194,7 @@ end end
 	The generator hook is always given a 'static' case argument, and on
 	conversion default values are applied.
 ]]
-if G.compound then function stdlib.compound(arg)
+if G.compound or G.compound_arg then function stdlib.compound(arg)
 	-- First decide between 'static' and 'mutable'.
 	local static
 	if arg[1] then static = true else
@@ -210,7 +209,7 @@ if G.compound then function stdlib.compound(arg)
 	end
 
 	-- Check the arguments
-	checkarg(arg, {
+	checkarg('compound', arg, {
 		_integer = static and function(v)
 			assert(type(v[1]) == 'string' and v[2])
 		end or nil,		-- Elements, as {<name>, <Type>, [<def>]}
@@ -328,7 +327,7 @@ end
 	also be noted that the _ENV table is also a Type similar to a Behavior.
 ]]
 local function behavior(arg)
-	checkarg(arg, {
+	checkarg('behavior', arg, {
 		_integer = function(b) assert(b'behaves') end, -- parent Behaviors
 		issub = false,	-- Semi-internal, for sub-behaviors
 		doc = true,		-- Documentation, required for such complex types.
@@ -404,7 +403,7 @@ end
 -- Instead of putting pieces into the given Context, they instead write out the
 -- contents of the Context into the files passed in as extra.
 local function environment(arg)
-	checkarg(arg, {
+	checkarg('environment', arg, {
 		sandbox = true,		-- Sandbox this will defer to on __index
 		name = true,		-- Name of this environment, for dependecies
 	})

@@ -128,7 +128,7 @@ for _,ts in cpairs(dom.root, {name='commands'}) do
 		c.ret = first(t, {name='proto'}, {name='type'}, {type='text'}).value
 		for _,tp in cpairs(t, {name='param'}) do
 			local a = {}
-			for k,v in pairs(t.attr) do if type(k) == 'string' then a[k] = v end end
+			for k,v in pairs(tp.attr) do if type(k) == 'string' then a[k] = v end end
 			a.name = first(tp, {name='name'}, {type='text'}).value
 			a.type = first(tp, {name='type'}, {type='text'}).value
 
