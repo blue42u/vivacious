@@ -63,14 +63,17 @@ function G.bound:behavior(arg)
 	function self:def(c, e, es)
 		local da = {returns={self}}
 		if arg.wrapperfor then
-			table.insert(da, {'real', std.bound.raw{realname=arg.wrapperfor}}) end
+			table.insert(da, {'real', std.bound.raw{realname=arg.wrapperfor}})
+		end
 		for _,b in ipairs(arg) do table.insert(da, {'parent', b}) end
 		da = std._internal.callable(da)
 
 		local ms = newcontext()
-		for _,m in ipairs(es) do if m[1] == 'm' and not m[2]:match'ProcAddr$' then
-			m[3]'conv'(ms, m[2])
-		end end
+		for _,m in ipairs(es) do
+			if m[1] == 'm' and not m[2]:match'ProcAddr$' then
+				m[3]'conv'(ms, m[2])
+			end
+		end
 
 		wrappers[self'def'('~')[1]] = arg.wrapperfor
 		if arg.wrapperfor and not baseparents[arg.wrapperfor] then
@@ -103,8 +106,8 @@ function G.bound:behavior(arg)
 	self->_M = self->_I->M;
 	self->_I->M->destroy = destroy]]..e..';\n'
 			..(ismain and [[
-	self->_I->M->vkGetInstanceProcAddr =
-		(PFN_vkGetInstanceProcAddr)_vVsymdl(parent->_I->lib, "vkGetInstanceProcAddr");
+	self->_I->M->vkGetInstanceProcAddr = (PFN_vkGetInstanceProcAddr)
+		_vVsymdl(parent->_I->lib, "vkGetInstanceProcAddr");
 ]] or '')
 			..ms('\n', '\tself->_I->M->`e` = (PFN_`e`)vVvkGetInstanceProcAddr(self->_I->inst, `v`);')
 			..'\n\treturn self;\n}'
@@ -127,10 +130,11 @@ function G.bound:behavior(arg)
 	self->_I->dev = ]]..(ismain and 'self' or 'parent->_I->dev')..[[;
 	self->_I->M->destroy = destroy]]..e..';\n'
 			..(ismain and [[
-	self->_I->M->vkGetDeviceProcAddr =
-		(PFN_vkGetDeviceProcAddr)vVvkGetInstanceProcAddr(parent->_I->inst, "vkGetDeviceProcAddr");
+	self->_I->M->vkGetDeviceProcAddr = (PFN_vkGetDeviceProcAddr)
+		vVvkGetInstanceProcAddr(parent->_I->inst, "vkGetDeviceProcAddr");
 ]] or '')
-			..ms('\n', '\tself->_I->M->`e` = (PFN_`e`)vVvkGetDeviceProcAddr(self->_I->dev, `v`);')
+			..ms('\n', '\tself->_I->M->`e` = '
+				..'(PFN_`e`)vVvkGetDeviceProcAddr(self->_I->dev, `v`);')
 			..'\n\treturn self;\n}'
 		else
 			c[e] = 'struct '..e..[[_I {
