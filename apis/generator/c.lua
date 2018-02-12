@@ -261,9 +261,9 @@ function G.default:behavior(arg)
 		c[e] = 'struct '..e..' {\n'
 			..'\tconst struct '..e..'_M {\n'
 			..ms
-			..'\t} * const _M;\n'
+			..'\t} * _M;\n'
 			..ds
-			..'\tstruct '..e..'_I _I;\n'
+			..'\tstruct '..e..'_I* _I;\n'
 			..'};'
 	end
 	self.conv = error
@@ -323,9 +323,9 @@ function G.bound:behavior(arg)
 			..ws
 			..'\tconst struct '..e..'_M {\n'
 			..ms
-			..'\t} * const _M;\n'
+			..'\t} * _M;\n'
 			..ds
-			..'\tstruct '..e..'_I _I;\n'
+			..'\tstruct '..e..'_I* _I;\n'
 			..'};'
 
 		c[e..'_c'] = da'def'('~')[1]:gsub('%(%*~%)',

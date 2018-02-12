@@ -22,17 +22,8 @@ set(LUA
 set(LUAH
 	vkshader/sections.lua
 )
-set(LDEPS
-	${CMAKE_CURRENT_SOURCE_DIR}/../external/vulkan.lua
-	${CMAKE_CURRENT_SOURCE_DIR}/../external/slaxdom.lua
-	${CMAKE_CURRENT_SOURCE_DIR}/../external/slaxml.lua
-	${CMAKE_CURRENT_SOURCE_DIR}/../external/traversal.lua
-	${CMAKE_CURRENT_SOURCE_DIR}/../external/vulkan-docs/src/spec/vk.xml
-)
 
 gen(GENERATOR vulkan/libdl OUTPUTS ${CMAKE_CURRENT_BINARY_DIR}/?.c SPECS vulkan)
-set(${SRC} ${GEN_OUTS} ${SRC})
-add_custom_target(testtarget DEPENDS ${GEN_OUTS})
 
 set(FULLSRC ${SRC})
 foreach(L ${LUA})
@@ -56,8 +47,7 @@ foreach(L ${LUAH})
 		COMMAND ${LUA_EXECUTABLE} ${L} ${CMAKE_CURRENT_BINARY_DIR}/${O}
 			${CMAKE_SOURCE_DIR}/include
 		WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-		MAIN_DEPENDENCY ${L}
-		DEPENDS ${LDEPS})
+		MAIN_DEPENDENCY ${L})
 	set(FULLSRC ${FULLSRC} ${CMAKE_CURRENT_BINARY_DIR}/${O})
 endforeach()
 
@@ -73,7 +63,7 @@ add_custom_command(OUTPUT ${OHEADS}
 include_directories(${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR}
 	${CMAKE_SOURCE_DIR}/external/spirv/include)
 
-add_library(vivacious SHARED ${FULLSRC})
+add_library(vivacious SHARED ${GEN_OUTS}) #${FULLSRC})
 add_library(vivacious-static STATIC EXCLUDE_FROM_ALL ${FULLSRC})
 
 add_custom_target(src-lua DEPENDS ${LUA})
@@ -82,8 +72,4 @@ add_dependencies(vivacious-static src-lua)
 
 if((UNIX AND NOT APPLE) OR CYGWIN)
 	target_link_libraries(vivacious dl)
-endif()
-
-if(LUA_ENABLE)
-	target_link_libraries(vivacious ${LUA_LIB})
 endif()

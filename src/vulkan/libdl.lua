@@ -57,6 +57,8 @@ function G.bound:reference(n, t, cp, ex)
 end
 
 G.bound.behavior_arg = {directives=false, wrapperfor=false, prefix=true}
+local baseparents = { VkInstance='inst', VkDevice='dev' }
+local wrappers = {}
 function G.bound:behavior(arg)
 	function self:def(c, e, es)
 		local da = {returns={self}}
@@ -70,44 +72,87 @@ function G.bound:behavior(arg)
 			m[3]'conv'(ms, m[2])
 		end end
 
+		wrappers[self'def'('~')[1]] = arg.wrapperfor
+		if arg.wrapperfor and not baseparents[arg.wrapperfor] then
+			local k = arg[1]'def'('~')[1]
+			assert(wrappers[k], arg.wrapperfor)
+			baseparents[arg.wrapperfor] = baseparents[wrappers[k]]
+		end
+
 		local funcname = da'def'(
 			'vV'..(arg.wrapperfor and 'wrap' or 'create')..e:match'Vv(.+)'
 		)[1]
-		if arg.wrapperfor == 'VkInstance' then
+		local ismain = arg.wrapperfor == 'VkInstance'
+			or arg.wrapperfor == 'VkDevice'
+		if baseparents[arg.wrapperfor] == 'inst' then
 			c[e] = 'struct '..e..[[_I {
-	struct VvVk_M* M;
+	struct ]]..e..[[_M* M;
 	VvVkInstance inst;
 };]]
 			c[e..'_d'] = 'static void destroy'..e..'('..self'def'('self')[1]..[[) {
-	free(self->_I.M);
+	free(self->_I->M);
+	free(self->_I);
 	free(self);
 }]]
 			c[e..'_c'] = funcname..[[ {
-	VvVkInstance self = malloc(sizeof(struct VvVkInstance));
+	]]..e..[[ self = malloc(sizeof(struct ]]..e..[[));
 	self->real = real;
-	self->_I.M = malloc(sizeof(struct VvVkInstance_M));
-	self->_I.inst = self;
-	self->_I.M.destroy = destroy]]..e..[[;
-	self->_I.M.vkGetInstanceProcAddr = _vVsymdl(parent->_I.lib, "vkGetInstanceProcAddr");
-]]..ms('\n', '\tself->_I.M.`e` = vVvkGetInstanceProcAddr(self, `v`);')..'\n\treturn self;\n}'
-		elseif arg.wrapperfor then
+	self->_I = malloc(sizeof(struct ]]..e..[[_I));
+	self->_I->M = malloc(sizeof(struct ]]..e..[[_M));
+	self->_I->inst = ]]..(ismain and 'self' or 'parent->_I->inst')..[[;
+	self->_M = self->_I->M;
+	self->_I->M->destroy = destroy]]..e..';\n'
+			..(ismain and [[
+	self->_I->M->vkGetInstanceProcAddr =
+		(PFN_vkGetInstanceProcAddr)_vVsymdl(parent->_I->lib, "vkGetInstanceProcAddr");
+]] or '')
+			..ms('\n', '\tself->_I->M->`e` = (PFN_`e`)vVvkGetInstanceProcAddr(self->_I->inst, `v`);')
+			..'\n\treturn self;\n}'
+		elseif baseparents[arg.wrapperfor] == 'dev' then
+			c[e] = 'struct '..e..[[_I {
+	struct ]]..e..[[_M* M;
+	VvVkDevice dev;
+};]]
+			c[e..'_d'] = 'static void destroy'..e..'('..self'def'('self')[1]..[[) {
+	free(self->_I->M);
+	free(self->_I);
+	free(self);
+}]]
+			c[e..'_c'] = funcname..[[ {
+	]]..e..[[ self = malloc(sizeof(struct ]]..e..[[));
+	self->real = real;
+	self->_I = malloc(sizeof(struct ]]..e..[[_I));
+	self->_I->M = malloc(sizeof(struct ]]..e..[[_M));
+	self->_M = self->_I->M;
+	self->_I->dev = ]]..(ismain and 'self' or 'parent->_I->dev')..[[;
+	self->_I->M->destroy = destroy]]..e..';\n'
+			..(ismain and [[
+	self->_I->M->vkGetDeviceProcAddr =
+		(PFN_vkGetDeviceProcAddr)vVvkGetInstanceProcAddr(parent->_I->inst, "vkGetDeviceProcAddr");
+]] or '')
+			..ms('\n', '\tself->_I->M->`e` = (PFN_`e`)vVvkGetDeviceProcAddr(self->_I->dev, `v`);')
+			..'\n\treturn self;\n}'
 		else
 			c[e] = 'struct '..e..[[_I {
 	struct VvVk_M* M;
 	void* lib;
 };]]
 			c[e..'_d'] = 'static void destroy'..e..'('..self'def'('self')[1]..[[) {
-	_vVclosedl(self->I.lib);
-	free(self->_I.M);
+	_vVclosedl(self->_I->lib);
+	free(self->_I->M);
+	free(self->_I);
 	free(self);
 }]]
 			c[e..'_c'] = funcname..[[ {
 	VvVk vk = malloc(sizeof(struct VvVk));
-	vk->_I.lib = _vVopendl("libvulkan.so", "libvulkan.dynlib", "vulkan-1.dll");
-	vk->_I.M = malloc(sizeof(struct VvVk_M));
-	vk->_I.M.destroy = destroy]]..e..[[;
-	PFN_vkGetInstanceProcAddr gipa = _vVsymdl(vk->_I.lib, "vkGetInstanceProcAddr");
-]]..ms('\n', '\tvk->_I.M.`e` = gipa(NULL, `v`);')..'\n\treturn vk;\n}'
+	vk->_I = malloc(sizeof(struct ]]..e..[[_I));
+	vk->_I->lib = _vVopendl("libvulkan.so", "libvulkan.dynlib", "vulkan-1.dll");
+	vk->_I->M = malloc(sizeof(struct VvVk_M));
+	vk->_M = vk->_I->M;
+	vk->_I->M->destroy = destroy]]..e..[[;
+	PFN_vkGetInstanceProcAddr gipa =
+		(PFN_vkGetInstanceProcAddr)_vVsymdl(vk->_I->lib, "vkGetInstanceProcAddr");
+]]..ms('\n', '\tvk->_I->M->`e` = (PFN_`e`)gipa(NULL, `v`);')..'\n\treturn vk;\n}'
 		end
 	end
 	self.conv = error

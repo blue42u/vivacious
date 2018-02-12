@@ -29,7 +29,7 @@ local parent_overrides = {
 Vk = {doc = [[
 	Main Vulkan Behavior, which grants access to the Vulkan API.
 ]],
-	directives = {'define VK_NO_PROTOTYPES', 'include <vulkan.h>'},
+	directives = {'define VK_NO_PROTOTYPES', 'include <vulkan/vulkan.h>'},
 	prefix = 'Vk'}
 local vktypes = {Vk=Vk}
 local vkbs,vkbps = {},{}

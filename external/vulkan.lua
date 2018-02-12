@@ -153,6 +153,7 @@ for _,t in cpairs(dom.root, {name='feature', attr={api='vulkan'}}) do
 	end
 	vk.cmds[t.attr.number] = cs
 end
+--[[
 for _,ts in cpairs(dom.root, {name='extensions'}) do
 	for _,t in cpairs(ts, {name='extension', attr={supported='vulkan'}}) do
 		local cs = {}
@@ -165,5 +166,6 @@ for _,ts in cpairs(dom.root, {name='extensions'}) do
 		vk.cmds[t.attr.number] = cs
 	end
 end
+--]]
 
 return vk
