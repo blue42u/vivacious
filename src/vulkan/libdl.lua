@@ -56,7 +56,7 @@ function G.bound:reference(n, t, cp, ex)
 	return 'Vv'..n
 end
 
-G.bound.behavior_arg = {directives=false, wrapperfor=false, prefix=true}
+G.bound.behavior_arg = {directives=false, wrapperfor=false, prefix=true, consts=false}
 local baseparents = { VkInstance='inst', VkDevice='dev' }
 local wrappers = {}
 function G.bound:behavior(arg)

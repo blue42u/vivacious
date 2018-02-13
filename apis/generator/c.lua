@@ -272,6 +272,7 @@ G.bound.behavior_arg = {
 	wrapperfor = false,	-- Name of the C type that this Behavior wraps
 	directives = false,	-- List of extra directives to add to this Behavior
 	prefix = true,		-- Extra prefix for contents of this Behavior
+	consts = false,		-- Const-enabled default typedefs
 }
 function G.bound:behavior(arg)
 	function self:def(c, e, es)
@@ -312,6 +313,11 @@ function G.bound:behavior(arg)
 			c[em[2]] = '#define vV'..em[2]..'(_S, ...) ({ '
 				..'__typeof__ (_S) _s = (_S); '
 				..'_s->_M->'..em[2]..'('..du..', __VA_ARGS__); })'
+			if arg.consts and arg.consts[em[2]] then
+				local cn,as = table.unpack(arg.consts[em[2]])
+				c[em[2]..'_const'] = '#ifndef '..cn..'\n'
+					..as'def'(em[3]'def'('')())('\n', 'typedef `v`;')..'\n#endif'
+			end
 		end end
 		ms = ms('', function(s)
 			return '\t\t'..s:gsub('\n', '\n\t\t')..';\n' end)

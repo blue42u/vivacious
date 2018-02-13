@@ -153,10 +153,9 @@ for _,t in cpairs(dom.root, {name='feature', attr={api='vulkan'}}) do
 	end
 	vk.cmds[t.attr.number] = cs
 end
---[[
 for _,ts in cpairs(dom.root, {name='extensions'}) do
 	for _,t in cpairs(ts, {name='extension', attr={supported='vulkan'}}) do
-		local cs = {}
+		local cs = {extname=t.attr.name}
 		for _,r in cpairs(t, {name='require'}) do
 			for _,c in cpairs(r, {name='command'}) do
 				assert(allcmds[c.attr.name])
@@ -166,6 +165,5 @@ for _,ts in cpairs(dom.root, {name='extensions'}) do
 		vk.cmds[t.attr.number] = cs
 	end
 end
---]]
 
 return vk

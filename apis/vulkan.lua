@@ -26,6 +26,8 @@ local parent_overrides = {
 	VkDisplayModeKHR = 'VkDisplayKHR',
 }
 
+local cmdconsts = {}
+
 Vk = {doc = [[
 	Main Vulkan Behavior, which grants access to the Vulkan API.
 ]],
@@ -51,12 +53,12 @@ do
 			if vktypes[t.parent] then
 				if t.type == 'VK_DEFINE_NON_DISPATCHABLE_HANDLE' then
 					vktypes[t.parent][n:match'Vk(.*)'] = {wrapperfor = n,
-						doc = [[Wrapper for ]]..n, prefix='Vk'}
+						doc = [[Wrapper for ]]..n, prefix='Vk', consts=cmdconsts}
 					vktypes[n] = vktypes[t.parent][n:match'Vk(.*)']
 					vkbps[n] = t.parent
 				elseif t.type == 'VK_DEFINE_HANDLE' then
-					_ENV[n:match'Vk(.*)'] = {vktypes[t.parent],
-						wrapperfor = n, doc = [[Wrapper for ]]..n, prefix='Vk'}
+					_ENV[n:match'Vk(.*)'] = {vktypes[t.parent], wrapperfor = n,
+						doc = [[Wrapper for ]]..n, prefix='Vk', consts=cmdconsts}
 					vktypes[n] = _ENV[n:match'Vk(.*)']
 				else error() end
 				vkbs[n] = vktypes[n]
@@ -268,6 +270,7 @@ do
 end
 
 do
+	local voidf = callable{realname='PFN_vkVoidFunction'}
 	for v,cs in pairs(vk.cmds) do
 		local M,m = v:match '(%d+)%.(%d+)'
 		if M then v = 'v0_'..M..'_'..m
@@ -282,6 +285,9 @@ do
 			local c = {returns = raw{realname=ct.ret}, realname='PFN_'..ct.name}
 			for i,a in ipairs(ct) do c[i] = {a.name, raw{realname=a.type}} end
 			b[v][ct.name] = c
+			if cs.extname then
+				cmdconsts[ct.name] = {cs.extname, voidf}
+			end
 		end
 	end
 end
