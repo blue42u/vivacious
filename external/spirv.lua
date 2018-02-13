@@ -14,17 +14,17 @@
    limitations under the License.
 --]========================================================================]
 
-local relpath = '../external/'
+local relpath = arg[1]
 
 local oldpath = package.path
-package.path = package.path .. ';' .. relpath .. '?.lua'
-	.. ';' .. relpath .. 'luajson/lua/?.lua'
+package.path = package.path .. ';' .. relpath .. '/?.lua'
+	.. ';' .. relpath .. '/luajson/lua/?.lua'
 
 local json = require 'json'
 
 package.path = oldpath
 
-local f = io.open(relpath..'spirv/include/spirv/1.2/spirv.core.grammar.json')
+local f = io.open(relpath..'/spirv/include/spirv/1.2/spirv.core.grammar.json')
 local j = f:read('a')
 f:close()
 return json.decode(j)

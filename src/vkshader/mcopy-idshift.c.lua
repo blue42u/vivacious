@@ -14,9 +14,9 @@
    limitations under the License.
 --]========================================================================]
 
-local spv = dofile'../external/spirv.lua'
+local spv = dofile(arg[1]..'/spirv.lua')
 
-io.output(arg[1])
+io.output('mcopy-idshift.c')
 local function out(s, ...) io.write(s:format(...)..'\n') end
 local function rout(s) io.write(s..'\n') end
 
