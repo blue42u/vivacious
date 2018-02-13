@@ -217,7 +217,7 @@ function G.default:reference(n, t, cp)
 		if t then
 			cp[n] = 'typedef '..t'def'(tn, {simple=true})[1]..';'
 			cp[n..'_real'] = t'def'(tn, {named=true})[1]..';'
-			cp[n..'_magic'] = '#define '..tn..'(...) ({ '
+			cp[n..'_magic'] = '#define '..tn..'_V(...) ({ '
 				..tn..' _x = '..t'conv'(tn)[1]..'; '
 				..'VvMAGIC(__VA_ARGS__); _x; })'
 		end
@@ -236,11 +236,11 @@ function G.bound:reference(n, t, cp, ex)
 	function self:def(c, e)
 		e = e or d
 		if t then
-			cp[n] = '#define '..n..'(...) ({ '
+			cp[n] = '#define '..n..'_V(...) ({ '
 				..t'def'('_x')[1]..' = '..t'conv'(n)[1]..'; '
 				..'VvMAGIC(__VA_ARGS__); _x; })'
-		end
-		c[e] = (t and '' or 'Vv')..n..' '..e
+			c[e] = t'def'(e)[1]
+		else c[e] = 'Vv'..n..' '..e end
 	end
 	function self:conv(c, e, v) t'conv'(c, e or d, v) end
 	return 'Vv'..n
@@ -271,7 +271,7 @@ function G.default:behavior(arg)
 		elseif ed[1] == 'ro' then
 			ed[3]'def'(ds, 'const '..ed[2])
 		end end
-		if not arg.issub then for _,b in ipairs(arg) do b'def'(ds) end end
+		for _,b in ipairs(arg) do b'def'(ds) end
 		ds = ds('', function(s)
 			return '\t'..s:gsub('\n', '\n\t')..';\n' end)
 
@@ -282,6 +282,13 @@ function G.default:behavior(arg)
 			..ds
 			..'\tstruct '..e..'_I* _I;\n'
 			..'};'
+
+		if not arg.issub then
+			local cf = {returns={self}}
+			for _,b in ipairs(arg) do table.insert(cf, {'', b}) end
+			cf = std.default.callable(cf)
+			c[e..'_c'] = cf'def'('~')[1]:gsub('%(%*~%)', 'vVcreate'..e:match'Vv(.+)')..';'
+		end
 	end
 	self.conv = error
 end
@@ -329,7 +336,7 @@ function G.bound:behavior(arg)
 			em[3]'def'(ms, em[2])
 			c[em[2]] = '#define vV'..em[2]..'(_S, ...) ({ '
 				..'__typeof__ (_S) _s = (_S); '
-				..'_s->_M->'..em[2]..'('..du..', __VA_ARGS__); })'
+				..'_s->_M->'..em[2]..'('..(em[2]=='destroy' and '_s' or du)..', __VA_ARGS__); })'
 			if arg.consts and arg.consts[em[2]] then
 				local cn,as = table.unpack(arg.consts[em[2]])
 				c[em[2]..'_const'] = '#ifndef '..cn..'\n'
