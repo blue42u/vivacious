@@ -107,6 +107,23 @@ function G.bound:array(arg)
 end
 
 -- Flags, tables or strings in Lua, bitwise-OR of enum values in C
+function G.default:flags(arg)
+	function self:def(c, e, ex)
+		ex = ex or {}
+		if ex.simple then c[e] = 'enum '..e..' '..e else
+			local fs = {}
+			for i,f in ipairs(arg) do fs[i] = e..'_'..f end
+			fs = table.concat(fs, ',\n')
+			if ex.named then c[e] = 'enum '..e..' {\n'..fs..'\n}'
+			else c[e] = 'enum {\n'..fs..'\n} '..e end
+		end
+	end
+	function self:conv(c, e, v)
+		local bs = {}
+		for _,f in ipairs(arg) do if v[f] then table.insert(bs, e..'_'..f) end end
+		if #bs == 0 then c[e] = '0' else c[e] = table.concat(bs, ' | ') end
+	end
+end
 G.bound.flags_arg = {
 	realname = true,	-- The name of the bound C enum
 }

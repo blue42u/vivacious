@@ -148,6 +148,7 @@ if G.flags or G.flags_arg then function stdlib.flags(arg)
 	end
 	return newtype('flags', gcall('flags', ga),
 		{v = function(v)
+			v = v or {}
 			local o = setmetatable({}, {__index=v})
 			if type(v) == 'string' then
 				for c in string.gmatch(v, '.') do
