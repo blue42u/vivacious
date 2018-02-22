@@ -260,9 +260,9 @@ function G.default:behavior(arg)
 		local impms = {}
 		for _,em in ipairs(es) do if em[1] == 'm' then
 			em[3]'def'(ms, em[2])
-			c[em[2]] = '#define vV'..em[2]..'(_S, ...) ({ '
-				..'__typeof__ (_S) _s = (_S); '
-				..'_s->_M->'..em[2]..'(_s, __VA_ARGS__); })'
+			c[em[2]] = '#define vV'..em[2]..'(...) ({ '
+				..'__typeof__ (VvMAGIC_FIRST(__VA_ARGS__)) _s = (VvMAGIC_FIRST(__VA_ARGS__)); '
+				..'_s->_M->'..em[2]..'(__VA_ARGS__); })'
 
 			local m = em[3]'def'('~')[1]:gsub('%(%*~%)', e..'_'..em[2])
 			c[em[2]..'_'..e..'_imp'] = '#define '..e..'_'..em[2]..'_IMP '..m..' { '
@@ -342,9 +342,11 @@ function G.bound:behavior(arg)
 		local ms = newcontext()
 		for _,em in ipairs(es) do if em[1] == 'm' then
 			em[3]'def'(ms, em[2])
-			c[em[2]] = '#define vV'..em[2]..'(_S, ...) ({ '
-				..'__typeof__ (_S) _s = (_S); '
-				..'_s->_M->'..em[2]..'('..(em[2]=='destroy' and '_s' or du)..', __VA_ARGS__); })'
+			c[em[2]] = '#define vV'..em[2]..'(...) ({ '
+				..'__typeof__ (VvMAGIC_FIRST(__VA_ARGS__)) _s = (VvMAGIC_FIRST(__VA_ARGS__)); '
+				..'_s->_M->'..em[2]..'('
+					..(em[2]=='destroy' and '__VA_ARGS__' or du..' VvMAGIC_REST(__VA_ARGS__)')
+				..'); })'
 			if arg.consts and arg.consts[em[2]] then
 				local cn,as = table.unpack(arg.consts[em[2]])
 				c[em[2]..'_const'] = '#ifndef '..cn..'\n'
