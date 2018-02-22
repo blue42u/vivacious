@@ -163,7 +163,7 @@ function G.default:callable(arg)
 			args['*ret'..ri] = rets[i]:gsub('~', '*ret'..ri)
 		end
 		if ex.asarg then std.default.generic'def'(c, e..'_udata') end
-		c[e] = rets[1]:gsub('~', '(*'..e..')('..args', '..')')
+		c[e] = rets[#rets]:gsub('~', '(*'..e..')('..args', '..')')
 	end
 	self.conv = error
 end
@@ -217,9 +217,9 @@ function G.default:reference(n, t, cp)
 		if t then
 			cp[n] = 'typedef '..t'def'(tn, {simple=true})[1]..';'
 			cp[n..'_real'] = t'def'(tn, {named=true})[1]..';'
-			cp[n..'_magic'] = '#define '..tn..'_V(...) ({ '
+			cp[n..'_magic'] = '#define '..tn..'_V(...) ('..tn..'[]){({ '
 				..tn..' _x = '..t'conv'(tn)[1]..'; '
-				..'VvMAGIC(__VA_ARGS__); _x; })'
+				..'VvMAGIC(__VA_ARGS__); _x; })}[0]'
 		end
 	end
 	function self:def_recursive(c, e, ex)
@@ -236,9 +236,9 @@ function G.bound:reference(n, t, cp, ex)
 	function self:def(c, e)
 		e = e or d
 		if t then
-			cp[n] = '#define '..n..'_V(...) ({ '
+			cp[n] = '#define '..n..'_V(...) ('..n..'[]){({ '
 				..t'def'('_x')[1]..' = '..t'conv'(n)[1]..'; '
-				..'VvMAGIC(__VA_ARGS__); _x; })'
+				..'VvMAGIC(__VA_ARGS__); _x; })}[0]'
 			c[e] = t'def'(e)[1]
 		else c[e] = 'Vv'..n..' '..e end
 	end
@@ -253,17 +253,25 @@ function G.default:behavior(arg)
 			..'\n\t'..arg.doc:gsub('\n', '\n\t')
 			..'\n*/'
 
-		c[e..'_typedef'] = 'typedef struct '..e..'* '..e..';'
+		c[e..'_typedef']  = 'typedef struct '..e..'_P* '..e..';'
+		c[e..'_typedef2'] = 'typedef struct '..e..'* '..e..'_R;'
 		table.insert(es, 1, {'m', 'destroy', std.default.callable{{'self', self}}})
 		local ms = newcontext()
+		local impms = {}
 		for _,em in ipairs(es) do if em[1] == 'm' then
 			em[3]'def'(ms, em[2])
 			c[em[2]] = '#define vV'..em[2]..'(_S, ...) ({ '
 				..'__typeof__ (_S) _s = (_S); '
 				..'_s->_M->'..em[2]..'(_s, __VA_ARGS__); })'
+
+			local m = em[3]'def'('~')[1]:gsub('%(%*~%)', e..'_'..em[2])
+			c[em[2]..'_'..e..'_imp'] = '#define '..e..'_'..em[2]..'_IMP '..m..' { '
+				..e..'_R self_R = ('..e..'_R)self;'
+			table.insert(impms, '.'..em[2]..' = '..e..'_'..em[2]..',')
 		end end
-		ms = ms('', function(s)
-			return '\t\t'..s:gsub('\n', '\n\t\t')..';\n' end)
+		ms = ms('', function(s) return '\t\t'..s:gsub('\n', '\n\t\t')..';\n' end)
+		c[e..'_imp'] = '#define '..e..'_IMP '
+			..'struct '..e..'_M '..e..'_IMPM = {'..table.concat(impms)..'};'
 
 		local ds = newcontext()
 		for _,ed in ipairs(es) do if ed[1] == 'rw' then
@@ -275,12 +283,11 @@ function G.default:behavior(arg)
 		ds = ds('', function(s)
 			return '\t'..s:gsub('\n', '\n\t')..';\n' end)
 
-		c[e] = 'struct '..e..' {\n'
+		c[e] = 'struct '..e..'_P {\n'
 			..'\tconst struct '..e..'_M {\n'
 			..ms
 			..'\t} * _M;\n'
 			..ds
-			..'\tstruct '..e..'_I* _I;\n'
 			..'};'
 
 		if not arg.issub then
@@ -310,7 +317,8 @@ function G.bound:behavior(arg)
 			..'\n\t'..arg.doc:gsub('\n', '\n\t')
 			..'\n*/'
 
-		c[e..'_typedef'] = 'typedef struct '..e..'* '..e..';'
+		c[e..'_typedef']  = 'typedef struct '..e..'_P* '..e..';'
+		c[e..'_typedef2'] = 'typedef struct '..e..'* '..e..'_R;'
 
 		-- Data is silently ignored.
 
@@ -349,13 +357,12 @@ function G.bound:behavior(arg)
 		local ws = ''
 		if arg.wrapperfor then ws = '\t'..arg.wrapperfor..' real;\n' end
 
-		c[e] = 'struct '..e..' {\n'
+		c[e] = 'struct '..e..'_P {\n'
 			..ws
 			..'\tconst struct '..e..'_M {\n'
 			..ms
 			..'\t} * _M;\n'
 			..ds
-			..'\tstruct '..e..'_I* _I;\n'
 			..'};'
 
 		c[e..'_c'] = da'def'('~')[1]:gsub('%(%*~%)',

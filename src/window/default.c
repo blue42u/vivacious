@@ -14,12 +14,12 @@
    limitations under the License.
 ***************************************************************************/
 
-#include <libvivacious.h>
+#include <vivacious/vivacious.h>
 #include "internal.h"
 
 #ifdef Vv_ENABLE_X
 VvWindowManager libVv_createWindowManager_X();
-#endif // Vv_ENABLE_X
+#endif
 
 VvAPI VvWindowManager vVcreateWindowManager() {
 	// For now, just use X

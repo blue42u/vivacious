@@ -19,7 +19,7 @@ f:write[[
 local maxmagic = 100
 for i=2,maxmagic do
 	f:write('#define VvMAGIC_FA_'..i..'(what, x, ...) what(x); '
-		..'VvMAGIC_FA_'..(i-1)..'(__VA_ARGS__)\n')
+		..'VvMAGIC_FA_'..(i-1)..'(what, x, __VA_ARGS__)\n')
 end
 f:write'#define VvMAGIC_NA(...) VvMAGIC_AN(__VA_ARGS__'
 for i=maxmagic,0,-1 do f:write(','..i) end
