@@ -4,8 +4,8 @@ set(SRC
 	window/xcb.c
 	window/default.c
 	vulkan/default.c
-	vkbplate/test.c
-	vkbplate/default.c
+	vkinitializer/test.c
+	vkinitializer/default.c
 	vkmemory/test.c
 	vkmemory/default.c
 	vkpipeline/test.c

@@ -180,9 +180,9 @@ static VvWindowManagerWindow_createVkSurface_IMP
 		return NULL;
 	}
 	VkSurfaceKHR surf;
-	*ret1 = vVvkCreateXcbSurfaceKHR(instance, &VkXcbSurfaceCreateInfoKHR_V(
-		.connection = WM->conn, .window = self->id,
-	), NULL, &surf);
+	*ret1 = vVvkCreateXcbSurfaceKHR(instance, (&VkXcbSurfaceCreateInfoKHR_V(
+		.connection = WM->conn, .window = self_R->id,
+	)), NULL, &surf);
 	if(*ret1 < 0) return NULL;
 	else return vVwrapVkSurfaceKHR(surf, instance);
 }

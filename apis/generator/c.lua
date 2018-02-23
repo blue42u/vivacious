@@ -342,11 +342,14 @@ function G.bound:behavior(arg)
 		local ms = newcontext()
 		for _,em in ipairs(es) do if em[1] == 'm' then
 			em[3]'def'(ms, em[2])
+			local args
+			if em[2] == 'destroy' then args = '__VA_ARGS__'
+			elseif arg.wrapperfor then args = du..', VvMAGIC_REST(__VA_ARGS__)'
+			else args = 'VvMAGIC_REST(__VA_ARGS__)' end
+
 			c[em[2]] = '#define vV'..em[2]..'(...) ({ '
 				..'__typeof__ (VvMAGIC_FIRST(__VA_ARGS__)) _s = (VvMAGIC_FIRST(__VA_ARGS__)); '
-				..'_s->_M->'..em[2]..'('
-					..(em[2]=='destroy' and '__VA_ARGS__' or du..' VvMAGIC_REST(__VA_ARGS__)')
-				..'); })'
+				..'_s->_M->'..em[2]..'('..args..'); })'
 			if arg.consts and arg.consts[em[2]] then
 				local cn,as = table.unpack(arg.consts[em[2]])
 				c[em[2]..'_const'] = '#ifndef '..cn..'\n'
