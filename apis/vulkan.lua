@@ -83,19 +83,19 @@ local enumfixes = {
 	VkCommandPoolTrimFlagsKHR = 0,
 	VkDescriptorPoolCreateFlags = {'VK_DESCRIPTOR_POOL_CREATE_', '_BIT'},
 	VkDescriptorPoolResetFlags = 0,
-	VkDescriptorSetLayoutCreateFlags = {'VK_DESCRIPTOR_SET_LAYOUT_CREATE_', '_BIT_KHR'},
+	VkDescriptorSetLayoutCreateFlags = {'VK_DESCRIPTOR_SET_LAYOUT_CREATE_', '_BIT'},
 	VkDescriptorUpdateTemplateCreateFlagsKHR = 0,
 	VkDeviceCreateFlagBits = 0,
 	VkDeviceCreateFlags = 0,
-	VkDeviceEventTypeEXT = {'VK_DEVICE_EVENT_TYPE_', '_EXT'},
+	VkDeviceEventTypeEXT = {'VK_DEVICE_EVENT_TYPE_', ''},
 	VkDeviceQueueCreateFlagBits = 0,
 	VkDeviceQueueCreateFlags = 0,
-	VkDisplayEventTypeEXT = {'VK_DISPLAY_EVENT_TYPE_', '_EXT'},
+	VkDisplayEventTypeEXT = {'VK_DISPLAY_EVENT_TYPE_', ''},
 	VkDisplayModeCreateFlagsKHR = 0,
 	VkDisplaySurfaceCreateFlagsKHR = 0,
 	VkEventCreateFlags = 0,
 	VkFenceCreateFlags = {'VK_FENCE_CREATE_', '_BIT'},
-	VkFenceImportFlagsKHR = {'VK_FENCE_IMPORT_', '_BIT_KHR'},
+	VkFenceImportFlagsKHR = {'VK_FENCE_IMPORT_', '_BIT'},
 	VkFramebufferCreateFlagBits = 0,
 	VkFramebufferCreateFlags = 0,
 	VkImageViewCreateFlags = 0,
@@ -104,7 +104,7 @@ local enumfixes = {
 	VkInternalAllocationType = {'VK_INTERNAL_ALLOCATION_TYPE_', ''},
 	VkIOSSurfaceCreateFlagsMVK = 0,
 	VkMacOSSurfaceCreateFlagsMVK = 0,
-	VkMemoryAllocateFlagsKHX = {'VK_MEMORY_ALLOCATE_', '_BIT_KHX'},
+	VkMemoryAllocateFlagsKHX = {'VK_MEMORY_ALLOCATE_', '_BIT'},
 	VkMemoryMapFlags = 0,
 	VkMirSurfaceCreateFlagsKHR = 0,
 	VkPipelineCacheCreateFlagBits = 0,
@@ -144,13 +144,13 @@ local enumfixes = {
 	VkSamplerCreateFlagBits = 0,
 	VkSamplerCreateFlags = 0,
 	VkSemaphoreCreateFlags = 0,
-	VkSemaphoreImportFlagsKHR = {'VK_SEMAPHORE_IMPORT_', '_BIT_KHR'},
+	VkSemaphoreImportFlagsKHR = {'VK_SEMAPHORE_IMPORT_', '_BIT'},
 	VkShaderModuleCreateFlags = 0,
 	VkSparseMemoryBindFlags = {'VK_SPARSE_MEMORY_BIND_', '_BIT'},
-	VkSurfaceCounterFlagsEXT = {'VK_SURFACE_COUNTER_', '_EXT'},
-	VkSwapchainCreateFlagsKHR = {'VK_SWAPCHAIN_CREATE_', '_BIT_KHX'},
+	VkSurfaceCounterFlagsEXT = {'VK_SURFACE_COUNTER_', ''},
+	VkSwapchainCreateFlagsKHR = {'VK_SWAPCHAIN_CREATE_', '_BIT'},
 	VkValidationCacheCreateFlagsEXT = 0,
-	VkValidationCacheHeaderVersionEXT = {'VK_VALIDATION_CACHE_HEADER_VERSION_', '_EXT'},
+	VkValidationCacheHeaderVersionEXT = {'VK_VALIDATION_CACHE_HEADER_VERSION_', ''},
 	VkViSurfaceCreateFlagsNN = 0,
 	VkWaylandSurfaceCreateFlagsKHR = 0,
 	VkWin32SurfaceCreateFlagsKHR = 0,
@@ -168,66 +168,59 @@ for n,t in pairs(Vk.types) do
 		local vn = n:match 'Vk(.+)'
 		vk[vn] = {__raw=n, __name=n}
 
-		local vals = {}
-		for rn in pairs(t.values) do table.insert(vals, rn) end
+		local vals,rvals = {},{}
+		for rn in pairs(t.values) do
+			table.insert(rvals, rn)
+			for v in pairs(Vk.vids) do rn = rn:gsub('_'..v..'$', '') end
+			table.insert(vals, (rn:gsub('_BIT$', '')))
+		end
 
-		local prel,postl
+		local pre
 		if #vals <= 1 then
 			local ef = enumfixes[n]
 			if ef then
 				if #vals == 0 then
 					assert(ef == 0, "Outdated 'fixes override for "..n..", has no examples!")
-					prel,postl = 0,0
+					pre = ''
 				else
 					assert(ef ~= 0, "Outdated 'fixes override for "..n..", now has an example!")
-					for _,rn in ipairs(vals) do
-						assert(rn:sub(1,#ef[1]) == ef[1],
-							"Outdated 'fixes override for "..n..", prefix does not match!")
-						assert(ef[2] == '' or rn:sub(-#ef[2]) == ef[2],
-							"Outdated 'fixes override for "..n..", postfix does not match!")
+					pre = ef[1]
+					assert(pre, "'fixes override for "..n.." is missing a 'fix!")
+					for _,v in ipairs(vals) do
+						assert(v:match('^'..pre),
+							"Outdated 'fixes override for "..n..", prefix does not match! ("..v.." ~= "..pre..")")
 					end
-					prel,postl = #ef[1], #ef[2]
 				end
 			else
 				if #vals == 0 then error("No examples for "..n)
 				else error("One example for "..n.." ("..vals[1]..")") end
 			end
 		else
-			-- Find the largest common prefix
-			prel = -1
-			repeat
-				prel = prel + 1
-				local all = true
-				local pre = vals[1]:sub(1, prel)
-				for _,rn in ipairs(vals) do
-					if rn:sub(1, prel) ~= pre then
-						all = false
-						break
-					end
-				end
-			until not all
+			-- Find the max-length val
+			local mlen = 0
+			for _,v in ipairs(vals) do mlen = math.max(mlen, #v) end
 
-			-- Find the largest common postfix
-			postl = -1
-			repeat
-				postl = postl + 1
-				local all = true
-				local post = vals[1]:sub(-postl)
-				for _,rn in ipairs(vals) do
-					if rn:sub(1, postl) ~= post then
-						all = false
+			-- Find the largest common prefix
+			for i=mlen,0,-1 do
+				pre = vals[1]:sub(1,i)
+				if pre:match '_$' then
+					for _,v in ipairs(vals) do if not v:match('^'..pre) then
+						pre = nil
 						break
-					end
-				end
-			until not all
+					end end
+					if pre then break end
+				else pre = nil end
+			end
+
+			pre = pre or ''
 		end
-		if postl == 0 then postl = nil else postl = postl+1 end
 
 		-- Replace the entries with the proper settings
-		for i,rn in ipairs(vals) do
-			local en = rn:sub(prel,postl):lower():gsub('^%a', string.upper)
-				:gsub('_%a', string.upper):gsub('_', '')
-			vals[i] = {name=en, raw=rn}
+		for i,v in ipairs(vals) do
+			local en = v:match('^'..pre..'(.+)$')
+			assert(en, "Bad 'fixes: "..pre.." for "..v)
+			en = en:lower():gsub('^%a', string.upper):gsub('%A%a', string.upper):gsub('_', '')
+			vals[i] = {name=en, raw=rvals[i]}
 		end
 
 		if t.category == 'enum' then
@@ -235,7 +228,7 @@ for n,t in pairs(Vk.types) do
 		else
 			vk[vn].__mask = vals
 			for _,e in ipairs(vals) do
-				e.flag = e.name:gsub('%u', ''):lower():gsub('^.', string.upper)
+				e.flag = e.name:gsub('%l', ''):lower():gsub('^.', string.upper)
 			end
 		end
 	end
