@@ -1,5 +1,5 @@
 --[========================================================================[
-   Copyright 2016-2017 Jonathon Anderson
+   Copyright 2016-2018 Jonathon Anderson
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -14,160 +14,140 @@
    limitations under the License.
 --]========================================================================]
 
-vk = require 'vulkan'
+local vk = require 'vulkan'
+local vki = {__index={}}
 
-VkInstanceCreator = {doc = [[
-	Collects requirements nessesary for the VkInstance, and will attempt to
-	create the Instance or fail.
-]], vk.Vk}
-local vic = VkInstanceCreator
+local arr = setmetatable({}, {
+	__call = function(t,k) return t[k] end,
+	__index = function(t,k)
+		t[k] = {__index={{name='__sequence', type=k}}}
+		return t[k]
+	end,
+})
 
-vic.type.Info = compound{
-	doc = [[
-		A bunch of restrictions on the Instance for the Creator. In particular:
-		- <extensions> and <layers> are absolutely required.
-		- <name> and <version> will overwrite any previously assigned values
-		  if not NULL or 0.
-		- <vkversion> is a lower bound on the Vulkan version.
+local iInfo = {__name = 'VkInstanceInfo',
+	__doc = [[
+		A set of restrictions that can be appended to an InstanceCreator.
 	]],
-	v0_1_1 = {
-		{'name', string, ''},
-		{'version', vk.Vk.version, 0},
-		{'vkversion', vk.Vk.version, 0},
-		{'extensions', array{string}, {}},
-		{'layers', array{string}, {}},
+	__index = {
+		'0.1.1',
+		{name='name', type='string',
+			doc="Name of the application, overwrites any previous value."},
+		{name='version', type=vk.version,
+			doc="Version of the application, overwrites any previous value."},
+		{name='extensions', type=arr'string', doc="Required Instance extensions."},
+		{name='layers', type=arr'string', doc="Required Instance layers."},
+		{name='vkversion', type=vk.version, doc="Compatible version of Vulkan."},
 	},
 }
 
-vic.v0_2_0.append = {
-	doc = [[
-		Append some more Info to the Creator. Returns an error code if one or
-		more of the requirements requested is impossible.
-
-		i.e. Check the extensions and layers here.
+vki.InstanceCreator = {__name = 'VkInstanceCreator',
+	Info = iInfo,
+	__doc = [[
+		Collects requirements on a future created VkInstance, and afterward attempt
+		to create an Instance that satisfies all these requirements.
 	]],
-	returns = {vk.Vk.Result}, {'info', vic.Info},
-}
-
-vic.v0_2_0.create = {
-	doc = [[
-		Create an Instance with the all the collected Info the Creator has
-		encountered so far. May still fail.
-	]],
-	returns = {vk.Instance, vk.Result},
-}
-
-vic.v0_2_0.reset = {
-	doc = [[
-		Resets all the internal data the Creator has gathered. Saves a
-		destroy/create pair.
-	]],
-}
-
-VkDeviceCreator = {doc = [[
-	Collects requirements nessesary for the VkDevice and VkPhysicalDevice, to
-	allow for smaller initializing codebases.
-]], vk.Vk.Instance}
-local vdc = VkDeviceCreator
-
-vdc.type.Task = compound{
-	doc = [[
-		Specification of a Task, which will be assigned a Queue.
-		- <family> indicates Tasks that need to be part of the same family;
-		  if non-zero (-1 for C), identical settings will share a family
-		  within the same call to `append`.
-		  After `create`, gives the Queue family index.
-		- <index>, after `create`, contains the assigned Queue index.
-		- <flags> are the Queue flags that must be active on the Queue.
-		- <priority> is the priority of the Queue.
-		- <presentable> indicates that this Queue must be able to present on
-		  the Surface given in the Info this Task is part of.
-	]],
-	{'family', index, 0},
-	{'index', index, 0},
-	{'flags', vk.Vk.QueueFlags, {}},
-	{'priority', number, 0.5},
-	{'presentable', boolean, false},
-}
-
-local pd = vk.PhysicalDevice
-vdc.type.Info = compound{
-	doc = [[
-		Restrictions on the Device and PhysicalDevice. In particular:
-		- <tasks> will be assigned a Queue to work on, the index of which is
-		  written into the structures themselves.
-		- <comparison> is used to choose between PhysicalDevices. Overwrites.
-		- <validator> is used to check if a PhysicalDevice is applicable. Ditto.
-		- <extensions> are required to be supported.
-		- <vkversion> is a lower bound on the Vulkan version.
-		- <surface> must be accessable by some Queue family, in particular by
-		  elements of <tasks> which have presentable set to true.
-		- <features> are required features of the PhysicalDevice.
-	]],
-	v0_1_1 = {
-		{'tasks', array{vdc.Task}, {}},
-		{'comparison', callable{returns={boolean}, {'a', pd}, {'b', pd}}},
-		{'validator', callable{returns={boolean}, {'pd', pd}}},
-		{'extensions', array{string}, {}},
-		{'vkversion', vk.Vk.version},
+	__index = {
+		'0.2.0',
+		{name='append', doc="Append the requirements specified in <info> to this Creator.",
+			type={__call={method=true,
+				{name='return', type=vk.Result},
+				{name='info', type=iInfo}
+			}},
+		},
+		{name='create', doc="Attempt to create an Instance that satisfies all the requirements.",
+			type={__call={method=true,
+				{name='return', type=vk.Instance, canbenil=true},
+				{name='return', type=vk.Result}
+			}},
+		},
+		{name='reset', type={__call={method=true}},
+			doc="Resets all the requirements in this Creator."},
 	},
-	v0_1_2 = {
-		{'surface', vk.Instance.SurfaceKHR},
-		{'features', vk.Vk.PhysicalDeviceFeatures, {}},
+}
+table.insert(vki.__index, {name='createVkInstanceCreator', version='0.1.0',
+	type={__call={method=true,
+		{name='return', type=vki.InstanceCreator, canbenil=true},
+		{name='return', type='string', canbenil=true},
+		{name='vulkan', type=vk.Vk}
+	}},
+})
+
+local dTask = {__name = 'VkDeviceTask',
+	__doc = [[
+		The specification of a task, which will be assigned a Queue on Device creation.
+	]],
+	__index = {
+		'0.1.1',
+		{name='family', type='index', ifnil=0,
+			doc="Tasks with the same <family> will share Queue families."},
+		{name='index', type='index', ifnil=0, readonly=true,
+			doc="Index of the Queue assigned to this task."},
+		{name='flags', type=vk.QueueFlags, ifnil='',
+			doc="Required flags for the assigned Queue."},
+		{name='priority', type='number', ifnil=0.5,
+			doc="Minimal priority of the Queue."},
+		'0.1.2',
+		{name='presentable', type='boolean', ifnil=false,
+			doc="Whether this Queue must be able to present."},
 	},
 }
 
-vdc.v0_2_0.append = {
-	doc = [[
-		Append some more Info to the Creator. Returns an error code if one or
-		more of the requirements requested is impossible.
-	]],
-	returns = {vk.Vk.Result}, {'info', vdc.Info},
+local dInfo = {__name = 'VkDeviceInfo',
+	__index = {
+		'0.1.1',
+		{name='tasks', type=arr(dTask), canbenil=true,
+			doc="Tasks that will be assigned Queues."},
+		{name='compare', type={__call={
+			{name='return', type='boolean'},
+			{name='a', type=vk.PhysicalDevice},
+			{name='b', type=vk.PhysicalDevice}}
+		}, canbenil=true, doc="Defines a preference-order on PhysicalDevices."},
+		{name='valid', type={__call={
+			{name='return', type='boolean'},
+			{name='pd', type=vk.PhysicalDevice}}
+		}, canbenil=true, doc="Defines a validator on PhysicalDevices"},
+		{name='extensions', type=arr'string', canbenil=true,
+			doc="Required Device-level extensions"},
+		'0.1.2',
+		{name='surface', type=vk.SurfaceKHR, canbenil=true,
+			doc="Surface that Tasks may require presentation capabilites for"},
+		{name='features', type='nil', canbenil=true,
+			doc="Features that must be enabled"},
+	},
 }
 
-vdc.v0_2_0.create = {
-	doc = [[
-		Create a Device with the all the collected Info the Creator has
-		encountered so far. May still fail.
+vki.DeviceCreator = {__name = 'VkDeviceCreator',
+	Task = dTask, Info = dInfo,
+	__doc = [[
+		Collects requirements for the Device and PhysicalDevice, and will attempt to
+		find and create ones that satisfy the requirements.
 	]],
-	returns = {vk.Device, vk.PhysicalDevice, vk.Result},
+	__index = {
+		'0.2.0',
+		{name='append', doc="Append new requirements to the Creator.",
+			type={__call={method=true,
+				{name='return', type=vk.Result},
+				{name='info', type=dInfo}
+			}},
+		},
+		{name='create', doc="Attempt to create a Device that satisfies the requirements.",
+			type={__call={method=true,
+				{name='return', type=vk.Device, canbenil=true},
+				{name='return', type=vk.PhysicalDevice, canbenil=true},
+				{name='return', type=vk.Result}
+			}},
+		},
+		{name='reset', type={__call={method=true}},
+			doc="Reset all the requirements appended to this Creator."},
+	},
 }
+table.insert(vki.__index, {name='createVkDeviceCreator', version='0.1.1',
+	type={__call={method=true,
+		{name='return', type=vki.InstanceCreator, canbenil=true},
+		{name='return', type='string', canbenil=true},
+		{name='vulkan', type=vk.Instance}
+	}},
+})
 
-vdc.v0_2_0.reset = {
-	doc = [[
-		Resets all the internal data the Creator has gathered. Saves a
-		destroy/create pair.
-	]],
-}
-
---[=[ To be converted at a later date, once its purpose is fully determined:
-vkb.api.v0_1_2.createSwapchain = std.func{
-	doc = [[
-		Create a Swapchain from a Surface.
-		<sci> will be modified before being used to create the
-		Swapchain, in the following ways:
-		- surface will be set to the new Surface.
-		- imageFormat is completly ignored, and instead a format is
-		  chosen which has a the properties given in <fprops>, and
-		  which uses the color space in imageColorSpace.
-		- If <windowExtent> is true, and the Surface has a
-		  currentExtent, then imageExtent is replaced with that value.
-		- preTransform is replaced with the composition of its original
-		  value with the Surface's currentTransform.
-		- compositeAlpha may be replaced if the given value is not
-		  available (or 0). Applications should check afterwards to
-		  change how they handle the alpha.
-		- presentMode will be replaced with an available value which
-		  cannot affect the application's execution, but may reduce
-		  tearing or increase performance (implementation decides).
-
-		The integer returned is the number of images in the created
-		Swapchain.
-	]],
-	returns = {vk.SwapchainKHR, vk.uint32, vk.Result, main=3},
-	vk.PhysicalDevice, vk.Device, vk.SurfaceKHR,
-	{vk.SwapchainCreateInfoKHR, 'sci'},
-	{std.boolean, 'windowExtent'},
-	{vk.FormatProperties, 'fprops'},
-}
---]=]
+return vki

@@ -1,5 +1,5 @@
 --[========================================================================[
-   Copyright 2016-2017 Jonathon Anderson
+   Copyright 2016-2018 Jonathon Anderson
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -14,115 +14,262 @@
    limitations under the License.
 --]========================================================================]
 
--- This spec uses the intricacies specified by the *bound varient
---!bound
-
 -- Load up the Vulkan registry data
-local vk = dofile 'external/vulkan.lua'
+local Vk = dofile '../external/vulkan.lua'
+local vk = {__index={}}
 
-local parent_overrides = {
-	VkInstance = 'Vk',
-	VkDisplayKHR = 'VkPhysicalDevice',
-	VkDisplayModeKHR = 'VkDisplayKHR',
+vk.Vk = {__name = 'Vk',
+	__doc = [[
+		Loader for the Vulkan loader, and manager of the Vulkan-vV object
+	]],
+	__directives = {'define VK_NO_PROTOTYPES', 'include <vulkan/vulkan.h>'},
+	__index = {},
 }
+table.insert(vk.__index, {name='createVk', version='0.0.0',
+	type={__call={method=true,
+		{name='return', type=vk.Vk, canbenil=true},
+		{name='return', type='string', canbenil=true},
+	}},
+})
 
-local cmdconsts = {}
-
-Vk = {doc = [[
-	Main Vulkan Behavior, which grants access to the Vulkan API.
-]],
-	directives = {'define VK_NO_PROTOTYPES', 'include <vulkan/vulkan.h>'},
-	prefix = 'Vk'}
-local vktypes = {Vk=Vk}
-local vkbs,vkbps = {},{}
 do
 	local handles = {}
-	for n,t in pairs(vk.types) do
-		if t.category == 'handle' then
-			-- We don't do multi-parenting
-			if t.parent and t.parent:find',' then t.parent = nil end
-			t.parent = parent_overrides[n] or t.parent
-			if t.parent == nil then error(n..' has no parent!') end
-			handles[n] = t
-		end
+	for n,t in pairs(Vk.types) do
+		if t.category == 'handle' then handles[n] = t end
 	end
 
 	repeat
 		local stuck = true
 		for n,t in pairs(handles) do
-			if vktypes[t.parent] then
-				if t.type == 'VK_DEFINE_NON_DISPATCHABLE_HANDLE' then
-					vktypes[t.parent][n:match'Vk(.*)'] = {wrapperfor = n,
-						doc = [[Wrapper for ]]..n, prefix='Vk', consts=cmdconsts}
-					vktypes[n] = vktypes[t.parent][n:match'Vk(.*)']
-					vkbps[n] = t.parent
-				elseif t.type == 'VK_DEFINE_HANDLE' then
-					_ENV[n:match'Vk(.*)'] = {vktypes[t.parent], wrapperfor = n,
-						doc = [[Wrapper for ]]..n, prefix='Vk', consts=cmdconsts}
-					vktypes[n] = _ENV[n:match'Vk(.*)']
-				else error() end
-				vkbs[n] = vktypes[n]
+			local go = true
+			if t.parent then for p in t.parent:gmatch('[^,]+') do
+				if not vk[p:match 'Vk(.+)'] then
+					go = false
+					break
+				end
+			end end
+			if go then
+				local vn = n:match'Vk(.*)'
+				vk[vn] = {__name=n,
+					__index = {
+						'0.0.0',
+						{name='real', type={__raw=n, __name='internal '..n}, readonly=true},
+					},
+				}
+				-- This isn't correct, but there's only one case so...
+				if t.parent then for p in t.parent:gmatch '[^,]+' do
+					local pn = p:match 'Vk(.+)'
+					table.insert(vk[vn].__index,
+						{name=pn:gsub('^.', string.lower), type=vk[pn], readonly=true})
+				end end
 				handles[n] = nil
 				stuck = false
 			end
 		end
 		if stuck then
 			for n,t in pairs(handles) do print('>>', n, t.parent) end
-			error()
+			error("Got stuck converting the handles!")
 		end
 	until not next(handles)
 end
 
-for n,t in pairs(vk.types) do
-	if t.category == 'enum' or t.category == 'bitmask' then
-		local vals = {realname=n}
+local enumfixes = {
+	VkAndroidSurfaceCreateFlagsKHR = 0,
+	VkAttachmentDescriptionFlags = {'VK_ATTACHMENT_DESCRIPTION_', '_BIT'},
+	VkBufferViewCreateFlagBits = 0,
+	VkBufferViewCreateFlags = 0,
+	VkCommandBufferResetFlags = {'VK_COMMAND_BUFFER_RESET_', '_BIT'},
+	VkCommandPoolResetFlags = {'VK_COMMAND_POOL_RESET_', '_BIT'},
+	VkCommandPoolTrimFlagsKHR = 0,
+	VkDescriptorPoolCreateFlags = {'VK_DESCRIPTOR_POOL_CREATE_', '_BIT'},
+	VkDescriptorPoolResetFlags = 0,
+	VkDescriptorSetLayoutCreateFlags = {'VK_DESCRIPTOR_SET_LAYOUT_CREATE_', '_BIT_KHR'},
+	VkDescriptorUpdateTemplateCreateFlagsKHR = 0,
+	VkDeviceCreateFlagBits = 0,
+	VkDeviceCreateFlags = 0,
+	VkDeviceEventTypeEXT = {'VK_DEVICE_EVENT_TYPE_', '_EXT'},
+	VkDeviceQueueCreateFlagBits = 0,
+	VkDeviceQueueCreateFlags = 0,
+	VkDisplayEventTypeEXT = {'VK_DISPLAY_EVENT_TYPE_', '_EXT'},
+	VkDisplayModeCreateFlagsKHR = 0,
+	VkDisplaySurfaceCreateFlagsKHR = 0,
+	VkEventCreateFlags = 0,
+	VkFenceCreateFlags = {'VK_FENCE_CREATE_', '_BIT'},
+	VkFenceImportFlagsKHR = {'VK_FENCE_IMPORT_', '_BIT_KHR'},
+	VkFramebufferCreateFlagBits = 0,
+	VkFramebufferCreateFlags = 0,
+	VkImageViewCreateFlags = 0,
+	VkInstanceCreateFlagBits = 0,
+	VkInstanceCreateFlags = 0,
+	VkInternalAllocationType = {'VK_INTERNAL_ALLOCATION_TYPE_', ''},
+	VkIOSSurfaceCreateFlagsMVK = 0,
+	VkMacOSSurfaceCreateFlagsMVK = 0,
+	VkMemoryAllocateFlagsKHX = {'VK_MEMORY_ALLOCATE_', '_BIT_KHX'},
+	VkMemoryMapFlags = 0,
+	VkMirSurfaceCreateFlagsKHR = 0,
+	VkPipelineCacheCreateFlagBits = 0,
+	VkPipelineCacheCreateFlags = 0,
+	VkPipelineCacheHeaderVersion = {'VK_PIPELINE_CACHE_HEADER_VERSION_', ''},
+	VkPipelineColorBlendStateCreateFlagBits = 0,
+	VkPipelineColorBlendStateCreateFlags = 0,
+	VkPipelineCoverageModulationStateCreateFlagsNV = 0,
+	VkPipelineCoverageToColorStateCreateFlagsNV = 0,
+	VkPipelineDepthStencilStateCreateFlagBits = 0,
+	VkPipelineDepthStencilStateCreateFlags = 0,
+	VkPipelineDiscardRectangleStateCreateFlagsEXT = 0,
+	VkPipelineDynamicStateCreateFlagBits = 0,
+	VkPipelineDynamicStateCreateFlags = 0,
+	VkPipelineInputAssemblyStateCreateFlagBits = 0,
+	VkPipelineInputAssemblyStateCreateFlags = 0,
+	VkPipelineLayoutCreateFlagBits = 0,
+	VkPipelineLayoutCreateFlags = 0,
+	VkPipelineMultisampleStateCreateFlagBits = 0,
+	VkPipelineMultisampleStateCreateFlags = 0,
+	VkPipelineRasterizationStateCreateFlagBits = 0,
+	VkPipelineRasterizationStateCreateFlags = 0,
+	VkPipelineShaderStageCreateFlagBits = 0,
+	VkPipelineShaderStageCreateFlags = 0,
+	VkPipelineTessellationStateCreateFlagBits = 0,
+	VkPipelineTessellationStateCreateFlags = 0,
+	VkPipelineVertexInputStateCreateFlagBits = 0,
+	VkPipelineVertexInputStateCreateFlags = 0,
+	VkPipelineViewportStateCreateFlagBits = 0,
+	VkPipelineViewportStateCreateFlags = 0,
+	VkPipelineViewportSwizzleStateCreateFlagsNV = 0,
+	VkQueryControlFlags = {'VK_QUERY_CONTROL_', '_BIT'},
+	VkQueryPoolCreateFlagBits = 0,
+	VkQueryPoolCreateFlags = 0,
+	VkRenderPassCreateFlagBits = 0,
+	VkRenderPassCreateFlags = 0,
+	VkSamplerCreateFlagBits = 0,
+	VkSamplerCreateFlags = 0,
+	VkSemaphoreCreateFlags = 0,
+	VkSemaphoreImportFlagsKHR = {'VK_SEMAPHORE_IMPORT_', '_BIT_KHR'},
+	VkShaderModuleCreateFlags = 0,
+	VkSparseMemoryBindFlags = {'VK_SPARSE_MEMORY_BIND_', '_BIT'},
+	VkSurfaceCounterFlagsEXT = {'VK_SURFACE_COUNTER_', '_EXT'},
+	VkSwapchainCreateFlagsKHR = {'VK_SWAPCHAIN_CREATE_', '_BIT_KHX'},
+	VkValidationCacheCreateFlagsEXT = 0,
+	VkValidationCacheHeaderVersionEXT = {'VK_VALIDATION_CACHE_HEADER_VERSION_', '_EXT'},
+	VkViSurfaceCreateFlagsNN = 0,
+	VkWaylandSurfaceCreateFlagsKHR = 0,
+	VkWin32SurfaceCreateFlagsKHR = 0,
+	VkXcbSurfaceCreateFlagsKHR = 0,
+	VkXlibSurfaceCreateFlagsKHR = 0,
+}
+
+local required = {}
+for _,t in pairs(Vk.types) do
+	if t.requires then required[t.requires] = true end
+end
+
+for n,t in pairs(Vk.types) do
+	if not required[n] and (t.category == 'enum' or t.category == 'bitmask') then
+		local vn = n:match 'Vk(.+)'
+		vk[vn] = {__raw=n, __name=n}
+
+		local vals = {}
 		for rn in pairs(t.values) do table.insert(vals, rn) end
-		if t.category == 'enum' then
-			if #vals > 0 then
-				vals.default = next(t.values)
-				Vk.type[n:match'Vk(.*)'] = options(vals)
-				vktypes[n] = Vk[n:match'Vk(.*)']
+
+		local prel,postl
+		if #vals <= 1 then
+			local ef = enumfixes[n]
+			if ef then
+				if #vals == 0 then
+					assert(ef == 0, "Outdated 'fixes override for "..n..", has no examples!")
+					prel,postl = 0,0
+				else
+					assert(ef ~= 0, "Outdated 'fixes override for "..n..", now has an example!")
+					for _,rn in ipairs(vals) do
+						assert(rn:sub(1,#ef[1]) == ef[1],
+							"Outdated 'fixes override for "..n..", prefix does not match!")
+						assert(ef[2] == '' or rn:sub(-#ef[2]) == ef[2],
+							"Outdated 'fixes override for "..n..", postfix does not match!")
+					end
+					prel,postl = #ef[1], #ef[2]
+				end
+			else
+				if #vals == 0 then error("No examples for "..n)
+				else error("One example for "..n.." ("..vals[1]..")") end
 			end
 		else
-			Vk.type[n:match'Vk(.*)'] = flags(vals)
-			vktypes[n] = Vk[n:match'Vk(.*)']
-			if t.requires and #vals > 0 then
-				vals.default = next(t.values)
-				Vk.type[t.requires:match'Vk(.*)'] = options(vals)
-				vktypes[t.requires] = Vk[t.requires:match'Vk(.*)']
+			-- Find the largest common prefix
+			prel = -1
+			repeat
+				prel = prel + 1
+				local all = true
+				local pre = vals[1]:sub(1, prel)
+				for _,rn in ipairs(vals) do
+					if rn:sub(1, prel) ~= pre then
+						all = false
+						break
+					end
+				end
+			until not all
+
+			-- Find the largest common postfix
+			postl = -1
+			repeat
+				postl = postl + 1
+				local all = true
+				local post = vals[1]:sub(-postl)
+				for _,rn in ipairs(vals) do
+					if rn:sub(1, postl) ~= post then
+						all = false
+						break
+					end
+				end
+			until not all
+		end
+		if postl == 0 then postl = nil else postl = postl+1 end
+
+		-- Replace the entries with the proper settings
+		for i,rn in ipairs(vals) do
+			local en = rn:sub(prel,postl):lower():gsub('^%a', string.upper)
+				:gsub('_%a', string.upper):gsub('_', '')
+			vals[i] = {name=en, raw=rn}
+		end
+
+		if t.category == 'enum' then
+			vk[vn].__enum = vals
+		else
+			vk[vn].__mask = vals
+			for _,e in ipairs(vals) do
+				e.flag = e.name:gsub('%u', ''):lower():gsub('^.', string.upper)
 			end
 		end
 	end
 end
 
-Vk.type.version = raw{
-	realname = 'uint32_t',
-	conversion = function(v)
-		if type(v) == 'number' then return ('%u'):format(v)
-		elseif type(v) == 'string' then
-			return ('VK_MAKE_VERSION(%u,%u,%u)'):format(
-				v:match'(%d+)%.(%d+)%.(%d+)')
-		elseif type(v) == 'table' then
-			return ('VK_MAKE_VERSION(%u,%u,%u)'):format(
-				v.M or v[1], v.m or v[2], v.p or v[3])
-		elseif type(v) == 'nil' then return '0'
-		else error('Non-version conversion: '..tostring(v)) end
-	end
+vk.version = {
+	__name = "'M.m.p'",
+	__raw = 'uint32_t',
+	__format = 'VK_MAKE_VERSION(%u,%u,%u)',
+	__frommatch = '^(%d+)%.(%d+)%.(%d+)$',
+	__fromtable = {'M', 'm', 'p'},
+	__fromnil = {0, 0, 0},
 }
 
-vktypes.void = generic
-vktypes.VkBool32 = boolean
+return vk
 
-vktypes.uint64_t = unsigned
-vktypes.uint32_t = unsigned
-vktypes.uint8_t = unsigned
-vktypes.int = integer
-vktypes.int32_t = integer
-vktypes.float = number
-vktypes.size_t = raw{realname='size_t', conversion='%u'}
-vktypes.VkDeviceSize = raw{realname='VkDeviceSize', conversion='%u'}
+--[=[
 
-vktypes.string = string
+local rawtypes = {}
+rawtypes.voidptr = 'lightuserdata'
+rawtypes.VkBool32 = 'boolean'
+
+rawtypes.uint64_t = 'integer'
+rawtypes.uint32_t = 'integer'
+rawtypes.uint8_t = 'integer'
+rawtypes.int = 'integer'
+rawtypes.int32_t = 'integer'
+rawtypes.float = 'number'
+rawtypes.size_t = 'integer'
+rawtypes.VkDeviceSize = 'integer'
+
+rawtypes.string = 'string'
+
+rawtypes.vksamplemask = {__raw='VkSampleMask*'}
 
 vktypes.vksamplemask = flexmask{
 	raw{realname='VkSampleMask'},
@@ -291,3 +438,4 @@ do
 		end
 	end
 end
+]=]

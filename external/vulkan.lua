@@ -1,5 +1,5 @@
 --[========================================================================[
-   Copyright 2016-2017 Jonathon Anderson
+   Copyright 2016-2018 Jonathon Anderson
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
    limitations under the License.
 --]========================================================================]
 
-local relpath = 'external/'
+local relpath = '../external/'
 
 local oldpath = package.path
 package.path = package.path .. ';' .. relpath .. '?.lua'
@@ -61,7 +61,10 @@ for _,ts in cpairs(dom.root, {name='types'}) do
 
 			o.values, o.exts = {},{}
 			local hard = {
-				['~0U'] = 2^32-1, ['~0ULL'] = 2^64-1, ['~0U-1'] = 2^32-2,
+				['~0U'] = 0xffffffff,	-- Assuming int is 32 bits wide
+				['~0U-1'] = 0xffffffff-1,
+				['~0U-2'] = 0xffffffff-2,
+				['~0ULL'] = 0xffffffffffffffff,	-- Since long long is 64 bits wide
 			}
 
 			if nam then
