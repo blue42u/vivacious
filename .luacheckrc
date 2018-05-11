@@ -2,6 +2,7 @@ std = 'lua53'
 ignore = {'212', '432'}
 files['.luacheckrc'].global = false
 
+--[[
 stds.stdlib = {read_globals = {'newcontext', 'newtype', 'std'}}
 stds.stdlib_w = {globals = {'newcontext', 'newtype'}}
 stds.stdlib_g = {read_globals = {
@@ -19,3 +20,4 @@ files['apis/*.lua'] = {
 files['apis/vulkan.lua'].std = '+cbound'
 
 files['src/vulkan/libdl.lua'].std = '+stdlib'
+]]

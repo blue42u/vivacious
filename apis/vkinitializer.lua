@@ -14,16 +14,10 @@
    limitations under the License.
 --]========================================================================]
 
+-- luacheck: globals array method callable
+require 'core.common'
 local vk = require 'vulkan'
 local vki = {__index={}}
-
-local arr = setmetatable({}, {
-	__call = function(t,k) return t[k] end,
-	__index = function(t,k)
-		t[k] = {__index={{name='__sequence', type=k}}}
-		return t[k]
-	end,
-})
 
 local iInfo = {__name = 'VkInstanceInfo',
 	__doc = [[
@@ -35,8 +29,8 @@ local iInfo = {__name = 'VkInstanceInfo',
 			doc="Name of the application, overwrites any previous value."},
 		{name='version', type=vk.version,
 			doc="Version of the application, overwrites any previous value."},
-		{name='extensions', type=arr'string', doc="Required Instance extensions."},
-		{name='layers', type=arr'string', doc="Required Instance layers."},
+		{name='extensions', type=array.string, doc="Required Instance extensions."},
+		{name='layers', type=array.string, doc="Required Instance layers."},
 		{name='vkversion', type=vk.version, doc="Compatible version of Vulkan."},
 	},
 }
@@ -49,28 +43,21 @@ vki.InstanceCreator = {__name = 'VkInstanceCreator',
 	]],
 	__index = {
 		'0.2.0',
-		{name='append', doc="Append the requirements specified in <info> to this Creator.",
-			type={__call={method=true,
-				{name='return', type=vk.Result},
-				{name='info', type=iInfo}
-			}},
+		method{'append', "Append the requirements specified in <info> to this Creator.",
+			{'return', vk.Result},
+			{'info', iInfo}
 		},
-		{name='create', doc="Attempt to create an Instance that satisfies all the requirements.",
-			type={__call={method=true,
-				{name='return', type=vk.Instance, canbenil=true},
-				{name='return', type=vk.Result}
-			}},
+		method{'create', "Attempt to create an Instance that satisfies all the requirements.",
+			{'return', vk.Instance, canbenil=true},
+			{'return', vk.Result}
 		},
-		{name='reset', type={__call={method=true}},
-			doc="Resets all the requirements in this Creator."},
+		method{'reset', "Resets all the requirements in this Creator."},
 	},
 }
-table.insert(vki.__index, {name='createVkInstanceCreator', version='0.1.0',
-	type={__call={method=true,
-		{name='return', type=vki.InstanceCreator, canbenil=true},
-		{name='return', type='string', canbenil=true},
-		{name='vulkan', type=vk.Vk}
-	}},
+table.insert(vki.__index, callable{'createVkInstanceCreator', version='0.1.0',
+	{'return', vki.InstanceCreator, canbenil=true},
+	{'return', 'string', canbenil=true},
+	{'vulkan', vk.Vk}
 })
 
 local dTask = {__name = 'VkDeviceTask',
@@ -96,18 +83,20 @@ local dTask = {__name = 'VkDeviceTask',
 local dInfo = {__name = 'VkDeviceInfo',
 	__index = {
 		'0.1.1',
-		{name='tasks', type=arr(dTask), canbenil=true,
+		{name='tasks', type=array[dTask], canbenil=true,
 			doc="Tasks that will be assigned Queues."},
-		{name='compare', type={__call={
-			{name='return', type='boolean'},
-			{name='a', type=vk.PhysicalDevice},
-			{name='b', type=vk.PhysicalDevice}}
-		}, canbenil=true, doc="Defines a preference-order on PhysicalDevices."},
-		{name='valid', type={__call={
-			{name='return', type='boolean'},
-			{name='pd', type=vk.PhysicalDevice}}
-		}, canbenil=true, doc="Defines a validator on PhysicalDevices"},
-		{name='extensions', type=arr'string', canbenil=true,
+		callable{'compare', "Defines a preference-order on PhysicalDevices.",
+			{'return', 'boolean'},
+			{'a', vk.PhysicalDevice},
+			{'b', vk.PhysicalDevice},
+			canbenil=true
+		},
+		callable{'valid', "Defines a validator on PhysicalDevices",
+			{'return', 'boolean'},
+			{'pd', vk.PhysicalDevice},
+			canbenil=true
+		},
+		{name='extensions', type=array.string, canbenil=true,
 			doc="Required Device-level extensions"},
 		'0.1.2',
 		{name='surface', type=vk.SurfaceKHR, canbenil=true,
@@ -125,29 +114,22 @@ vki.DeviceCreator = {__name = 'VkDeviceCreator',
 	]],
 	__index = {
 		'0.2.0',
-		{name='append', doc="Append new requirements to the Creator.",
-			type={__call={method=true,
-				{name='return', type=vk.Result},
-				{name='info', type=dInfo}
-			}},
+		method{'append', "Append new requirements to the Creator.",
+			{'return', vk.Result},
+			{'info', dInfo}
 		},
-		{name='create', doc="Attempt to create a Device that satisfies the requirements.",
-			type={__call={method=true,
-				{name='return', type=vk.Device, canbenil=true},
-				{name='return', type=vk.PhysicalDevice, canbenil=true},
-				{name='return', type=vk.Result}
-			}},
+		method{'create', "Attempt to create a Device that satisfies the requirements.",
+			{'return', vk.Device, canbenil=true},
+			{'return', vk.PhysicalDevice, canbenil=true},
+			{'return', vk.Result}
 		},
-		{name='reset', type={__call={method=true}},
-			doc="Reset all the requirements appended to this Creator."},
+		method{'reset', "Reset all the requirements appended to this Creator."},
 	},
 }
-table.insert(vki.__index, {name='createVkDeviceCreator', version='0.1.1',
-	type={__call={method=true,
-		{name='return', type=vki.InstanceCreator, canbenil=true},
-		{name='return', type='string', canbenil=true},
-		{name='vulkan', type=vk.Instance}
-	}},
+table.insert(vki.__index, callable{'createVkDeviceCreator', version='0.1.1',
+	{'return', vki.DeviceCreator, canbenil=true},
+	{'return', 'string', canbenil=true},
+	{'instance', vk.Instance}
 })
 
 return vki
