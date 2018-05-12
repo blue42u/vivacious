@@ -24,31 +24,11 @@ gen.traversal = {}
 -- the key, which may be a function that is called after the sub-tree is fully
 -- completed.
 
-local function handle(ty, handler, next, post)
-	local h,ord = {},{}
-	setmetatable(h, {__newindex=function(t,k,v)
-		rawset(t, k, v)
-		ord[#ord+1],ord[k] = k,#ord+1
-	end})
-	local hp,hpp = handler(ty, h)
-
-	local keys = {}
-	for k in pairs(ty) do keys[#keys+1] = k end
-	table.sort(keys, function(a,b) return (ord[a] or math.huge) < (ord[b] or math.huge) end)
-	for _,k in ipairs(keys) do
-		local v = ty[k]
-		if h[k] then
-			if type(h[k]) == 'function' then
-				local p = h[k](v)
-				if type(p) == 'function' then table.insert(post, p) end
-			end
-		else
-			assert(not k:match '^__', "Unhandled special "..k)
-			table.insert(next, v)
-		end
-	end
-	if hp then hp() end
-	if hpp then table.insert(post, hpp) end
+local function handle(ty, handler, next)
+	local co = coroutine.create(handler)
+	assert(coroutine.resume(co, ty))
+	for k in pairs(ty) do if not k:match '^__' then table.insert(next, k) end end
+	return co, next
 end
 
 -- Basic depth-first traversal, designed for traversing the type-tree.
@@ -56,10 +36,10 @@ function gen.traversal.df(start, handler)
 	local done = {}
 	local function trav(ty)
 		if done[ty] then return else done[ty] = true end
-		local next, post = {},{}
-		handle(ty, handler, next, post)
-		for _,n in ipairs(next) do trav(n) end
-		for _,p in ipairs(post) do p() end
+		local co,next = handle(ty, handler, {})
+		table.sort(next)
+		for _,k in ipairs(next) do trav(ty[k]) end
+		if coroutine.status(co) == 'suspended' then assert(coroutine.resume(co)) end
 	end
 	trav(start)
 end

@@ -17,10 +17,11 @@
 local gen = require 'core.generation'
 
 -- Nab the arguments, and get ready for the storm.
-local spec,outdir = ...
-assert(spec and outdir, "Usage: lua btest.lua <spec name> <out directory>")
-local f = io.open(outdir..package.config:match'^(.-)\n'..spec..'.md', 'w')
-spec = require(spec)
+local specname,outdir = ...
+assert(specname and outdir, "Usage: lua btest.lua <spec name> <out directory>")
+local f = io.open(outdir..package.config:match'^(.-)\n'..specname..'.md', 'w')
+local spec = require(specname)
+spec.__spec = specname
 
 -- Docstring whitespace manager.
 local function rewhite(base, pre)
@@ -64,18 +65,17 @@ local function callit(ty, na)
 end
 
 -- The main traversal
-gen.traversal.df(spec, function(ty, res)
-	assert(type(ty) == 'table', "Trying to handle a non-type-y type of type "..type(ty)
-		..' ('..tostring(ty)..')')
+gen.traversal.df(spec, function(ty)
+	assert(type(ty) == 'table', "Trying to handle a non-type-y type of type "
+		..type(ty)..' ('..tostring(ty)..')')
 
 	if ty.__name then
-		res.__name, res.__doc = true, true
 		f:write(('## %s\n%s\n'):format(ty.__name,
 			rewhite(ty.__doc or 'No documentation.', '\t')))
 
-		function res.__index(es)
+		if ty.__index then
 			f:write '### Contents\n'
-			for _,e in ipairs(es) do
+			for _,e in ipairs(ty.__index) do
 				assert(e.name, 'Anonymous __index fields are not allowed')
 				assert(e.version, 'No version for __index field '..e.name)
 				assert(e.version:match '%d+%.%d+%.%d+', 'Invalid version '..e.version)
@@ -86,37 +86,34 @@ gen.traversal.df(spec, function(ty, res)
 			end
 		end
 
-		function res.__mask(vals)
+		if ty.__mask then
 			f:write '### Bitmask Values\n'
-			for _,e in ipairs(vals) do
+			for _,e in ipairs(ty.__mask) do
 				f:write('\t- '..e.name..' \''..e.flag..'\' ('..e.raw..')\n')
 			end
 			f:write '\n'
 		end
 
-		function res.__enum(vals)
+		if ty.__enum then
 			f:write '### Possible Values\n'
-			for _,e in ipairs(vals) do
+			for _,e in ipairs(ty.__enum) do
 				f:write('\t- '..e.name..' ('..e.raw..')\n')
 			end
 			f:write '\n'
 		end
 
-		function res.__directives(dirs)
+		if ty.__directives then
 			f:write '### Directives\n'
-			for _,d in ipairs(dirs) do f:write('- #'..d..'\n') end
+			for _,d in ipairs(ty.__directives) do f:write('- #'..d..'\n') end
 			f:write '\n'
 		end
 
-		res.__raw = true
-
-		return function()
-			f:write '\n'
-		end
+		f:write '\n'
 	elseif ty == spec then
-		function res.__index(es) return function()
+		coroutine.yield()
+		if ty.__index then
 			f:write '## Global Contents\n'
-			for _,e in ipairs(es) do
+			for _,e in ipairs(ty.__index) do
 				assert(e.name, 'Anonymous __index fields are not allowed')
 				assert(e.version, 'No version for __index field '..e.name)
 				assert(e.version:match '%d+%.%d+%.%d+', 'Invalid version '..e.version)
@@ -125,10 +122,10 @@ gen.traversal.df(spec, function(ty, res)
 					callit(e.type, e.name), e.version,
 					rewhite(e.doc or 'No documentation.', '\t\t')))
 			end
-		end end
+		end
 	else
 		for k,v in pairs(ty) do print('>', k, v) end
-		error 'Anonymous type that isn\' the spec!'
+		error 'Anonymous type that isn\'t the spec!'
 	end
 end)
 
