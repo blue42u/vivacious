@@ -14,7 +14,7 @@
    limitations under the License.
 --]========================================================================]
 
--- luacheck: globals array method callable
+-- luacheck: globals array method callable versioned
 require 'core.common'
 local vk = require 'vulkan'
 local vki = {__index={}}
@@ -23,7 +23,7 @@ local iInfo = {__name = 'VkInstanceInfo',
 	__doc = [[
 		A set of restrictions that can be appended to an InstanceCreator.
 	]],
-	__index = {
+	__index = versioned{
 		'0.1.1',
 		{name='name', type='string',
 			doc="Name of the application, overwrites any previous value."},
@@ -41,7 +41,7 @@ vki.InstanceCreator = {__name = 'VkInstanceCreator',
 		Collects requirements on a future created VkInstance, and afterward attempt
 		to create an Instance that satisfies all these requirements.
 	]],
-	__index = {
+	__index = versioned{
 		'0.2.0',
 		method{'append', "Append the requirements specified in <info> to this Creator.",
 			{'return', vk.Result},
@@ -64,7 +64,7 @@ local dTask = {__name = 'VkDeviceTask',
 	__doc = [[
 		The specification of a task, which will be assigned a Queue on Device creation.
 	]],
-	__index = {
+	__index = versioned{
 		'0.1.1',
 		{name='family', type='index', ifnil=0,
 			doc="Tasks with the same <family> will share Queue families."},
@@ -81,7 +81,7 @@ local dTask = {__name = 'VkDeviceTask',
 }
 
 local dInfo = {__name = 'VkDeviceInfo',
-	__index = {
+	__index = versioned{
 		'0.1.1',
 		{name='tasks', type=array[dTask], canbenil=true,
 			doc="Tasks that will be assigned Queues."},
@@ -112,7 +112,7 @@ vki.DeviceCreator = {__name = 'VkDeviceCreator',
 		Collects requirements for the Device and PhysicalDevice, and will attempt to
 		find and create ones that satisfy the requirements.
 	]],
-	__index = {
+	__index = versioned{
 		'0.2.0',
 		method{'append', "Append new requirements to the Creator.",
 			{'return', vk.Result},

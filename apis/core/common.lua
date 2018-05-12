@@ -53,3 +53,21 @@ function method(base)
 	base.type.__call.method = true
 	return base
 end
+
+-- Versions are attached to each __index entry, but usually multiple entries are
+-- added in a single version. In addition, entries are usually added to the end
+-- combined with an increase in version. `versioned` allows strings to appear
+-- between __index entries, and an entry will obtain the last stated version.
+-- luacheck: new globals versioned
+
+function versioned(ind)
+	local version
+	local i = 1
+	while ind[i] do
+		if type(ind[i]) == 'string' then version = table.remove(ind, i) else
+			ind[i].version = assert(version, 'Version not yet specified!')
+			i = i + 1
+		end
+	end
+	return ind
+end

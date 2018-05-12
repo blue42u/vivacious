@@ -52,15 +52,14 @@ do
 				local vn = n:match'Vk(.*)'
 				vk[vn] = {__name=n,
 					__index = {
-						'0.0.0',
-						{name='real', type={__raw=n, __name='internal '..n}, readonly=true},
+						{name='real', version='0.0.0', type={__raw=n, __name='internal '..n}, readonly=true},
 					},
 				}
 				-- This isn't correct, but there's only one case so...
 				if t.parent then for p in t.parent:gmatch '[^,]+' do
 					local pn = p:match 'Vk(.+)'
 					table.insert(vk[vn].__index,
-						{name=pn:gsub('^.', string.lower), type=vk[pn], readonly=true})
+						{name=pn:gsub('^.', string.lower), type=vk[pn], readonly=true, version='0.0.0'})
 				end end
 				handles[n] = nil
 				stuck = false
@@ -237,10 +236,10 @@ end
 vk.version = {
 	__name = "'M.m.p'",
 	__raw = 'uint32_t',
-	__format = 'VK_MAKE_VERSION(%u,%u,%u)',
-	__frommatch = '^(%d+)%.(%d+)%.(%d+)$',
-	__fromtable = {'M', 'm', 'p'},
-	__fromnil = {0, 0, 0},
+--	__format = 'VK_MAKE_VERSION(%u,%u,%u)',
+--	__frommatch = '^(%d+)%.(%d+)%.(%d+)$',
+--	__fromtable = {'M', 'm', 'p'},
+--	__fromnil = {0, 0, 0},
 }
 
 return vk
