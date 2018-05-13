@@ -30,7 +30,6 @@ local dom = require('slaxdom'):dom(xml, {stripWhitespace=true})
 package.path = oldpath
 
 local vk = {}
-local bitmasked = {}
 
 vk.vids = {}
 for _,ts in cpairs(dom.root, {name='tags'}) do
@@ -115,7 +114,6 @@ for _,ts in cpairs(dom.root, {name='types'}) do
 		end
 
 		vk.types[t.attr.name or first(t, {name='name'}, {type='text'}).value] = o
-		::cont::
 	end
 end
 

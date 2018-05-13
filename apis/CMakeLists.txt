@@ -24,8 +24,10 @@ add_custom_command(OUTPUT ${OUT}/vkinitializer.md
 	COMMAND ${LUA_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/core/btest.lua vkinitializer ${OUT}
 	WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 	DEPENDS core/btest.lua vkinitializer.lua)
-	add_custom_command(OUTPUT ${OUT}/vulkan.md
-		COMMAND ${LUA_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/core/btest.lua vulkan ${OUT}
-		WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-		DEPENDS core/btest.lua vulkan.lua)
+
+add_custom_command(OUTPUT ${OUT}/vulkan.md
+	COMMAND ${LUA_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/core/btest.lua vulkan ${OUT}
+	WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+	DEPENDS core/btest.lua vulkan.lua)
+
 add_custom_target(include DEPENDS ${OUT}/vkinitializer.md ${OUT}/vulkan.md)

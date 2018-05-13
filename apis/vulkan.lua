@@ -324,12 +324,11 @@ do
 				local mn = m.type:match 'Vk(.*)'
 				local ty = vk[mn] or rawtypes[m.type]
 
-				if not m.len then m.len = '' end
 				if m.type == 'void' then
 					assert(m.arr == 1, 'Voids "should" only have one pointer (void*). '..m.name)
-					m.arr, ty = 0, 'lightuserdata'
+					m.arr, ty = m.arr-1, 'lightuserdata'
 				elseif m.type == 'char' then
-					m.len = m.len:gsub(',?null%-terminated$', '')
+					if m.len then m.len = m.len:gsub(',?null%-terminated$', '') end
 					m.arr, ty = m.arr-1, 'string'
 				end
 
@@ -339,12 +338,31 @@ do
 					vk[mn] = ty
 				end
 
+				if ty.__name and ty.__name:match '^lightuserdata' then
+					m.arr = m.arr - 1 end
+
 				assert(ty, 'We should have gotten a type by now. '..m.name)
-				assert(not m.len:match',', 'No multi-leveled arrays should be here. '..m.name)
+				assert(not m.len or not m.len:match',', 'No multi-leveled arrays should be here. '..m.name)
 				assert(m.arr or 0 <= 1, 'Only one unhandled * should remain. '..m.name)
-				if m.arr == 1 then ty = array(ty) end
+				if m.arr == 1 and m.len then ty = array(ty) end
 				vk[vn].__index[i] = {name=m.name, type=ty, len=m.len, version='0.0.0'}
+
+				if m.values and not m.values:match ',' then
+					vk[vn].__index[i].doc = 'Automatically set to '..m.values..'.'
+				elseif m.name == 'pNext' then
+					vk[vn].__index[i].doc = 'Actually contains a sType field, and will be converted accordingly.'
+				end
 			end
+
+			local usedaslen = {}
+			for _,e in ipairs(vk[vn].__index) do
+				if e.len then usedaslen[e.len] = true end
+			end
+			local i = 1
+			repeat
+				if usedaslen[vk[vn].__index[i].name] then table.remove(vk[vn].__index, i)
+				else i = i + 1 end
+			until not vk[vn].__index[i]
 		end
 	end
 end
