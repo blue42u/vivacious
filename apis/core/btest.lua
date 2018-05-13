@@ -14,12 +14,12 @@
    limitations under the License.
 --]========================================================================]
 
-local gen = require 'core.generation'
+local gen = require 'apis.core.generation'
 
 -- Nab the arguments, and get ready for the storm.
 local specname,outdir = ...
 assert(specname and outdir, "Usage: lua btest.lua <spec name> <out directory>")
-local f = io.open(outdir..package.config:match'^(.-)\n'..specname..'.md', 'w')
+local f = assert(io.open(outdir..package.config:match'^(.-)\n'..specname..'.md', 'w'))
 local spec = require(specname)
 spec.__spec = specname
 

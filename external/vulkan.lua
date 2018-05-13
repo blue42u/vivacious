@@ -14,20 +14,14 @@
    limitations under the License.
 --]========================================================================]
 
-local relpath = '../external/'
-
-local oldpath = package.path
-package.path = package.path .. ';' .. relpath .. '?.lua'
-
-local trav = require 'traversal'
+local trav = require 'external.traversal'
 local cpairs, first = trav.cpairs, trav.first
 
-local xml,err = io.open(relpath .. 'vulkan-docs/src/spec/vk.xml', 'r')
+local xml,err = io.open('external/vulkan-docs/src/spec/vk.xml', 'r')
 if err then error(err) end
 xml = xml:read('a')
-local dom = require('slaxdom'):dom(xml, {stripWhitespace=true})
-
-package.path = oldpath
+package.loaded.slaxml = require 'external.slaxml'
+local dom = require('external.slaxdom'):dom(xml, {stripWhitespace=true})
 
 local vk = {}
 

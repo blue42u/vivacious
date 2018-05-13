@@ -44,4 +44,8 @@ function gen.traversal.df(start, handler)
 	trav(start)
 end
 
+-- The other thing this `require` does is add a new entry into package.path,
+-- that allows the beginning 'apis.' to be left off.
+package.path = package.path .. ';./apis/?.lua'
+
 return gen

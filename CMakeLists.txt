@@ -62,40 +62,33 @@ add_definitions(-DVv_VERSION_MAJOR=0 -DVv_VERSION_MINOR=1 -DVv_VERSION_PATCH=2)
 function(gen)
 	cmake_parse_arguments(PARSE_ARGV 0 A
 		""
-		"SUFFIXES;GENERATOR;DIRECTORY"
-		"DEPENDS;SPECS;OUTPUTS")
-	if(A_DIRECTORY)
-		file(MAKE_DIRECTORY ${A_DIRECTORY})
-		set(A_DIRECTORY "${A_DIRECTORY}/")
+		"USE;OUTDIR;SUFFIX"
+		"DEPENDS;SPECS")
+	if(A_OUTDIR)
+		file(MAKE_DIRECTORY ${A_OUTDIR})
+	else()
+		set(A_OUTDIR ${CMAKE_CURRENT_BINARY_DIR})
 	endif()
-	set(SL ${CMAKE_SOURCE_DIR}/apis/core/main.lua)
-	get_filename_component(GD ${CMAKE_CURRENT_SOURCE_DIR}/${A_GENERATOR} DIRECTORY)
-	get_filename_component(GN ${CMAKE_CURRENT_SOURCE_DIR}/${A_GENERATOR} NAME)
+	set(GN ${CMAKE_SOURCE_DIR}/apis/core/${A_USE}.lua)
+	set(SL ${CMAKE_SOURCE_DIR}/apis/core/generation.lua ${GN})
 	foreach(S ${A_SPECS})
-		set(S_OUTS)
-		foreach(O ${A_OUTPUTS})
-			string(REPLACE ? "${S}" O2 ${O})
-			set(S_OUTS ${S_OUTS} ${A_DIRECTORY}${O2})
-		endforeach()
+		set(S_OUT ${A_OUTDIR}/${S}${A_SUFFIX})
+		set(S_DEPS ${SL})
 		if(S MATCHES vulkan)
-			set(S_DEPS
+			set(S_DEPS ${S_DEPS}
 				${CMAKE_SOURCE_DIR}/external/vulkan.lua
 				${CMAKE_SOURCE_DIR}/external/slaxdom.lua
 				${CMAKE_SOURCE_DIR}/external/slaxml.lua
 				${CMAKE_SOURCE_DIR}/external/traversal.lua
 				${CMAKE_SOURCE_DIR}/external/vulkan-docs/src/spec/vk.xml
 			)
-		else()
-			set(S_DEPS)
 		endif()
-		add_custom_command(OUTPUT ${S_OUTS}
-			COMMAND ${LUA_EXECUTABLE} ${SL} ${GD} ${GN}
-				${CMAKE_SOURCE_DIR}/apis ${S} ${S_OUTS}
+		add_custom_command(OUTPUT ${S_OUT}
+			COMMAND ${LUA_EXECUTABLE} ${GN} ${S} ${A_OUTDIR}
 			WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 			MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/apis/${S}.lua
-			DEPENDS ${SL} ${CMAKE_SOURCE_DIR}/apis/core/gwrapper.lua
-				${GD}/${GN}.lua ${A_DEPENDS} ${S_DEPS})
-		set(MYOUTS ${MYOUTS} ${S_OUTS})
+			DEPENDS ${A_DEPENDS} ${S_DEPS})
+		set(MYOUTS ${MYOUTS} ${S_OUT})
 	endforeach()
 	set(GEN_OUTS ${GEN_OUTS} ${MYOUTS} PARENT_SCOPE)
 	set(GEN_SPECS ${GEN_SPECS} ${A_SPECS} PARENT_SCOPE)

@@ -18,7 +18,7 @@
 require 'core.common'
 
 -- Load up the Vulkan registry data
-local Vk = dofile '../external/vulkan.lua'
+local Vk = require 'external.vulkan'
 local vk = {__index={}}
 
 vk.Vk = {__name = 'Vk',
