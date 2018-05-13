@@ -35,11 +35,14 @@ end
 
 -- Find a suffix to indicate a type.
 local function callit(ty, na)
+	assert(ty, "Nil type!")
 	if type(ty) == 'string' then return (na and na..' ' or '')..'('..ty..')'
 	elseif ty.__name then return (na and na..' ' or '')..'('..ty.__name..')'
 	elseif ty.__call then
 		local as,rs = {},{}
 		for _,a in ipairs(ty.__call) do
+			assert(a.name, 'Anonymous __call fields are not allowed')
+			assert(a.type, 'No type for __call field '..a.name)
 			if a.name == 'return' then table.insert(rs, callit(a.type))
 			else table.insert(as, callit(a.type, a.name)) end
 		end
@@ -50,6 +53,8 @@ local function callit(ty, na)
 		local out = {}
 		local fin = {}
 		for _,e in ipairs(ty.__index or {}) do
+			assert(e.name, 'Anonymous __index fields are not allowed')
+			assert(e.type, 'No type for __index field '..e.name)
 			if e.name == '__sequence' then
 				table.insert(fin, callit(e.type))
 				table.insert(fin, '...')
@@ -70,7 +75,8 @@ gen.traversal.df(spec, function(ty)
 		..type(ty)..' ('..tostring(ty)..')')
 
 	if ty.__name then
-		f:write(('## %s\n%s\n'):format(ty.__name,
+		f:write(('## %s%s\n%s\n'):format(ty.__name,
+			ty.__raw and '('..ty.__raw..')' or '',
 			rewhite(ty.__doc or 'No documentation.', '\t')))
 
 		if ty.__index then
@@ -91,7 +97,6 @@ gen.traversal.df(spec, function(ty)
 			for _,e in ipairs(ty.__mask) do
 				f:write('\t- '..e.name..' \''..e.flag..'\' ('..e.raw..')\n')
 			end
-			f:write '\n'
 		end
 
 		if ty.__enum then
@@ -99,13 +104,11 @@ gen.traversal.df(spec, function(ty)
 			for _,e in ipairs(ty.__enum) do
 				f:write('\t- '..e.name..' ('..e.raw..')\n')
 			end
-			f:write '\n'
 		end
 
 		if ty.__directives then
 			f:write '### Directives\n'
 			for _,d in ipairs(ty.__directives) do f:write('- #'..d..'\n') end
-			f:write '\n'
 		end
 
 		f:write '\n'

@@ -14,6 +14,9 @@
    limitations under the License.
 --]========================================================================]
 
+-- luacheck: globals array method callable versioned
+require 'core.common'
+
 -- Load up the Vulkan registry data
 local Vk = dofile '../external/vulkan.lua'
 local vk = {__index={}}
@@ -52,7 +55,8 @@ do
 				local vn = n:match'Vk(.*)'
 				vk[vn] = {__name=n,
 					__index = {
-						{name='real', version='0.0.0', type={__raw=n, __name='internal '..n}, readonly=true},
+						{name='real', version='0.0.0',
+							type={__raw=n, __name='lightuserdata/'..n}, readonly=true},
 					},
 				}
 				-- This isn't correct, but there's only one case so...
@@ -73,97 +77,72 @@ do
 end
 
 local enumfixes = {
-	VkAndroidSurfaceCreateFlagsKHR = 0,
-	VkAttachmentDescriptionFlags = {'VK_ATTACHMENT_DESCRIPTION_', '_BIT'},
+	VkAndroidSurfaceCreateFlagBitsKHR = 0,
+	VkAttachmentDescriptionFlagBits = {'VK_ATTACHMENT_DESCRIPTION_', '_BIT'},
 	VkBufferViewCreateFlagBits = 0,
-	VkBufferViewCreateFlags = 0,
-	VkCommandBufferResetFlags = {'VK_COMMAND_BUFFER_RESET_', '_BIT'},
-	VkCommandPoolResetFlags = {'VK_COMMAND_POOL_RESET_', '_BIT'},
-	VkCommandPoolTrimFlagsKHR = 0,
-	VkDescriptorPoolCreateFlags = {'VK_DESCRIPTOR_POOL_CREATE_', '_BIT'},
-	VkDescriptorPoolResetFlags = 0,
-	VkDescriptorSetLayoutCreateFlags = {'VK_DESCRIPTOR_SET_LAYOUT_CREATE_', '_BIT'},
-	VkDescriptorUpdateTemplateCreateFlagsKHR = 0,
+	VkCommandBufferResetFlagBits = {'VK_COMMAND_BUFFER_RESET_', '_BIT'},
+	VkCommandPoolResetFlagBits = {'VK_COMMAND_POOL_RESET_', '_BIT'},
+	VkCommandPoolTrimFlagBitsKHR = 0,
+	VkDescriptorPoolCreateFlagBits = {'VK_DESCRIPTOR_POOL_CREATE_', '_BIT'},
+	VkDescriptorPoolResetFlagBits = 0,
+	VkDescriptorSetLayoutCreateFlagBits = {'VK_DESCRIPTOR_SET_LAYOUT_CREATE_', '_BIT'},
+	VkDescriptorUpdateTemplateCreateFlagBitsKHR = 0,
 	VkDeviceCreateFlagBits = 0,
-	VkDeviceCreateFlags = 0,
 	VkDeviceEventTypeEXT = {'VK_DEVICE_EVENT_TYPE_', ''},
 	VkDeviceQueueCreateFlagBits = 0,
-	VkDeviceQueueCreateFlags = 0,
 	VkDisplayEventTypeEXT = {'VK_DISPLAY_EVENT_TYPE_', ''},
-	VkDisplayModeCreateFlagsKHR = 0,
-	VkDisplaySurfaceCreateFlagsKHR = 0,
-	VkEventCreateFlags = 0,
-	VkFenceCreateFlags = {'VK_FENCE_CREATE_', '_BIT'},
-	VkFenceImportFlagsKHR = {'VK_FENCE_IMPORT_', '_BIT'},
+	VkDisplayModeCreateFlagBitsKHR = 0,
+	VkDisplaySurfaceCreateFlagBitsKHR = 0,
+	VkEventCreateFlagBits = 0,
+	VkFenceCreateFlagBits = {'VK_FENCE_CREATE_', '_BIT'},
+	VkFenceImportFlagBitsKHR = {'VK_FENCE_IMPORT_', '_BIT'},
 	VkFramebufferCreateFlagBits = 0,
-	VkFramebufferCreateFlags = 0,
-	VkImageViewCreateFlags = 0,
+	VkImageViewCreateFlagBits = 0,
 	VkInstanceCreateFlagBits = 0,
-	VkInstanceCreateFlags = 0,
 	VkInternalAllocationType = {'VK_INTERNAL_ALLOCATION_TYPE_', ''},
-	VkIOSSurfaceCreateFlagsMVK = 0,
-	VkMacOSSurfaceCreateFlagsMVK = 0,
-	VkMemoryAllocateFlagsKHX = {'VK_MEMORY_ALLOCATE_', '_BIT'},
-	VkMemoryMapFlags = 0,
-	VkMirSurfaceCreateFlagsKHR = 0,
+	VkIOSSurfaceCreateFlagBitsMVK = 0,
+	VkMacOSSurfaceCreateFlagBitsMVK = 0,
+	VkMemoryAllocateFlagBitsKHX = {'VK_MEMORY_ALLOCATE_', '_BIT'},
+	VkMemoryMapFlagBits = 0,
+	VkMirSurfaceCreateFlagBitsKHR = 0,
 	VkPipelineCacheCreateFlagBits = 0,
-	VkPipelineCacheCreateFlags = 0,
 	VkPipelineCacheHeaderVersion = {'VK_PIPELINE_CACHE_HEADER_VERSION_', ''},
 	VkPipelineColorBlendStateCreateFlagBits = 0,
-	VkPipelineColorBlendStateCreateFlags = 0,
-	VkPipelineCoverageModulationStateCreateFlagsNV = 0,
-	VkPipelineCoverageToColorStateCreateFlagsNV = 0,
+	VkPipelineCoverageModulationStateCreateFlagBitsNV = 0,
+	VkPipelineCoverageToColorStateCreateFlagBitsNV = 0,
 	VkPipelineDepthStencilStateCreateFlagBits = 0,
-	VkPipelineDepthStencilStateCreateFlags = 0,
-	VkPipelineDiscardRectangleStateCreateFlagsEXT = 0,
+	VkPipelineDiscardRectangleStateCreateFlagBitsEXT = 0,
 	VkPipelineDynamicStateCreateFlagBits = 0,
-	VkPipelineDynamicStateCreateFlags = 0,
 	VkPipelineInputAssemblyStateCreateFlagBits = 0,
-	VkPipelineInputAssemblyStateCreateFlags = 0,
 	VkPipelineLayoutCreateFlagBits = 0,
-	VkPipelineLayoutCreateFlags = 0,
 	VkPipelineMultisampleStateCreateFlagBits = 0,
-	VkPipelineMultisampleStateCreateFlags = 0,
 	VkPipelineRasterizationStateCreateFlagBits = 0,
-	VkPipelineRasterizationStateCreateFlags = 0,
 	VkPipelineShaderStageCreateFlagBits = 0,
-	VkPipelineShaderStageCreateFlags = 0,
 	VkPipelineTessellationStateCreateFlagBits = 0,
-	VkPipelineTessellationStateCreateFlags = 0,
 	VkPipelineVertexInputStateCreateFlagBits = 0,
-	VkPipelineVertexInputStateCreateFlags = 0,
 	VkPipelineViewportStateCreateFlagBits = 0,
-	VkPipelineViewportStateCreateFlags = 0,
-	VkPipelineViewportSwizzleStateCreateFlagsNV = 0,
-	VkQueryControlFlags = {'VK_QUERY_CONTROL_', '_BIT'},
+	VkPipelineViewportSwizzleStateCreateFlagBitsNV = 0,
+	VkQueryControlFlagBits = {'VK_QUERY_CONTROL_', '_BIT'},
 	VkQueryPoolCreateFlagBits = 0,
-	VkQueryPoolCreateFlags = 0,
 	VkRenderPassCreateFlagBits = 0,
-	VkRenderPassCreateFlags = 0,
 	VkSamplerCreateFlagBits = 0,
-	VkSamplerCreateFlags = 0,
-	VkSemaphoreCreateFlags = 0,
-	VkSemaphoreImportFlagsKHR = {'VK_SEMAPHORE_IMPORT_', '_BIT'},
-	VkShaderModuleCreateFlags = 0,
-	VkSparseMemoryBindFlags = {'VK_SPARSE_MEMORY_BIND_', '_BIT'},
-	VkSurfaceCounterFlagsEXT = {'VK_SURFACE_COUNTER_', ''},
-	VkSwapchainCreateFlagsKHR = {'VK_SWAPCHAIN_CREATE_', '_BIT'},
-	VkValidationCacheCreateFlagsEXT = 0,
+	VkSemaphoreCreateFlagBits = 0,
+	VkSemaphoreImportFlagBitsKHR = {'VK_SEMAPHORE_IMPORT_', '_BIT'},
+	VkShaderModuleCreateFlagBits = 0,
+	VkSparseMemoryBindFlagBits = {'VK_SPARSE_MEMORY_BIND_', '_BIT'},
+	VkSurfaceCounterFlagBitsEXT = {'VK_SURFACE_COUNTER_', ''},
+	VkSwapchainCreateFlagBitsKHR = {'VK_SWAPCHAIN_CREATE_', '_BIT'},
+	VkValidationCacheCreateFlagBitsEXT = 0,
 	VkValidationCacheHeaderVersionEXT = {'VK_VALIDATION_CACHE_HEADER_VERSION_', ''},
-	VkViSurfaceCreateFlagsNN = 0,
-	VkWaylandSurfaceCreateFlagsKHR = 0,
-	VkWin32SurfaceCreateFlagsKHR = 0,
-	VkXcbSurfaceCreateFlagsKHR = 0,
-	VkXlibSurfaceCreateFlagsKHR = 0,
+	VkViSurfaceCreateFlagBitsNN = 0,
+	VkWaylandSurfaceCreateFlagBitsKHR = 0,
+	VkWin32SurfaceCreateFlagBitsKHR = 0,
+	VkXcbSurfaceCreateFlagBitsKHR = 0,
+	VkXlibSurfaceCreateFlagBitsKHR = 0,
 }
 
-local required = {}
-for _,t in pairs(Vk.types) do
-	if t.requires then required[t.requires] = true end
-end
-
 for n,t in pairs(Vk.types) do
-	if not required[n] and (t.category == 'enum' or t.category == 'bitmask') then
+	if t.category == 'enum' or t.category == 'bitmask' then
 		local vn = n:match 'Vk(.+)'
 		vk[vn] = {__raw=n, __name=n}
 
@@ -174,15 +153,21 @@ for n,t in pairs(Vk.types) do
 			table.insert(vals, (rn:gsub('_BIT$', '')))
 		end
 
+		if t.category == 'bitmask' and not t.requires then
+			t.requires = n:gsub('Flags', 'FlagBits')
+		end
+
 		local pre
 		if #vals <= 1 then
-			local ef = enumfixes[n]
+			local ef = enumfixes[n] or enumfixes[t.requires]
+			local fn = n
+			if t.requires then fn = fn..'('..t.requires..')' end
 			if ef then
 				if #vals == 0 then
-					assert(ef == 0, "Outdated 'fixes override for "..n..", has no examples!")
+					assert(ef == 0, "Outdated 'fixes override for "..fn..", has no examples!")
 					pre = ''
 				else
-					assert(ef ~= 0, "Outdated 'fixes override for "..n..", now has an example!")
+					assert(ef ~= 0, "Outdated 'fixes override for "..fn..", now has an example!")
 					pre = ef[1]
 					assert(pre, "'fixes override for "..n.." is missing a 'fix!")
 					for _,v in ipairs(vals) do
@@ -191,8 +176,8 @@ for n,t in pairs(Vk.types) do
 					end
 				end
 			else
-				if #vals == 0 then error("No examples for "..n)
-				else error("One example for "..n.." ("..vals[1]..")") end
+				if #vals == 0 then error("No examples for "..fn)
+				else error("One example for "..fn.." ("..vals[1]..")") end
 			end
 		else
 			-- Find the max-length val
@@ -242,12 +227,8 @@ vk.version = {
 --	__fromnil = {0, 0, 0},
 }
 
-return vk
-
---[=[
-
 local rawtypes = {}
-rawtypes.voidptr = 'lightuserdata'
+rawtypes.void = 'lightuserdata'
 rawtypes.VkBool32 = 'boolean'
 
 rawtypes.uint64_t = 'integer'
@@ -261,49 +242,58 @@ rawtypes.VkDeviceSize = 'integer'
 
 rawtypes.string = 'string'
 
-rawtypes.vksamplemask = {__raw='VkSampleMask*'}
+rawtypes.vksamplemask = {__raw='VkSampleMask*', __name='VkSampleMask'}
 
-vktypes.vksamplemask = flexmask{
-	raw{realname='VkSampleMask'},
-	bits=32, lenvar='fish',
-}
+rawtypes.PFN_vkInternalAllocationNotification = {
+	__raw = 'PFN_vkInternalAllocationNotification',
+	__call={
+		{name='size', type='integer'},
+		{name='type', type=vk.InternalAllocationType},
+		{name='scope', type=vk.SystemAllocationScope}
+	}}
+rawtypes.PFN_vkInternalFreeNotification = {
+	__raw = 'PFN_vkInternalFreeNotification',
+	__call = {
+		{name='size', type='integer'},
+		{name='type', type=vk.InternalAllocationType},
+		{name='scope', type=vk.SystemAllocationScope}
+	}}
+rawtypes.PFN_vkReallocationFunction = {
+	__raw = 'PFN_vkReallocationFunction',
+	__call = {
+		{name='return', type='lightuserdata'},
+		{name='original', type='lightuserdata'},
+		{name='size', type='integer'},
+		{name='alignment', type='integer'},
+		{name='scope', type=vk.SystemAllocationScope}
+	}}
+rawtypes.PFN_vkAllocationFunction = {
+	__raw = 'PFN_vkAllocationFunction',
+	__call = {
+		{name='return', type='lightuserdata'},
+		{name='size', type='integer'},
+		{name='alignment', type='integer'},
+		{name='allocationScope', type=vk.SystemAllocationScope},
+	}}
+rawtypes.PFN_vkFreeFunction = {
+	__raw = 'PFN_vkFreeFunction',
+	__call = {
+		{name='mem', type='lightuserdata'}
+	}}
 
-vktypes.PFN_vkInternalAllocationNotification = callable{
-	realname = 'PFN_vkInternalAllocationNotification',
-	{'udata', generic}, {'size', integer},
-	{'type', Vk.InternalAllocationType}, {'scope', Vk.SystemAllocationScope},
-}
-vktypes.PFN_vkInternalFreeNotification = callable{
-	realname = 'PFN_vkInternalFreeNotification',
-	{'udata', generic}, {'size', integer},
-	{'type', Vk.InternalAllocationType}, {'scope', Vk.SystemAllocationScope},
-}
-vktypes.PFN_vkReallocationFunction = callable{
-	realname = 'PFN_vkReallocationFunction',
-	{'udata', generic}, {'original', memory}, {'size', integer},
-	{'alignment', integer},
-	{'scope', Vk.SystemAllocationScope},
-	returns = {memory},
-}
-vktypes.PFN_vkAllocationFunction = callable{
-	realname = 'PFN_vkAllocationFunction',
-	{'udata', generic}, {'size', integer}, {'alignment', integer},
-	{'scope', Vk.SystemAllocationScope},
-	returns = {memory},
-}
-vktypes.PFN_vkFreeFunction = callable{
-	realname = 'PFN_vkFreeFunction',
-	{'udata', generic}, {'mem', memory},
-}
-
-vktypes.PFN_vkDebugReportCallbackEXT = callable{
-	realname = 'PFN_vkDebugReportCallbackEXT',
-	{'flags', Vk.DebugReportFlagsEXT}, {'objectType', Vk.DebugReportObjectTypeEXT},
-	{'object', index}, {'location', index}, {'mCode', integer},
-	{'layerPrefix', string}, {'message', string},
-	{'udata', generic},
-	returns = {boolean},
-}
+rawtypes.PFN_vkDebugReportCallbackEXT = {
+	__raw = 'PFN_vkDebugReportCallbackEXT',
+	__udataatend = true,	-- For the Lua binding. This is annoying.
+	__call = {
+		{name='return', type=rawtypes.VkBool32},
+		{name='flags', type=vk.DebugReportFlagsEXT},
+		{name='objectType', type=vk.DebugReportObjectTypeEXT},
+		{name='object', type=rawtypes.uint64_t},
+		{name='location', type='index'},
+		{name='mCode', type='integer'},
+		{name='layerPrefix', type='string'},
+		{name='message', type='string'}
+	}}
 
 for n in pairs{
 	Display=true, VisualID=true, Window=true,	-- Xlib.h
@@ -314,100 +304,54 @@ for n in pairs{
 	HANDLE=true, LPCWSTR=true, DWORD=true, SECURITY_ATTRIBUTES=true,
 	HINSTANCE=true, HWND=true, -- windows.h
 	xcb_connection_t=true, xcb_visualid_t=true, xcb_window_t=true,	-- xcb.h
-} do vktypes[n] = raw{realname=n} end
+} do rawtypes[n] = {__raw=n, __name='lightuserdata/'..n} end
+
+local struct_overrides = {
+	VkShaderModuleCreateInfo_pCode = {name='pCode', type='string', len='codeSize'},
+	VkPipelineMultisampleStateCreateInfo_pSampleMask = {name='pSampleMask',
+		type='vksamplemask', len='rasterizationSamples'}
+}
 
 do
-	local ex = {
-		VkShaderModuleCreateInfo_pCode = {name='pCode', type='string', len='codeSize'},
-		VkPipelineMultisampleStateCreateInfo_pSampleMask = {name='pSampleMask',
-			type='vksamplemask', len='rasterizationSamples'}
-	}
-
-	local structs = {}
-	for n,t in pairs(vk.types) do
+	for n,t in pairs(Vk.types) do
 		if t.category == 'struct' or t.category == 'union' then
-			structs[n] = t
+			local vn = n:match '^Vk(.*)$'
 
-			local mems = {}
+			vk[vn] = vk[vn] or {}
+			vk[vn].__name, vk[vn].__raw, vk[vn].__index = n, n, {}
 			for i,m in ipairs(t.members) do
-				m = ex[n..'_'..m.name] or m
-				t.members[i] = m
-				if m.type == 'char' then
-					m.type = 'string'
-					m.arr = m.arr - 1
-					if m.len then
-						m.len = m.len:gsub(',?null%-terminated$', '')
-						if #m.len == 0 then m.len = nil end
-					end
-				elseif m.type == 'void' then
-					m.arr = m.arr - 1
-				elseif (m.arr or 0) > 0 and not m.len then
-					m.arr = m.arr - 1
-				end
-				if m.values and not m.values:find',' then m.def = m.values
-				elseif m.optional == 'true' then m.def = '' end
-				m.i = i
-				mems[m.name] = m
-			end
+				m = struct_overrides[n..'_'..m.name] or m
+				local mn = m.type:match 'Vk(.*)'
+				local ty = vk[mn] or rawtypes[m.type]
 
-			local rmed = {}
-			for _,m in pairs(mems) do
-				if m.len then
-					if mems[m.len] then
-						t.members[mems[m.len].i] = false
-						mems[m.len],rmed[m.len] = nil,true
-					elseif not rmed[m.len] then
-						print('>', n)
-						for mn in pairs(mems) do print('>>', mn) end
-						print('>>>', m.name, m.len, m.type)
-						error('Odd len: '..m.len)
-					end
+				if not m.len then m.len = '' end
+				if m.type == 'void' then
+					assert(m.arr == 1, 'Voids "should" only have one pointer (void*). '..m.name)
+					m.arr, ty = 0, 'lightuserdata'
+				elseif m.type == 'char' then
+					m.len = m.len:gsub(',?null%-terminated$', '')
+					m.arr, ty = m.arr-1, 'string'
 				end
-			end
 
-			local i = 1
-			while t.members[i] ~= nil do
-				if not t.members[i] then table.remove(t.members, i)
-				else i = i + 1 end
+				if not ty then
+					assert(mn, 'Odd type name '..m.type)
+					ty = {}
+					vk[mn] = ty
+				end
+
+				assert(ty, 'We should have gotten a type by now. '..m.name)
+				assert(not m.len:match',', 'No multi-leveled arrays should be here. '..m.name)
+				assert(m.arr or 0 <= 1, 'Only one unhandled * should remain. '..m.name)
+				if m.arr == 1 then ty = array(ty) end
+				vk[vn].__index[i] = {name=m.name, type=ty, len=m.len, version='0.0.0'}
 			end
 		end
 	end
-
-	repeat
-		local stuck = true
-		local missing = {}
-		for n,t in pairs(structs) do
-			local mems = {realname=n}
-			for _,m in ipairs(t.members) do
-				if not vktypes[m.type] then missing[m.type] = true goto skip end
-			end
-
-			local pn = n:match'Vk(.*)'
-			for _,m in ipairs(t.members) do
-				if (m.arr or 0) > 0 then
-					assert(m.arr == 1)
-					table.insert(mems, {m.name,
-						array{vktypes[m.type], lenvar=m.len}, {}})
-				else
-					table.insert(mems, {m.name, vktypes[m.type],
-						m.def ~= '' and m.def or nil})
-				end
-			end
-
-			vktypes.Vk.type[pn] = compound(mems)
-			vktypes[n] = Vk[pn]
-			structs[n] = nil
-			stuck = false
-			::skip::
-		end
-		if stuck then
-			for n in pairs(structs) do print('>>', n) end
-			for t in pairs(missing) do print('>', t) end
-			error("Got stuck writing the structs")
-		end
-	until not next(structs)
 end
 
+return vk
+
+--[=[
 do
 	local voidf = callable{realname='PFN_vkVoidFunction'}
 	for v,cs in pairs(vk.cmds) do

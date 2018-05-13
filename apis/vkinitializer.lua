@@ -101,7 +101,7 @@ local dInfo = {__name = 'VkDeviceInfo',
 		'0.1.2',
 		{name='surface', type=vk.SurfaceKHR, canbenil=true,
 			doc="Surface that Tasks may require presentation capabilites for"},
-		{name='features', type='nil', canbenil=true,
+		{name='features', type=vk.PhysicalDeviceFeatures, canbenil=true,
 			doc="Features that must be enabled"},
 	},
 }

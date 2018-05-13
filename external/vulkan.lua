@@ -56,9 +56,6 @@ for _,ts in cpairs(dom.root, {name='types'}) do
 		if o.category == 'enum' or o.category == 'bitmask' then
 			local nam = o.category == 'enum' and o.name or o.requires
 
-			if o.category == 'bitmask' then bitmasked[nam or 1] = true
-			elseif bitmasked[nam] then goto cont end
-
 			o.values, o.exts = {},{}
 			local hard = {
 				['~0U'] = 0xffffffff,	-- Assuming int is 32 bits wide
@@ -68,7 +65,7 @@ for _,ts in cpairs(dom.root, {name='types'}) do
 			}
 
 			if nam then
-				local tes = first(dom.root, {name='enums', attr={name=nam, type=o.category}})
+				local tes = first(dom.root, {name='enums', attr={name=nam}})
 				if tes then
 					for _,e in cpairs(tes, {name='enum'}) do
 						local v = e.attr.value and e.attr.value:gsub('[f()]', '')
