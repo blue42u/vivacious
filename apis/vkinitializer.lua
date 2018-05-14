@@ -42,6 +42,8 @@ vki.InstanceCreator = {__name = 'VkInstanceCreator',
 		to create an Instance that satisfies all these requirements.
 	]],
 	__index = versioned{
+		'0.1.0',
+		{name='vulkan', type=vk.Vk, doc="The Vulkan that will create the Instance"},
 		'0.2.0',
 		method{'append', "Append the requirements specified in <info> to this Creator.",
 			{'return', vk.Result},
@@ -113,6 +115,8 @@ vki.DeviceCreator = {__name = 'VkDeviceCreator',
 		find and create ones that satisfy the requirements.
 	]],
 	__index = versioned{
+		'0.1.0',
+		{name='instance', type=vk.Instance, doc="The Instance that will create the Device"},
 		'0.2.0',
 		method{'append', "Append new requirements to the Creator.",
 			{'return', vk.Result},
