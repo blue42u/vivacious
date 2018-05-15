@@ -35,6 +35,7 @@ table.insert(vk.__index, {name='createVk', version='0.0.0',
 	}},
 })
 
+local allhandles = {}
 do
 	local handles = {}
 	for n,t in pairs(Vk.types) do
@@ -59,12 +60,16 @@ do
 							type={__raw=n, __name='lightuserdata/'..n}, readonly=true},
 					},
 				}
+				allhandles[vk[vn]] = true
 				-- This isn't correct, but there's only one case so...
 				if t.parent then for p in t.parent:gmatch '[^,]+' do
 					local pn = p:match 'Vk(.+)'
 					table.insert(vk[vn].__index,
 						{name=pn:gsub('^.', string.lower), type=vk[pn], readonly=true, version='0.0.0'})
-				end end
+				end else
+					table.insert(vk[vn].__index, {name='vulkan', type=vk.Vk,
+						readonly=true, version='0.0.0'})
+				end
 				handles[n] = nil
 				stuck = false
 			end
@@ -306,90 +311,110 @@ for n in pairs{
 	xcb_connection_t=true, xcb_visualid_t=true, xcb_window_t=true,	-- xcb.h
 } do rawtypes[n] = {__raw=n, __name='lightuserdata/'..n} end
 
-local struct_overrides = {
+local overrides = {
 	VkShaderModuleCreateInfo_pCode = {name='pCode', type='string', len='codeSize'},
 	VkPipelineMultisampleStateCreateInfo_pSampleMask = {name='pSampleMask',
-		type='vksamplemask', len='rasterizationSamples'}
+		type='vksamplemask', len='rasterizationSamples'},
+	VkPhysicalDeviceMemoryProperties_memoryTypes = {name='memoryTypes', type='VkMemoryType',
+		len='memoryTypeCount'}
 }
 
-do
-	for n,t in pairs(Vk.types) do
-		if t.category == 'struct' or t.category == 'union' then
-			local vn = n:match '^Vk(.*)$'
+local function restructure(from, overridename, opt)
+	local out = {}
+	opt = opt or {}
+	for i,m in ipairs(from) do
+		m = overrides[overridename..'_'..m.name] or m
+		local mn = m.type:match 'Vk(.*)'
+		out[i] = {
+			name = m.name,
+			type = vk[mn] or rawtypes[m.type],
+			len = m.len,
+			version = '0.0.0',
+			canbenil = not not m.optional,
+		}
 
-			vk[vn] = vk[vn] or {}
-			vk[vn].__name, vk[vn].__raw, vk[vn].__index = n, n, {}
-			for i,m in ipairs(t.members) do
-				m = struct_overrides[n..'_'..m.name] or m
-				local mn = m.type:match 'Vk(.*)'
-				local ty = vk[mn] or rawtypes[m.type]
-
-				if m.type == 'void' then
-					assert(m.arr == 1, 'Voids "should" only have one pointer (void*). '..m.name)
-					m.arr, ty = m.arr-1, 'lightuserdata'
-				elseif m.type == 'char' then
-					if m.len then m.len = m.len:gsub(',?null%-terminated$', '') end
-					m.arr, ty = m.arr-1, 'string'
-				end
-
-				if not ty then
-					assert(mn, 'Odd type name '..m.type)
-					ty = {}
-					vk[mn] = ty
-				end
-
-				if ty.__name and ty.__name:match '^lightuserdata' then
-					m.arr = m.arr - 1 end
-
-				assert(ty, 'We should have gotten a type by now. '..m.name)
-				assert(not m.len or not m.len:match',', 'No multi-leveled arrays should be here. '..m.name)
-				assert(m.arr or 0 <= 1, 'Only one unhandled * should remain. '..m.name)
-				if m.arr == 1 and m.len then ty = array(ty) end
-				vk[vn].__index[i] = {name=m.name, type=ty, len=m.len, version='0.0.0'}
-
-				if m.values and not m.values:match ',' then
-					vk[vn].__index[i].doc = 'Automatically set to '..m.values..'.'
-				elseif m.name == 'pNext' then
-					vk[vn].__index[i].doc = 'Actually contains a sType field, and will be converted accordingly.'
-				end
+		if m.type == 'void' then
+			if m.arr > 1 and opt.allowextraptr then
+				assert(m.arr == 2, 'There can only be one extra pointer. '..m.name)
+				out[i].extraptr = true
+			else
+				assert(m.arr == 1, 'Voids "should" only have one pointer (void*). '..m.name)
 			end
-
-			local usedaslen = {}
-			for _,e in ipairs(vk[vn].__index) do
-				if e.len then usedaslen[e.len] = true end
-			end
-			local i = 1
-			repeat
-				if usedaslen[vk[vn].__index[i].name] then table.remove(vk[vn].__index, i)
-				else i = i + 1 end
-			until not vk[vn].__index[i]
+			m.arr, out[i].type = m.arr-1, 'lightuserdata'
+		elseif m.type == 'char' then
+			if m.len then m.len = m.len:gsub(',?null%-terminated$', '') end
+			m.arr, out[i].type = m.arr-1, 'string'
 		end
+
+		if not out[i].type then
+			assert(mn, 'Odd type name '..m.type)
+			out[i].type = {}
+			vk[mn] = out[i].type
+		end
+
+		if out[i].type.__name and out[i].type.__name:match '^lightuserdata' then
+			m.arr = m.arr - 1 end
+
+		assert(out[i].type, 'We should have gotten a type by now. '..m.name)
+		assert(not m.len or not m.len:match',', 'No multi-leveled arrays should be here. '..m.name)
+		assert(m.arr or 0 <= 1, 'Only one unhandled * should remain. '..m.name)
+		if m.arr == 1 and m.len then out[i].type = array(out[i].type)
+		elseif m.arr == 1 then
+			--assert(opt.allowextraptr, 'Extra pointer where none is allowed. '..m.name)
+			out[i].extraptr = true
+		end
+
+		if m.values and not m.values:match ',' then
+			out.doc = 'Automatically set to '..m.values..'.'
+		elseif m.name == 'pNext' then
+			out.doc = 'Actually contains a sType field, and will be converted accordingly.'
+		end
+	end
+
+	local usedaslen = {}
+	for _,e in ipairs(out) do
+		if e.len then usedaslen[e.len] = true end
+	end
+	local i = 1
+	repeat
+		if usedaslen[out[i].name] then table.remove(out, i)
+		else i = i + 1 end
+	until not out[i]
+	return out
+end
+
+for n,t in pairs(Vk.types) do
+	if t.category == 'struct' or t.category == 'union' then
+		local vn = n:match '^Vk(.*)$'
+		vk[vn] = vk[vn] or {}
+		vk[vn].__name, vk[vn].__raw = n, n
+		vk[vn].__index = restructure(t.members, n)
+	end
+end
+
+for v,cs in pairs(Vk.cmds) do
+	if v:match '^%d+%.%d+$' then v = '0.'..v else v = v..'.0.0' end
+	for _,ct in ipairs(cs) do
+		local f = {__raw='PFN_'..ct.name, __call=restructure(ct, ct.name, {allowextraptr=true})}
+		f.__call.method = true
+		-- The owner of this command is the first non-optional handle.
+		local sel = vk.Vk		-- If we don't find one, attach to Vk
+		for _,e in ipairs(f.__call) do
+			if allhandles[e.type] and not e.canbenil then
+				-- Check that this handle is a child of the previous self.
+				local good = sel == vk.Vk
+				for _,ee in ipairs(e.type.__index) do
+					if ee.type == sel then good = true end
+				end
+				print('Trying argument '..e.name..' for command '..ct.name..': access '..tostring(good)..'.')
+				if good then sel = e.type else break end
+			else break end
+		end
+		assert(sel.__index,	'Hrm...')
+		table.insert(sel.__index, {
+			name=ct.name:match 'vk(.+)':gsub('^.', string.lower),
+			type=f, version=v})
 	end
 end
 
 return vk
-
---[=[
-do
-	local voidf = callable{realname='PFN_vkVoidFunction'}
-	for v,cs in pairs(vk.cmds) do
-		local M,m = v:match '(%d+)%.(%d+)'
-		if M then v = 'v0_'..M..'_'..m
-		else v = 'v'..v..'_0_0' end
-		for _,ct in ipairs(cs) do
-			local b
-			if ct[2] and not ct[2].optional and
-				ct[1].type == vkbps[ct[2].type] then b = vkbs[ct[2].type] end
-			if not b and ct[1] then b = vkbs[ct[1].type] end
-			if not b then b = Vk end
-
-			local c = {returns = raw{realname=ct.ret}, realname='PFN_'..ct.name}
-			for i,a in ipairs(ct) do c[i] = {a.name, raw{realname=a.type}} end
-			b[v][ct.name] = c
-			if cs.extname then
-				cmdconsts[ct.name] = {cs.extname, voidf}
-			end
-		end
-	end
-end
-]=]

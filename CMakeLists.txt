@@ -62,7 +62,7 @@ add_definitions(-DVv_VERSION_MAJOR=0 -DVv_VERSION_MINOR=1 -DVv_VERSION_PATCH=2)
 function(gen)
 	cmake_parse_arguments(PARSE_ARGV 0 A
 		""
-		"USE;OUTDIR;SUFFIX"
+		"USE;OUTDIR;SUFFIX;TARGET"
 		"DEPENDS;SPECS")
 	if(A_OUTDIR)
 		file(MAKE_DIRECTORY ${A_OUTDIR})
@@ -90,6 +90,9 @@ function(gen)
 			DEPENDS ${A_DEPENDS} ${S_DEPS})
 		set(MYOUTS ${MYOUTS} ${S_OUT})
 	endforeach()
+	if(A_TARGET)
+		add_custom_target(${A_TARGET} DEPENDS ${MYOUTS})
+	endif()
 	set(GEN_OUTS ${GEN_OUTS} ${MYOUTS} PARENT_SCOPE)
 	set(GEN_SPECS ${GEN_SPECS} ${A_SPECS} PARENT_SCOPE)
 endfunction(gen)

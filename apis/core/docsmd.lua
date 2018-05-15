@@ -76,13 +76,13 @@ gen.traversal.df(spec, function(ty)
 
 	if ty.__name then
 		f:write(('## %s%s\n%s\n'):format(ty.__name,
-			ty.__raw and '('..ty.__raw..')' or '',
+			ty.__raw and ' :{'..ty.__raw..'}' or '',
 			rewhite(ty.__doc or 'No documentation.', '\t')))
 
 		if ty.__index then
 			f:write '### Contents\n'
 			for _,e in ipairs(ty.__index) do
-				assert(e.name, 'Anonymous __index fields are not allowed')
+				assert(e.name, 'Anonymous __index fields are not allowed (in '..ty.__name..')')
 				assert(e.version, 'No version for __index field '..e.name)
 				assert(e.version:match '%d+%.%d+%.%d+', 'Invalid version '..e.version)
 				assert(e.type, 'No type for __index field '..e.name)
