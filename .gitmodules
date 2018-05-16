@@ -7,3 +7,6 @@
 [submodule "external/luajson"]
 	path = external/luajson
 	url = https://github.com/harningt/luajson.git
+[submodule "external/slaxml"]
+	path = external/slaxml
+	url = https://github.com/Phrogz/SLAXML.git

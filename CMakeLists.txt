@@ -76,11 +76,9 @@ function(gen)
 		set(S_DEPS ${SL})
 		if(S MATCHES vulkan)
 			set(S_DEPS ${S_DEPS}
-				${CMAKE_SOURCE_DIR}/external/vulkan.lua
-				${CMAKE_SOURCE_DIR}/external/slaxdom.lua
-				${CMAKE_SOURCE_DIR}/external/slaxml.lua
-				${CMAKE_SOURCE_DIR}/external/traversal.lua
-				${CMAKE_SOURCE_DIR}/external/vulkan-docs/src/spec/vk.xml
+				${CMAKE_SOURCE_DIR}/external/slaxml/slaxdom.lua
+				${CMAKE_SOURCE_DIR}/external/slaxml/slaxml.lua
+				${CMAKE_SOURCE_DIR}/external/vulkan-docs/xml/vk.xml
 			)
 		endif()
 		add_custom_command(OUTPUT ${S_OUT}
