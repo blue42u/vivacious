@@ -79,6 +79,11 @@ gen.traversal.df(spec, function(ty)
 			ty.__raw and ' :{'..ty.__raw..'}' or '',
 			rewhite(ty.__doc or 'No documentation.', '\t')))
 
+		if ty.__call then
+			f:write '### Calling Convention\n'
+			f:write('\t'..callit({__call=ty.__call}, ty.__name)..'\n')
+		end
+
 		if ty.__index then
 			f:write '### Contents\n'
 			for _,e in ipairs(ty.__index) do
@@ -86,8 +91,9 @@ gen.traversal.df(spec, function(ty)
 				assert(e.version, 'No version for __index field '..e.name)
 				assert(e.version:match '%d+%.%d+%.%d+', 'Invalid version '..e.version)
 				assert(e.type, 'No type for __index field '..e.name)
-				f:write(('\t- %s *[Added in v%s]*\n%s\n'):format(
-					callit(e.type, e.name), e.version,
+				f:write(('\t- %s%s%s *[Added in v%s]*\n%s\n'):format(
+					e.canbenil and '[' or '', callit(e.type, e.name),
+					e.canbenil and ']' or '', e.version,
 					rewhite(e.doc or 'No documentation.', '\t\t')))
 			end
 		end
@@ -95,14 +101,19 @@ gen.traversal.df(spec, function(ty)
 		if ty.__mask then
 			f:write '### Bitmask Values\n'
 			for _,e in ipairs(ty.__mask) do
-				f:write('\t- '..e.name..' \''..e.flag..'\' ('..e.raw..')\n')
+				assert(e.name, 'Anonymous __mask fields are not allowed (in '..ty.__name..')')
+				local flag = e.flag and " '"..e.flag.."'" or ''
+				local raw = e.raw and " :{"..e.raw.."}" or ''
+				f:write('\t- '..e.name..flag..raw..'\n')
 			end
 		end
 
 		if ty.__enum then
 			f:write '### Possible Values\n'
 			for _,e in ipairs(ty.__enum) do
-				f:write('\t- '..e.name..' ('..e.raw..')\n')
+				assert(e.name, 'Anonymous __enum fields are not allowed (in '..ty.__name..')')
+				local raw = e.raw and " :{"..e.raw.."}" or ''
+				f:write('\t- '..e.name..raw..'\n')
 			end
 		end
 
