@@ -143,7 +143,10 @@ for t in xtrav(xml.root, {_name='enums'}) do if vkraw[t.attr.name] then
 	vkraw[t.attr.name].__enum = out
 	for et in xtrav(t, {_name='enum'}) do
 		table.insert(out, {raw=et.attr.name, name=et.attr.name}) end
-	for et in xtrav(t, {_name='extensions'}, {_name='extension'},
+	for et in xtrav(xml.root, {_name='feature'}, {_name='require'},
+		{_name='enum', extends=t.attr.name}) do
+			table.insert(out, {raw=et.attr.name, name=et.attr.name}) end
+	for et in xtrav(xml.root, {_name='extensions'}, {_name='extension'},
 		{_name='require'}, {_name='enum', extends=t.attr.name}) do
 			table.insert(out, {raw=et.attr.name, name=et.attr.name}) end
 
@@ -181,7 +184,7 @@ local function transform(res, t)
 				if x then res._len = x.value end
 			end
 		end
-		if res.canbenil == nil then res.canbebil = t.attr.optional == 'true' end
+		if res.canbenil == nil then res.canbenil = t.attr.optional == 'true' end
 
 		-- sType fields aren't actually exposed (to Lua), so we force the value
 		if t.attr.values then
@@ -221,9 +224,11 @@ end
 
 -- Load in the structures and unions
 for t in xtrav(xml.root, {_name='types'}, {_name='type', category={'struct', 'union'}}) do
-	vkraw[t.attr.name].__index = {}
-	for mt in xtrav(t, {_name='member'}) do
-		table.insert(vkraw[t.attr.name].__index, transform({version='0.0.0'}, mt))
+	if not t.attr.alias then
+		vkraw[t.attr.name].__index = {}
+		for mt in xtrav(t, {_name='member'}) do
+			table.insert(vkraw[t.attr.name].__index, transform({version='0.0.0'}, mt))
+		end
 	end
 end
 
