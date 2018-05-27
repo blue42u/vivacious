@@ -27,31 +27,30 @@ local function acc(...)
 	return r
 end
 
+-- Helpers for Human errors.
+local humanerror = false
+local function herror(s, v)
+	if v then v = v.__name..(v.__raw and ' :{'..v.__raw..'}' or '') end
+	io.stderr:write('VkHuman ERROR: '..tostring(s):gsub('{#}', v)..'\n')
+	humanerror = true
+end
+local function hassert(t, ...) if not t then herror(...) end end
+
 -- Build the translations of the raw C names for enums, changing Lua's name.
 local enumnames = {}
-local humanerror
 for _,v in pairs(vk) do if v.__enum then
 	-- Try to get the common prefix for this enum.
 	local pre
 	if #v.__enum < 2 then
 		pre = human.enumprefixes[v.__raw]
 		if #v.__enum == 0 then
-			if pre ~= 0 then
-				print(('VkHuman ERROR: does not handle empty enum %s :{%s}'):format(v.__name, v.__raw))
-				humanerror = true
-			end
+			hassert(pre == 0, 'Unhandled empty enum {#}', v)
 		elseif #v.__enum == 1 then
-			if type(pre) ~= 'string' then
-				print(('VkHuman ERROR: does not handle only entry %s of enum %s :{%s}')
-					:format(v.__enum[1].raw, v.__name, v.__raw))
-				humanerror = true
-			end
+			hassert(type(pre) == 'string',
+				'Unhandled only entry '..v.__enum[1].raw..' of enum {#}', v)
 		end
 	else
-		if human.enumprefixes[v.__raw] then
-			print(('VkHuman ERROR: handles multi-entried enum %s :{%s}'):format(v.__name, v.__raw))
-			humanerror = true
-		end
+		hassert(human.enumprefixes[v.__raw] == nil, 'Handles multi-entried enum {#}')
 		local full = acc((v.__enum[1].raw..'_'):gmatch '([^_]*)_')
 		for j=1,#full do
 			local tpre = table.concat(full, '_', 1, j)
@@ -72,42 +71,40 @@ for _,v in pairs(vk) do if v.__enum then
 		end
 	end
 end end
-if humanerror then error 'VkHuman error detected!' end
 
--- Use the _len indicators to remove some of the __index and __call entries.
+-- Process the _lens and _values of accessable structures.
 local handled = {}
-local function antilen(typ, key, doct, dockey)
-	if not typ[key] then return end
-	if handled[typ] then return end
-	handled[typ] = true
-	local names, lens = {},{}
-	local extradoc = {doct[dockey]}
-	for i,e in ipairs(typ[key]) do
-		names[e.name] = i
+for _,v in pairs(vk) do if v.__index and not handled[v] then
+	handled[v] = true
+	local newdoc = {v.__doc}
+
+	local names,lens = {},{}
+	for _,e in ipairs(v.__index) do
+		names[e.name] = e
 		if e._len then
-			-- The lengths should almost always be a bit of Lua code
-			local v,t = human.length(e._len, '#'..e.name, typ[key])
-			if v then lens[v] = lens[v] or {}; table.insert(lens[v], t) end
+			local r,x = human.length(e._len, '#'..e.name, v.__index)
+			if r and e.canbenil then
+				local k = v.__name..'_'..e.name
+				hassert(human.optionallens[k] ~= nil,
+					'Unhandled optional/len field '..e.name..' ('..e._len..') of {#}', v)
+				if not human.optionallens[k] then r = nil end
+			end
+			if r then lens[r] = lens[r] or {}; table.insert(lens[r], x) end
 		end
 		if e._value then
-			assert(enumnames[e._value], 'Unknown _value: '..e._value)
-			table.insert(extradoc, '- '..e.name..' = `\''..enumnames[e._value]..'\'`')
+			assert(enumnames[e._value], 'Unknown value: '..e._value)
+			table.insert(newdoc, ("- %s = `'%s'`"):format(e.name, enumnames[e._value]))
 		end
 	end
-	for k,ns in pairs(lens) do
-		if names[k] then
-			local x = typ[key][names[k]]
-			x.canbenil,x._islen = true, true
+	for r,xs in pairs(lens) do
+		if names[r] then
+			names[r].canbenil, names[r]._islen = true, true
 		end
-		local parts = {}
-		for _,ex in ipairs(ns) do table.insert(parts, ex) end
-		table.insert(extradoc, '- '..k..' = `'..table.concat(parts, ' == ')..'`')
+		table.insert(newdoc, ("- %s = `%s`"):format(r, table.concat(xs, ' == ')))
 	end
 
-	if #extradoc > 0 then doct[dockey] = table.concat(extradoc, '\n') end
-end
+	if #newdoc > 0 then v.__doc = table.concat(newdoc, '\n') end
+end end
 
-for _,v in pairs(vk) do antilen(v, '__index', v, '__doc') end
-for _,e in ipairs(vk.Vk.__index) do antilen(e.type, '__call', e, 'doc') end
-
+if humanerror then error 'VkHuman error detected!' end
 return vk
