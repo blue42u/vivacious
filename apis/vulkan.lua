@@ -29,19 +29,29 @@ end
 
 -- Build the translations of the raw C names for enums, changing Lua's name.
 local enumnames = {}
+local humanerror
 for _,v in pairs(vk) do if v.__enum then
 	-- Try to get the common prefix for this enum.
 	local pre
 	if #v.__enum < 2 then
 		pre = human.enumprefixes[v.__raw]
 		if #v.__enum == 0 then
-			if pre ~= 0 then print(('VkHuman does not handle empty enum %s :{%s}')
-				:format(v.__name, v.__raw)) end
+			if pre ~= 0 then
+				print(('VkHuman ERROR: does not handle empty enum %s :{%s}'):format(v.__name, v.__raw))
+				humanerror = true
+			end
 		elseif #v.__enum == 1 then
-			if type(pre) ~= 'string' then print(('VkHuman does not handle only entry %s of enum %s :{%s}')
-				:format(v.__enum[1].raw, v.__name, v.__raw)) end
+			if type(pre) ~= 'string' then
+				print(('VkHuman ERROR: does not handle only entry %s of enum %s :{%s}')
+					:format(v.__enum[1].raw, v.__name, v.__raw))
+				humanerror = true
+			end
 		end
 	else
+		if human.enumprefixes[v.__raw] then
+			print(('VkHuman ERROR: handles multi-entried enum %s :{%s}'):format(v.__name, v.__raw))
+			humanerror = true
+		end
 		local full = acc((v.__enum[1].raw..'_'):gmatch '([^_]*)_')
 		for j=1,#full do
 			local tpre = table.concat(full, '_', 1, j)
@@ -62,6 +72,7 @@ for _,v in pairs(vk) do if v.__enum then
 		end
 	end
 end end
+if humanerror then error 'VkHuman error detected!' end
 
 -- Use the _len indicators to remove some of the __index and __call entries.
 local handled = {}
@@ -75,41 +86,8 @@ local function antilen(typ, key, doct, dockey)
 		names[e.name] = i
 		if e._len then
 			-- The lengths should almost always be a bit of Lua code
-			e._len = e._len:gsub('::', '.')
-			local meta = {}
-			function meta.__add(a,b)
-				local out = setmetatable({}, meta)
-				assert((type(a) == 'table') ~= (type(b) == 'table'))
-				if type(a) == 'table' then out._res,a = a._res,a._from end
-				if type(b) == 'table' then out._res,b = b._res,b._from end
-				out._from = a..' - '..b
-				return out
-			end
-			function meta.__div(a,b)
-				local out = setmetatable({}, meta)
-				assert((type(a) == 'table') ~= (type(b) == 'table'))
-				if type(a) == 'table' then out._res,a = a._res,a._from end
-				if type(b) == 'table' then out._res,b = b._res,b._from end
-				out._from = a..' * '..b
-				return out
-			end
-			function meta:__index(k)
-				if k:match '^_' then return
-				elseif k:match '^[%u_]+$' then
-					return setmetatable({_from=k}, meta)
-				else
-					if not self._res then
-						local m = k:match '^[^%.]+'
-						assert(names[m], "Name "..m.." is not available for entry "..e.name)
-					else k = self._res..'.'..k end
-					return setmetatable({_res=k, _from='#'..e.name}, meta)
-				end
-			end
-			local r = assert(load('return ('..e._len..')', nil, 't', setmetatable({}, meta)))()
-			if type(r) == 'table' and r._res then
-				lens[r._res] = lens[r._res] or {}
-				table.insert(lens[r._res], r._from)
-			end
+			local v,t = human.length(e._len, '#'..e.name, typ[key])
+			if v then lens[v] = lens[v] or {}; table.insert(lens[v], t) end
 		end
 		if e._value then
 			assert(enumnames[e._value], 'Unknown _value: '..e._value)
@@ -117,11 +95,12 @@ local function antilen(typ, key, doct, dockey)
 		end
 	end
 	for k,ns in pairs(lens) do
-		if names[k] then typ[key][names[k]].canbenil = true end
-		local parts = {}
-		for _,ex in ipairs(ns) do
-			table.insert(parts, ex)
+		if names[k] then
+			local x = typ[key][names[k]]
+			x.canbenil,x._islen = true, true
 		end
+		local parts = {}
+		for _,ex in ipairs(ns) do table.insert(parts, ex) end
 		table.insert(extradoc, '- '..k..' = `'..table.concat(parts, ' == ')..'`')
 	end
 
