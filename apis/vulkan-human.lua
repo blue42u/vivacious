@@ -33,14 +33,70 @@ human.enumprefixes = {
 	VkDeviceQueueCreateFlagBits = 'VK_DEVICE_QUEUE_CREATE',
 }
 
+-- Sometimes a field will be marked as optional, but still have a length field
+-- attached to it. Since there is no consistent way to check whether they should
+-- be connected or not, we force a human's approval.
+local optionallens = {
+	VkPipelineViewportStateCreateInfo_pViewports = true,
+	VkPipelineViewportSwizzleStateCreateInfoNV_pViewportSwizzles = true,
+	VkDebugUtilsMessengerCallbackDataEXT_pQueueLabels = true,
+	VkDebugUtilsMessengerCallbackDataEXT_pCmdBufLabels = true,
+	VkPresentRegionsKHR_pRegions = false,
+	VkPipelineMultisampleStateCreateInfo_pSampleMask = false,
+	VkPresentTimesInfoGOOGLE_pTimes = false,
+	VkDescriptorSetLayoutBinding_pImmutableSamplers = false,
+	VkPresentInfoKHR_pResults = false,
+	VkD3D12FenceSubmitInfoKHR_pWaitSemaphoreValues = true,
+	VkD3D12FenceSubmitInfoKHR_pSignalSemaphoreValues = true,
+	VkPipelineDiscardRectangleStateCreateInfoEXT_pDiscardRectangles = true,
+	VkPipelineViewportStateCreateInfo_pScissors = true,
+	VkPipelineCoverageModulationStateCreateInfoNV_pCoverageModulationTable = true,
+	VkPresentRegionKHR_pRectangles = true,
+	VkSubpassDescription_pResolveAttachments = true,
+}
+
+-- Some of the commands return arrays, which in Vulkan are done by calling the
+-- command twice: once for the size, once to fill the data.
+local enumerators = {
+	vkEnumeratePhysicalDevices_pPhysicalDevices = true,
+	vkGetPhysicalDeviceQueueFamilyProperties_pQueueFamilyProperties = true,
+	vkEnumerateInstanceLayerProperties_pProperties = true,
+	vkEnumerateInstanceExtensionProperties_pProperties = true,
+	vkEnumerateDeviceLayerProperties_pProperties = true,
+	vkEnumerateDeviceExtensionProperties_pProperties = true,
+	vkGetImageSparseMemoryRequirements_pSparseMemoryRequirements = true,
+	vkGetPhysicalDeviceSparseImageFormatProperties_pProperties = true,
+	vkGetPipelineCacheData_pData = true,
+	vkGetPhysicalDeviceDisplayPropertiesKHR_pProperties = true,
+	vkGetPhysicalDeviceDisplayPlanePropertiesKHR_pProperties = true,
+	vkGetDisplayPlaneSupportedDisplaysKHR_pDisplays = true,
+	vkGetDisplayModePropertiesKHR_pProperties = true,
+	vkGetPhysicalDeviceSurfaceFormatsKHR_pSurfaceFormats = true,
+	vkGetPhysicalDeviceSurfacePresentModesKHR_pPresentModes = true,
+	vkGetSwapchainImagesKHR_pSwapchainImages = true,
+	vkGetPhysicalDeviceQueueFamilyProperties2_pQueueFamilyProperties = true,
+	vkGetPhysicalDeviceSparseImageFormatProperties2_pProperties = true,
+	vkEnumeratePhysicalDeviceGroups_pPhysicalDeviceGroupProperties = true,
+	vkGetPhysicalDevicePresentRectanglesKHR_pRects = true,
+	vkGetPastPresentationTimingGOOGLE_pPresentationTimings = true,
+	vkGetPhysicalDeviceSurfaceFormats2KHR_pSurfaceFormats = true,
+	vkGetImageSparseMemoryRequirements2_pSparseMemoryRequirements = true,
+	vkGetValidationCacheDataEXT_pData = true,
+	vkGetShaderInfoAMD_pInfo = true,
+}
+setmetatable(optionallens, {__index=function(_,k)
+	return enumerators[k:match '^PFN_(.+)']
+end})
+
 -- The "len" attribute of <member> and <param> tags are, generally speaking,
 -- a big pain. They are something like a bit of C++ code, but for math its
 -- close enough to Lua that we use metatables to read in the expression.
--- `code` is the snippet of code from the XML
+-- `elem` is the __index or __call field to get a length equation for.
+-- `partype` is the type that contains `elem`.
 -- `forvar` is an expression that represents the length of the field.
 -- `parent` is the the __index or __call sequence from which names may come.
 -- Returns the variable reference and value to assign the length.
-function human.length(code, lenvar, parent)
+function human.length(elem, partype, lenvar, parent)
 	local meta = {}
 	local function new(base)
 		local names = {}
@@ -71,30 +127,15 @@ function human.length(code, lenvar, parent)
 			error('Attempt to get field '..k..' of '..(self._setvar or '(env)'))
 		end
 	end
-	local val = assert(load('return ('..code:gsub('::', '.')..')', nil, 't', new(parent)))()
-	if type(val) == 'table' then return val._setvar, val._setto end
+	local val = assert(load('return ('..elem._len:gsub('::', '.')..')', nil, 't', new(parent)))()
+	if type(val) == 'table' then
+		if elem.canbenil then
+			local k = partype.__raw..'_'..elem.name
+			assert(optionallens[k] ~= nil, 'Unhandled op/len: '..k..' = nil!')
+			if not optionallens[k] then return end
+		end
+		return val._setvar, val._setto
+	end
 end
-
--- Sometimes a field will be marked as optional, but still have a length field
--- attached to it. Since there is no consistent way to check whether they should
--- be connected or not, we force a human's approval.
-human.optionallens = {
-	VkPipelineViewportStateCreateInfo_pViewports = true,
-	VkPipelineViewportSwizzleStateCreateInfoNV_pViewportSwizzles = true,
-	VkDebugUtilsMessengerCallbackDataEXT_pQueueLabels = true,
-	VkDebugUtilsMessengerCallbackDataEXT_pCmdBufLabels = true,
-	VkPresentRegionsKHR_pRegions = false,
-	VkPipelineMultisampleStateCreateInfo_pSampleMask = false,
-	VkPresentTimesInfoGOOGLE_pTimes = false,
-	VkDescriptorSetLayoutBinding_pImmutableSamplers = false,
-	VkPresentInfoKHR_pResults = false,
-	VkD3D12FenceSubmitInfoKHR_pWaitSemaphoreValues = true,
-	VkD3D12FenceSubmitInfoKHR_pSignalSemaphoreValues = true,
-	VkPipelineDiscardRectangleStateCreateInfoEXT_pDiscardRectangles = true,
-	VkPipelineViewportStateCreateInfo_pScissors = true,
-	VkPipelineCoverageModulationStateCreateInfoNV_pCoverageModulationTable = true,
-	VkPresentRegionKHR_pRectangles = true,
-	VkSubpassDescription_pResolveAttachments = true,
-}
 
 return human

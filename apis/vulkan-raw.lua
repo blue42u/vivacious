@@ -244,7 +244,7 @@ for t in xtrav(xml.root, {_name='types'}, {_name='type', category='funcpointer'}
 				text = table.concat(text):gsub('[%s,);]', '')
 				local res = {name=text:gsub('[^%w]', ''), type=vkraw[lastty], version='0.0.0'}
 				if res.type == vkraw.char then res._len = 'null-terminated' end
-				transform(res, nil, text)
+				transform(res, text)
 				table.insert(vkraw[nam].__call, res)
 			end
 			lastty, text = xtrav(mt, {_type='text'})().value, {}

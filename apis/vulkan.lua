@@ -50,7 +50,7 @@ for _,v in pairs(vk) do if v.__enum then
 				'Unhandled only entry '..v.__enum[1].raw..' of enum {#}', v)
 		end
 	else
-		hassert(human.enumprefixes[v.__raw] == nil, 'Handles multi-entried enum {#}')
+		hassert(human.enumprefixes[v.__raw] == nil, 'Handled multi-entried enum {#}')
 		local full = acc((v.__enum[1].raw..'_'):gmatch '([^_]*)_')
 		for j=1,#full do
 			local tpre = table.concat(full, '_', 1, j)
@@ -74,37 +74,50 @@ end end
 
 -- Process the _lens and _values of accessable structures.
 local handled = {}
-for _,v in pairs(vk) do if v.__index and not handled[v] then
+for _,v in pairs(vk) do if (v.__index or v.__call) and not handled[v] then
 	handled[v] = true
 	local newdoc = {v.__doc}
 
 	local names,lens = {},{}
-	for _,e in ipairs(v.__index) do
+	for _,e in ipairs(v.__index or v.__call) do
 		names[e.name] = e
 		if e._len then
-			local r,x = human.length(e._len, '#'..e.name, v.__index)
-			if r and e.canbenil then
-				local k = v.__name..'_'..e.name
-				hassert(human.optionallens[k] ~= nil,
-					'Unhandled optional/len field '..e.name..' ('..e._len..') of {#}', v)
-				if not human.optionallens[k] then r = nil end
-			end
+			local r,x = human.length(e, v, '#'..e.name, v.__index or v.__call)
 			if r then lens[r] = lens[r] or {}; table.insert(lens[r], x) end
 		end
 		if e._value then
 			assert(enumnames[e._value], 'Unknown value: '..e._value)
+			e.setto = enumnames[e._value]
 			table.insert(newdoc, ("- %s = `'%s'`"):format(e.name, enumnames[e._value]))
 		end
 	end
 	for r,xs in pairs(lens) do
-		if names[r] then
-			names[r].canbenil, names[r]._islen = true, true
-		end
+		if names[r] then names[r].canbenil, names[r].setto = true, xs end
 		table.insert(newdoc, ("- %s = `%s`"):format(r, table.concat(xs, ' == ')))
 	end
 
 	if #newdoc > 0 then v.__doc = table.concat(newdoc, '\n') end
 end end
+
+-- Process the _lens of the commands. Length arguments are marked with setto.
+for _,c in ipairs(vk.Vk.__index) do
+	local newdoc = {c.doc}
+
+	local names,lens = {},{}
+	for _,e in ipairs(c.type.__call) do
+		names[e.name] = e
+		if e._len then
+			local r,x = human.length(e, c.type, '#'..e.name, c.type.__call)
+			if r then lens[r] = lens[r] or {}; table.insert(lens[r], x) end
+		end
+	end
+	for r,xs in pairs(lens) do
+		if names[r] then names[r].setto = xs end
+		table.insert(newdoc, ("- %s = `%s`"):format(r, table.concat(xs, ' == ')))
+	end
+
+	if #newdoc > 0 then c.doc = table.concat(newdoc, '\n') end
+end
 
 if humanerror then error 'VkHuman error detected!' end
 return vk
