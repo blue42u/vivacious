@@ -208,7 +208,7 @@ local function transform(res, t)
 		local arr = #tx:gsub('[^[*]', '')
 		-- Sometimes Vulkan has an extra pointer that's not an array, detect this.
 		if arr == 1 and not res._len and res.type ~= vkraw.void then
-			res._extraptr = true
+			res.extraptr = true
 		elseif arr > 0 then
 			assert(not array[res.type].__index or res._len, 'Arrays need lengths! '..res.name)
 			if res.type == vkraw.char then
@@ -262,21 +262,18 @@ end
 vk.Vk.__index = {}
 for t in xtrav(xml.root, {_name='commands'}, {_name='command'}) do
 	if not t.attr.alias then -- We can't yet handle aliases properly
-		local pro = xtrav(t, {_name='proto'})()
 		local out = {
-			type = {__call = { transform({version='0.0.0'}, pro) }},
+			type = {__call = {} },
 			version = '0.0.0',
 		}
-		out.type.__call[1].name, out.name = 'return', out.type.__call[1].name
-		out.type.__raw = 'PFN_'..out.name
-
-		if out.type.__call[1].type == vkraw.void then
-			table.remove(out.type.__call, 1)
-		end
-
 		for par in xtrav(t, {_name='param'}) do
 			table.insert(out.type.__call, transform({version='0.0.0'}, par))
 		end
+
+		local pro = transform({version='0.0.0'}, xtrav(t, {_name='proto'})())
+		out.name, out.type.__raw = pro.name, 'PFN_'..pro.name
+		pro.name, pro.mainret = 'return', true
+		if pro.type ~= vkraw.void then table.insert(out.type.__call, pro) end
 
 		table.insert(vk.Vk.__index, out)
 	end

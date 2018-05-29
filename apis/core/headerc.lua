@@ -44,11 +44,11 @@ local function callit(ty, na, opt)
 	if type(ty) == 'string' then
 		assert(basetypes[ty], 'Unknown basic type '..ty)
 		return basetypes[ty]..sna
-	elseif ty.__raw then return ty.__raw..sna
+	elseif (not opt or not opt.forcereal) and ty.__raw then return ty.__raw..sna
 	elseif ty.__name then return 'Vv'..ty.__name..((opt and opt.inarr) and '' or '*')..sna
 	elseif ty.__call then
 		local as = {}
-		if not opt or not opt.standard then
+		if not opt or not opt.noself then
 			if ty.__call.method then
 				assert(opt and opt.self, 'Method __index without a self!')
 				table.insert(as, callit(opt.self, 'self'))
@@ -59,7 +59,7 @@ local function callit(ty, na, opt)
 			assert(a.name, 'Anonymous __call fields are not allowed')
 			assert(a.type, 'No type for __call field '..a.name)
 			if a.name == 'return' then table.insert(rets, a)
-			else table.insert(as, callit(a.type, a.name)) end
+			else table.insert(as, callit(a.type, (a.extraptr and '*' or '')..a.name)) end
 		end
 		local ret
 		for _,r in ipairs(rets) do if r.mainret then
@@ -72,7 +72,7 @@ local function callit(ty, na, opt)
 		end
 		for _,r in ipairs(rets) do if r ~= ret then table.insert(as, callit(r.type, '*')) end end
 		ret = ret and ret.type or {__raw='void'}
-		if opt and opt.standard then
+		if opt and opt.proto then
 			return callit(ret, (na or '')..'('..table.concat(as,', ')..')')
 		else
 			return callit(ret, '(*'..(na or '')..')('..table.concat(as,', ')..')')
@@ -130,6 +130,26 @@ gen.traversal.df(spec, function(ty)
 							foundone = true
 						end
 						f:write(indent(callit(e.type, e.name, {self=ty}), '\t\t')..';\n')
+						if e.type.__call and e.exbinding then
+							f:write('static inline '..
+								callit(e.type, 'vV'..e.name, {self=ty, proto=true, forcereal=true})..' {\n')
+							local argnames = {}
+							for _,ee in ipairs(e.type.__call) do
+								if ee.name ~= 'return' then table.insert(argnames, ee.name) end
+								for _,s in ipairs(ee.setto or {}) do
+									if not s:find '#' then
+										f:write('\t'..ee.name..' = '..s..';\n')
+										break
+									end
+								end
+							end
+							f:write('\treturn self->_M->'..e.name..'('..table.concat(argnames,', ')..');\n')
+							f:write '}\n'
+						else
+							f:write('#ifdef __GNUC__\n#define vV'..e.name
+								..'(_S, ...) ( __typeof__(_S) _s = (_S),  _s->_M->'..e.name
+								..'(_s, ##__VA_ARGS__ ) )\n#endif\n')
+						end
 					end
 				end
 				if foundone then f:write('\t} *_M;\n') end
@@ -170,7 +190,7 @@ gen.traversal.df(spec, function(ty)
 				assert(e.version, 'No version for __index field '..e.name)
 				assert(e.version:match '%d+%.%d+%.%d+', 'Invalid version '..e.version)
 				assert(e.type, 'No type for __index field '..e.name)
-				f:write(callit(e.type, 'vV'..e.name, {standard=true})..';\n')
+				f:write(callit(e.type, 'vV'..e.name, {proto=true})..';\n')
 			end
 		end
 	else

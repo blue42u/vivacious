@@ -97,6 +97,11 @@ gen.traversal.df(spec, function(ty)
 					e.canbenil and '[' or '', callit(e.type, e.name),
 					e.canbenil and ']' or '', e.version,
 					rewhite(e.doc or 'No documentation.', '\t\t')))
+				if e.setto then
+					local a = {}
+					for _,s in ipairs(e.setto) do a[#a+1] = ('`%s`'):format(s) end
+					f:write('\t\t*Assigned as '..table.concat(a, ' or ')..'*\n')
+				end
 			end
 		end
 
@@ -137,6 +142,11 @@ gen.traversal.df(spec, function(ty)
 				f:write(('\t- %s *[Added in v%s]*\n%s\n'):format(
 					callit(e.type, e.name), e.version,
 					rewhite(e.doc or 'No documentation.', '\t\t')))
+				if e.setto then
+					local a = {}
+					for _,s in ipairs(e.setto) do a[#a+1] = ('`%s`'):format(s) end
+					f:write('\t\t*Assigned as '..table.concat(a, ' or ')..'*\n')
+				end
 			end
 		end
 	else

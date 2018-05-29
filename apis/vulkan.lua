@@ -73,10 +73,9 @@ for _,v in pairs(vk) do if v.__enum then
 end end
 
 -- Process the _lens and _values of accessable structures.
-local handled = {}
+local handled = {}	-- To handle aliases, remove repetition
 for _,v in pairs(vk) do if (v.__index or v.__call) and not handled[v] then
 	handled[v] = true
-	local newdoc = {v.__doc}
 
 	local names,lens = {},{}
 	for _,e in ipairs(v.__index or v.__call) do
@@ -87,21 +86,18 @@ for _,v in pairs(vk) do if (v.__index or v.__call) and not handled[v] then
 		end
 		if e._value then
 			assert(enumnames[e._value], 'Unknown value: '..e._value)
-			e.setto = enumnames[e._value]
-			table.insert(newdoc, ("- %s = `'%s'`"):format(e.name, enumnames[e._value]))
+			e.setto = {enumnames[e._value]}
 		end
 	end
 	for r,xs in pairs(lens) do
 		if names[r] then names[r].canbenil, names[r].setto = true, xs end
-		table.insert(newdoc, ("- %s = `%s`"):format(r, table.concat(xs, ' == ')))
 	end
-
-	if #newdoc > 0 then v.__doc = table.concat(newdoc, '\n') end
 end end
 
--- Process the _lens of the commands. Length arguments are marked with setto.
+-- Process the commands.
 for _,c in ipairs(vk.Vk.__index) do
-	local newdoc = {c.doc}
+	c.exbinding = true
+	c.type.__call.method = true
 
 	local names,lens = {},{}
 	for _,e in ipairs(c.type.__call) do
@@ -113,10 +109,7 @@ for _,c in ipairs(vk.Vk.__index) do
 	end
 	for r,xs in pairs(lens) do
 		if names[r] then names[r].setto = xs end
-		table.insert(newdoc, ("- %s = `%s`"):format(r, table.concat(xs, ' == ')))
 	end
-
-	if #newdoc > 0 then c.doc = table.concat(newdoc, '\n') end
 end
 
 if humanerror then error 'VkHuman error detected!' end
