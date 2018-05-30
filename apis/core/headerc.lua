@@ -134,7 +134,7 @@ function callit(ty, na, opt)
 end
 
 -- The main traversal
-local post = {}
+local post,atend = {},{}
 gen.traversal.df(spec, function(ty)
 	assert(type(ty) == 'table', "Trying to handle a non-type-y type of type "
 		..type(ty)..' ('..tostring(ty)..')')
@@ -147,18 +147,35 @@ gen.traversal.df(spec, function(ty)
 		if ty.__index then
 			f:write('typedef struct Vv'..ty.__name..' Vv'..ty.__name..';\n')
 			table.insert(post, function()
-				local afterstruct = {}
 				f:write('struct Vv'..ty.__name..' {\n')
 				local foundone = false
-				for _,e in ipairs(ty.__index) do
+				for _,e in ipairs(ty.__index) do if not e.aliasof then
+					assert(e.name, 'Anonymous __index fields are not allowed')
+					assert(e.version, 'No version for __index field '..e.name)
+					assert(e.version:match '%d+%.%d+%.%d+', 'Invalid version '..e.version)
+					assert(e.type, 'No type for __index field '..e.name)
 					if e.type.__call and e.type.__call.method then
 						if not foundone then
 							f:write('\tconst struct Vv'..ty.__name..'_M {\n')
 							foundone = true
 						end
+						local ifdef
+						if e.type.__ifdef then
+							local ss = {}
+							for _,s in ipairs(e.type.__ifdef) do ss[#ss+1] = 'defined('..s..')' end
+							ifdef = table.concat(ss, ' && ')
+							f:write('#if '..ifdef..'\n')
+						end
 						f:write(indent(callit(e.type, e.name, {self=ty}), '\t\t')..';\n')
+						if e.type.__ifdef then
+							f:write '#else\n'
+							assert(e.type.__ifndef, 'Type with __ifdef but not __ifndef!')
+							f:write(indent(callit(e.type.__ifndef, e.name, {self=ty}), '\t\t')..';\n')
+							f:write '#endif\n'
+						end
 						if e.type.__call and e.exbinding then
-							afterstruct[#afterstruct+1] = 'static inline '..
+							if ifdef then atend[#atend+1] = '#if '..ifdef..'\n' end
+							atend[#atend+1] = 'static inline '..
 								callit(e.type, 'vV'..e.name, {self=ty, proto=true, forcereal=true})..' {\n'
 							local args = {}
 							for _,ee in ipairs(e.type.__call) do
@@ -166,22 +183,19 @@ gen.traversal.df(spec, function(ty)
 									table.insert(args, cansetto(ee.setto, e.type.__call, {self=ty}) or ee.name)
 								end
 							end
-							afterstruct[#afterstruct+1] =
+							atend[#atend+1] =
 								'\treturn self->_M->'..e.name..'('..table.concat(args, ', ')..');\n}\n'
+							if ifdef then atend[#atend+1] = '#endif\n' end
 						else
-							afterstruct[#afterstruct+1] = '#ifdef __GNUC__\n#define vV'..e.name
+							atend[#atend+1] = '#ifdef __GNUC__\n#define vV'..e.name
 								..'(_S, ...) ( __typeof__(_S) _s = (_S),  _s->_M->'..e.name
 								..'(_s, ##__VA_ARGS__ ) )\n#endif\n'
 						end
 					end
-				end
+				end end
 				if foundone then f:write('\t} *_M;\n') end
 				local udatad = false
-				for _,e in ipairs(ty.__index) do
-					assert(e.name, 'Anonymous __index fields are not allowed')
-					assert(e.version, 'No version for __index field '..e.name)
-					assert(e.version:match '%d+%.%d+%.%d+', 'Invalid version '..e.version)
-					assert(e.type, 'No type for __index field '..e.name)
+				for _,e in ipairs(ty.__index) do if not e.aliasof then
 					if not udatad and e.type.__call and not e.type.__call.method then
 						f:write('\tvoid* udata;\n')
 						udatad = true
@@ -191,11 +205,21 @@ gen.traversal.df(spec, function(ty)
 							f:write('\tsize_t '..e.name..'_cnt;\n')
 					end
 					if not e.type.__call or not e.type.__call.method then
+						if e.type.__ifdef then
+							local ss = {}
+							for _,s in ipairs(e.type.__ifdef) do ss[#ss+1] = 'defined('..s..')' end
+							f:write('#if '..table.concat(ss, ' && ')..'\n')
+						end
 						f:write(indent(callit(e.type, e.name, {self=ty}))..';\n')
+						if e.type.__ifdef then
+							f:write '#else\n'
+							assert(e.type.__ifndef, 'Type with __ifdef but not __ifndef!')
+						f:write(indent(callit(e.type.__ifndef, e.name, {self=ty}))..';\n')
+							f:write '#endif\n'
+						end
 					end
-				end
+				end end
 				f:write('};\n\n')
-				f:write(table.concat(afterstruct))
 			end)
 			return
 		end
@@ -225,6 +249,7 @@ end)
 
 f:write '\n'
 for _,p in ipairs(post) do p() end
+f:write(table.concat(atend))
 
 -- Close up, to be nice to the OS
 f:close()

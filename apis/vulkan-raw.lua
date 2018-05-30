@@ -154,9 +154,9 @@ for t in xtrav(xml.root, {_name='enums'}) do if vkraw[t.attr.name] then
 	for et in xtrav(xml.root, {_name='feature'}, {_name='require'},
 		{_name='enum', extends=t.attr.name}) do
 			table.insert(out, {raw=et.attr.name, name=et.attr.name}) end
-	for et in xtrav(xml.root, {_name='extensions'}, {_name='extension'},
-		{_name='require'}, {_name='enum', extends=t.attr.name}) do
-			table.insert(out, {raw=et.attr.name, name=et.attr.name}) end
+	for ext in xtrav(xml.root, {_name='extensions'}, {_name='extension'}) do
+		for et in xtrav(ext, {_name='require'}, {_name='enum', extends=t.attr.name}) do
+			table.insert(out, {raw=et.attr.name, name=et.attr.name, ifdef=ext.attr.name}) end end
 
 	-- We do the least bit of work here, stripping the AIDs and _BIT suffixes
 	for _,e in ipairs(out) do
@@ -164,7 +164,7 @@ for t in xtrav(xml.root, {_name='enums'}) do if vkraw[t.attr.name] then
 	end
 end end
 
--- Connect the __enum tags and __mask tags of corrosponding
+-- Connect the __enum tags and __mask tags of corrosponding bitmask/enums
 for rq,v in pairs(masks) do for rn in pairs(v) do
 	if vkraw[rq] then vkraw[rn].__mask = vkraw[rq].__enum end
 end end
@@ -284,6 +284,30 @@ for t in xtrav(xml.root, {_name='commands'}, {_name='command'}) do
 		if pro.type ~= vkraw.void then table.insert(out.type.__call, pro) end
 
 		table.insert(vk.Vk.__index, out)
+	else
+		table.insert(vk.Vk.__index, {name=t.attr.name, aliasof=t.attr.alias, version='0.0.0'})
+	end
+end
+
+-- Figure out the C ifdef's for everything
+local voidf,voidp = {__raw='PFN_vkVoidFunction'},{__raw='void*'}
+local cmds = {}
+for _,c in ipairs(vk.Vk.__index) do cmds[c.name] = c.type or cmds[c.aliasof] end
+for ext in xtrav(xml.root, {_name='extensions'}, {_name='extension'}) do
+	for et in xtrav(ext, {_name='require'}, {_name={'type', 'command'}}) do
+		local t = (et.name == 'type' and vkraw or cmds)[et.attr.name]
+		assert(t, 'No vkraw for '..et.attr.name)
+		if not t.__ifdef then t.__ifdef = {} end
+		table.insert(t.__ifdef, ext.attr.name)
+		if et.parent.attr.extension then table.insert(t.__ifdef, et.parent.attr.extension) end
+		t.__ifndef = et.name == 'type' and voidp or voidf
+	end
+end
+for et in xtrav(xml.root, {_name='feature'}, {_name='require'}, {_name={'type', 'command'}}) do
+	if not et.attr.name:match '^[Vv][Kk]_' then
+		local t = (et.name == 'type' and vkraw or cmds)[et.attr.name]
+		assert(t, 'No vkraw for '..et.attr.name)
+		t.__ifdef = nil
 	end
 end
 

@@ -97,9 +97,11 @@ end end
 
 -- Process the commands.
 local removed,handle,connect = {},{},{}
-for _,c in ipairs(vk.Vk.__index) do
+local map,alias = {},{}
+for _,c in ipairs(vk.Vk.__index) do if not c.aliasof then
 	c.exbinding = true
 	c.type.__call.method = true
+	map[c.name] = c
 
 	-- Figure out where this entry should actually go, and move it there.
 	local selfsets = {human.self(c.type.__call, c.name)}
@@ -124,9 +126,9 @@ for _,c in ipairs(vk.Vk.__index) do
 		handle[self].__index[#handle[self].__index+1] = c
 		for i,s in ipairs(selfsets) do c.type.__call[i].setto = {s} end
 	end
-end
+else alias[c] = map[c.alias] end end
 for h,p in pairs(connect) do h.__index[2].type = assert(handle[vk[p]], 'No handle '..p) end
-for _,c in ipairs(vk.Vk.__index) do
+for _,c in ipairs(vk.Vk.__index) do if not c.aliasof then
 	-- Use the _len fields to assign setto's accordingly
 	local names,lens = {},{}
 	for _,e in ipairs(c.type.__call) do
@@ -141,10 +143,10 @@ for _,c in ipairs(vk.Vk.__index) do
 	for r,xs in pairs(lens) do
 		if names[r] then names[r].setto = xs end
 	end
-end
+end end
 local newindex = {}
 for _,c in ipairs(vk.Vk.__index) do
-	if not removed[c] then newindex[#newindex+1] = c end
+	if not removed[c] and not removed[alias[c]] then newindex[#newindex+1] = c end
 end
 vk.Vk.__index = newindex
 

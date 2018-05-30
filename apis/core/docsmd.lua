@@ -92,15 +92,20 @@ gen.traversal.df(spec, function(ty)
 				assert(e.name, 'Anonymous __index fields are not allowed (in '..ty.__name..')')
 				assert(e.version, 'No version for __index field '..e.name)
 				assert(e.version:match '%d+%.%d+%.%d+', 'Invalid version '..e.version)
-				assert(e.type, 'No type for __index field '..e.name)
-				f:write(('\t- %s%s%s *[Added in v%s]*\n%s\n'):format(
-					e.canbenil and '[' or '', callit(e.type, e.name),
-					e.canbenil and ']' or '', e.version,
-					rewhite(e.doc or 'No documentation.', '\t\t')))
-				if e.setto then
-					local a = {}
-					for _,s in ipairs(e.setto) do a[#a+1] = ('`%s`'):format(s) end
-					f:write('\t\t*Assigned as '..table.concat(a, ' or ')..'*\n')
+				if e.aliasof then
+					f:write(('\t- %s alias of %s *[Added in v%s]*\n'):format(
+						e.name, e.aliasof, e.version))
+				else
+					assert(e.type, 'No type for __index field '..e.name)
+					f:write(('\t- %s%s%s *[Added in v%s]*\n%s\n'):format(
+						e.canbenil and '[' or '', callit(e.type, e.name),
+						e.canbenil and ']' or '', e.version,
+						rewhite(e.doc or 'No documentation.', '\t\t')))
+					if e.setto then
+						local a = {}
+						for _,s in ipairs(e.setto) do a[#a+1] = ('`%s`'):format(s) end
+						f:write('\t\t*Assigned as '..table.concat(a, ' or ')..'*\n')
+					end
 				end
 			end
 		end
