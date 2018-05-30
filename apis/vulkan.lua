@@ -96,18 +96,20 @@ for _,v in pairs(vk) do if (v.__index or v.__call) and not handled[v] then
 end end
 
 -- Process the commands.
+local alias = {}
+for _,c in ipairs(vk.Vk.__index) do if c.aliasof then
+	if not alias[c.aliasof] then alias[c.aliasof] = {} end
+	table.insert(alias[c.aliasof], c)
+end end
 local removed,handle,connect = {},{},{}
-local map,alias = {},{}
 for _,c in ipairs(vk.Vk.__index) do if not c.aliasof then
 	c.exbinding = true
 	c.type.__call.method = true
-	map[c.name] = c
 
 	-- Figure out where this entry should actually go, and move it there.
 	local selfsets = {human.self(c.type.__call, c.name)}
 	local self = table.remove(selfsets, 1)
 	if self then
-		removed[c] = true
 		if not handle[self] then
 			vk[self.__name] = {
 				__name = self.__name,
@@ -123,10 +125,16 @@ for _,c in ipairs(vk.Vk.__index) do if not c.aliasof then
 				or human.parent[self.__name] or nil
 			self._parent = nil
 		end
-		handle[self].__index[#handle[self].__index+1] = c
+		local ind = handle[self].__index
+		removed[c] = true
+		ind[#ind+1] = c
+		for _,a in ipairs(alias[c.name] or {}) do
+			removed[a] = true
+			ind[#ind+1] = a
+		end
 		for i,s in ipairs(selfsets) do c.type.__call[i].setto = {s} end
 	end
-else alias[c] = map[c.alias] end end
+end end
 for h,p in pairs(connect) do h.__index[2].type = assert(handle[vk[p]], 'No handle '..p) end
 for _,c in ipairs(vk.Vk.__index) do if not c.aliasof then
 	-- Use the _len fields to assign setto's accordingly
@@ -146,7 +154,7 @@ for _,c in ipairs(vk.Vk.__index) do if not c.aliasof then
 end end
 local newindex = {}
 for _,c in ipairs(vk.Vk.__index) do
-	if not removed[c] and not removed[alias[c]] then newindex[#newindex+1] = c end
+	if not removed[c] then newindex[#newindex+1] = c end
 end
 vk.Vk.__index = newindex
 

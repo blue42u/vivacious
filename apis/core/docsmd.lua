@@ -45,8 +45,10 @@ local function callit(ty, na)
 			assert(a.type, 'No type for __call field '..a.name)
 			local x,y = '',''
 			if a.canbenil then x,y = '[',']' end
-			if a.name == 'return' then table.insert(rs, x..callit(a.type)..y)
-			else table.insert(as, x..callit(a.type, a.name)..y) end
+			if not a.setto then
+				if a.name == 'return' then table.insert(rs, x..callit(a.type)..y)
+				else table.insert(as, x..callit(a.type, a.name)..y) end
+			end
 		end
 		as = '('..table.concat(as, ', ')..')'
 		if #rs > 0 then rs = ' -> '..table.concat(rs, ', ') else rs = '' end
