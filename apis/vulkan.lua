@@ -31,7 +31,7 @@ end
 local humanerror = false
 local function herror(s, v)
 	if v then v = v.__name..(v.__raw and ' :{'..v.__raw..'}' or '') end
-	io.stderr:write('VkHuman ERROR: '..tostring(s):gsub('{#}', v)..'\n')
+	io.stderr:write(tostring(s):gsub('{#}', v or '{#}')..'\n')
 	humanerror = true
 end
 local function hassert(t, ...) if not t then herror(...) end end
@@ -96,7 +96,7 @@ for _,v in pairs(vk) do if (v.__index or v.__call) and not handled[v] then
 end end
 
 -- Process the commands.
-local removed,handle = {},{}
+local removed,handle,connect = {},{},{}
 for _,c in ipairs(vk.Vk.__index) do
 	c.exbinding = true
 	c.type.__call.method = true
@@ -109,14 +109,23 @@ for _,c in ipairs(vk.Vk.__index) do
 		if not handle[self] then
 			vk[self.__name] = {
 				__name = self.__name,
-				__index = {{name='real', version='0.0.0', type=self}}
+				__index = {{name='real', version='0.0.0', type=self},
+					{name='parent', version='0.0.0'}}
 			}
 			handle[self] = vk[self.__name]
+			handle[self].__index[2].type = handle[self]	-- TODO: Fix this
+			if not self._parent then
+				hassert(human.parent[self.__name] ~= nil, 'No parent for '..self.__name)
+			end
+			connect[handle[self]] = (self._parent and self._parent:gsub('^Vk', ''))
+				or human.parent[self.__name] or nil
+			self._parent = nil
 		end
 		handle[self].__index[#handle[self].__index+1] = c
 		for i,s in ipairs(selfsets) do c.type.__call[i].setto = {s} end
 	end
 end
+for h,p in pairs(connect) do h.__index[2].type = assert(handle[vk[p]], 'No handle '..p) end
 for _,c in ipairs(vk.Vk.__index) do
 	-- Use the _len fields to assign setto's accordingly
 	local names,lens = {},{}
@@ -126,7 +135,8 @@ for _,c in ipairs(vk.Vk.__index) do
 			local r,x = human.length(e, c.type, '#'..e.name, c.type.__call)
 			if r then if lens[r] then lens[r][#lens[r]+1] = x else lens[r] = {x} end end
 		end
-		if handle[e.type] then e.type,e.setto = handle[e.type],{e.name..'.real', noskip=true} end
+		if not e.setto and handle[e.type] then
+			e.type,e.setto = handle[e.type],{e.name..'.real', noskip=true} end
 	end
 	for r,xs in pairs(lens) do
 		if names[r] then names[r].setto = xs end

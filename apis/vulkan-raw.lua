@@ -137,6 +137,14 @@ for k,v in pairs{
 	ANativeWindow=vkraw.ANativeWindow, AHardwareBuffer=vkraw.AHardwareBuffer,
 } do array[vkraw[k]] = v end
 
+-- Mark the handles with a bit of useful info
+for t in xtrav(xml.root, {_name='types'}, {_name='type', category='handle'}) do
+	if t.attr.parent and not t.attr.parent:find ',' then
+		vkraw[t.attr.name or xtrav(t, {_name='name'}, {_type='text'})().value]
+			._parent = t.attr.parent
+	end
+end
+
 -- Load in the enumerations
 for t in xtrav(xml.root, {_name='enums'}) do if vkraw[t.attr.name] then
 	local out = {}

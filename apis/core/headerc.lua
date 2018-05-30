@@ -147,6 +147,7 @@ gen.traversal.df(spec, function(ty)
 		if ty.__index then
 			f:write('typedef struct Vv'..ty.__name..' Vv'..ty.__name..';\n')
 			table.insert(post, function()
+				local afterstruct = {}
 				f:write('struct Vv'..ty.__name..' {\n')
 				local foundone = false
 				for _,e in ipairs(ty.__index) do
@@ -157,20 +158,20 @@ gen.traversal.df(spec, function(ty)
 						end
 						f:write(indent(callit(e.type, e.name, {self=ty}), '\t\t')..';\n')
 						if e.type.__call and e.exbinding then
-							f:write('static inline '..
-								callit(e.type, 'vV'..e.name, {self=ty, proto=true, forcereal=true})..' {\n')
+							afterstruct[#afterstruct+1] = 'static inline '..
+								callit(e.type, 'vV'..e.name, {self=ty, proto=true, forcereal=true})..' {\n'
 							local args = {}
 							for _,ee in ipairs(e.type.__call) do
 								if ee.name ~= 'return' then
 									table.insert(args, cansetto(ee.setto, e.type.__call, {self=ty}) or ee.name)
 								end
 							end
-							f:write('\treturn self->_M->'..e.name..'('..table.concat(args, ', ')..');\n')
-							f:write '}\n'
+							afterstruct[#afterstruct+1] =
+								'\treturn self->_M->'..e.name..'('..table.concat(args, ', ')..');\n}\n'
 						else
-							f:write('#ifdef __GNUC__\n#define vV'..e.name
+							afterstruct[#afterstruct+1] = '#ifdef __GNUC__\n#define vV'..e.name
 								..'(_S, ...) ( __typeof__(_S) _s = (_S),  _s->_M->'..e.name
-								..'(_s, ##__VA_ARGS__ ) )\n#endif\n')
+								..'(_s, ##__VA_ARGS__ ) )\n#endif\n'
 						end
 					end
 				end
@@ -194,6 +195,7 @@ gen.traversal.df(spec, function(ty)
 					end
 				end
 				f:write('};\n\n')
+				f:write(table.concat(afterstruct))
 			end)
 			return
 		end
