@@ -30,6 +30,30 @@ local function indent(s, pre)
 	return table.concat(lines, '\n')
 end
 
+local callit
+-- Check whether we can respect the setto of a __call field, and return the C.
+local function cansetto(sts, env, opt)
+	for _,s in ipairs(sts or {}) do if not s:find '#' then
+		return s:gsub('[%w%.]+', function(n)
+			local map = {}
+			for _,e in ipairs(env or {}) do map[e.name] = e end
+			if opt and opt.self then map.self = {type=opt.self} end
+			if not n:find '%.' then return n else
+				local new = {}
+				for p in (n..'.'):gmatch '([^%.]+)%.' do
+					local ep = assert(map[p], 'Cound not find entry '..p..' in '..s)
+					new[#new+1] = p
+					new[#new+1] = (ep.extraptr or callit(ep.type, p):find '%*') and '->' or '.'
+					map = {}
+					for _,e in ipairs(ep.type.__index or {}) do map[e.name] = e end
+				end
+				table.remove(new)
+				return table.concat(new)
+			end
+		end)
+	end end
+end
+
 -- Get a string representing a typed name.
 local basetypes = {
 	integer = 'long', number = 'float',
@@ -38,7 +62,7 @@ local basetypes = {
 	lightuserdata = 'void*',
 	boolean = 'bool',
 }
-local function callit(ty, na, opt)
+function callit(ty, na, opt)
 	assert(ty, "Nil type! "..tostring(na)..' '..tostring(opt))
 	local sna = na and ' '..na or ''
 	if type(ty) == 'string' then
@@ -59,7 +83,9 @@ local function callit(ty, na, opt)
 			assert(a.name, 'Anonymous __call fields are not allowed')
 			assert(a.type, 'No type for __call field '..a.name)
 			if a.name == 'return' then table.insert(rets, a)
-			else table.insert(as, callit(a.type, (a.extraptr and '*' or '')..a.name)) end
+			elseif not a.setto or a.setto.noskip or not cansetto(a.setto, ty.__call, opt) then
+				table.insert(as, callit(a.type, (a.extraptr and '*' or '')..a.name))
+			end
 		end
 		local ret
 		for _,r in ipairs(rets) do if r.mainret then
@@ -133,17 +159,13 @@ gen.traversal.df(spec, function(ty)
 						if e.type.__call and e.exbinding then
 							f:write('static inline '..
 								callit(e.type, 'vV'..e.name, {self=ty, proto=true, forcereal=true})..' {\n')
-							local argnames = {}
+							local args = {}
 							for _,ee in ipairs(e.type.__call) do
-								if ee.name ~= 'return' then table.insert(argnames, ee.name) end
-								for _,s in ipairs(ee.setto or {}) do
-									if not s:find '#' then
-										f:write('\t'..ee.name..' = '..s..';\n')
-										break
-									end
+								if ee.name ~= 'return' then
+									table.insert(args, cansetto(ee.setto, e.type.__call, {self=ty}) or ee.name)
 								end
 							end
-							f:write('\treturn self->_M->'..e.name..'('..table.concat(argnames,', ')..');\n')
+							f:write('\treturn self->_M->'..e.name..'('..table.concat(args, ', ')..');\n')
 							f:write '}\n'
 						else
 							f:write('#ifdef __GNUC__\n#define vV'..e.name

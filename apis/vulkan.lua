@@ -23,7 +23,7 @@ vk.version = {__raw='uint32_t', __name="'M.m.p'"}
 -- Helper for for-loop accumulations, since I'm tired of typing it again
 local function acc(...)
 	local r = {}
-	for x in ... do table.insert(r, x) end
+	for x in ... do r[#r+1] = x end
 	return r
 end
 
@@ -35,6 +35,7 @@ local function herror(s, v)
 	humanerror = true
 end
 local function hassert(t, ...) if not t then herror(...) end end
+human.herror, human.hassert = herror, hassert	-- Let the Human have access
 
 -- Build the translations of the raw C names for enums, changing Lua's name.
 local enumnames = {}
@@ -82,7 +83,7 @@ for _,v in pairs(vk) do if (v.__index or v.__call) and not handled[v] then
 		names[e.name] = e
 		if e._len then
 			local r,x = human.length(e, v, '#'..e.name, v.__index or v.__call)
-			if r then lens[r] = lens[r] or {}; table.insert(lens[r], x) end
+			if r then if lens[r] then lens[r][#lens[r]+1] = x else lens[r] = {x} end end
 		end
 		if e._value then
 			assert(enumnames[e._value], 'Unknown value: '..e._value)
@@ -95,22 +96,47 @@ for _,v in pairs(vk) do if (v.__index or v.__call) and not handled[v] then
 end end
 
 -- Process the commands.
+local removed,handle = {},{}
 for _,c in ipairs(vk.Vk.__index) do
 	c.exbinding = true
 	c.type.__call.method = true
 
+	-- Figure out where this entry should actually go, and move it there.
+	local selfsets = {human.self(c.type.__call, c.name)}
+	local self = table.remove(selfsets, 1)
+	if self then
+		removed[c] = true
+		if not handle[self] then
+			vk[self.__name] = {
+				__name = self.__name,
+				__index = {{name='real', version='0.0.0', type=self}}
+			}
+			handle[self] = vk[self.__name]
+		end
+		handle[self].__index[#handle[self].__index+1] = c
+		for i,s in ipairs(selfsets) do c.type.__call[i].setto = {s} end
+	end
+end
+for _,c in ipairs(vk.Vk.__index) do
+	-- Use the _len fields to assign setto's accordingly
 	local names,lens = {},{}
 	for _,e in ipairs(c.type.__call) do
 		names[e.name] = e
 		if e._len then
 			local r,x = human.length(e, c.type, '#'..e.name, c.type.__call)
-			if r then lens[r] = lens[r] or {}; table.insert(lens[r], x) end
+			if r then if lens[r] then lens[r][#lens[r]+1] = x else lens[r] = {x} end end
 		end
+		if handle[e.type] then e.type,e.setto = handle[e.type],{e.name..'.real', noskip=true} end
 	end
 	for r,xs in pairs(lens) do
 		if names[r] then names[r].setto = xs end
 	end
 end
+local newindex = {}
+for _,c in ipairs(vk.Vk.__index) do
+	if not removed[c] then newindex[#newindex+1] = c end
+end
+vk.Vk.__index = newindex
 
 if humanerror then error 'VkHuman error detected!' end
 return vk

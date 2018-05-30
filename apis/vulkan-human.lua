@@ -124,18 +124,26 @@ function human.length(elem, partype, lenvar, parent)
 		elseif k:match 'VK_[%u_]+' then
 			return setmetatable({_setto=k}, meta)
 		else
-			error('Attempt to get field '..k..' of '..(self._setvar or '(env)'))
+			human.herror('Attempt to get field '..k..' of '..(self._setvar or '(env)'))
 		end
 	end
 	local val = assert(load('return ('..elem._len:gsub('::', '.')..')', nil, 't', new(parent)))()
 	if type(val) == 'table' then
 		if elem.canbenil then
 			local k = partype.__raw..'_'..elem.name
-			assert(optionallens[k] ~= nil, 'Unhandled op/len: '..k..' = nil!')
+			human.hassert(optionallens[k] ~= nil, 'Unhandled op/len: '..k..' = nil!')
 			if not optionallens[k] then return end
 		end
 		return val._setvar, val._setto
 	end
+end
+
+-- Commands in Vulkan are not associated with any particular handle, but most
+-- only make sense within the context of one, so we make the association ourselves.
+-- `entries` is the raw argument list to work with
+-- `name` is the name of the command in question.
+function human.self(entries, name)
+	if name == 'vkGetPhysicalDeviceProperties' then return entries[1].type, 'self.real' end
 end
 
 return human
