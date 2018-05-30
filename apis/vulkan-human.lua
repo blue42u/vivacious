@@ -88,6 +88,843 @@ setmetatable(optionallens, {__index=function(_,k)
 	return enumerators[k:match '^PFN_(.+)']
 end})
 
+-- We can guess some of the info about commands, but most of them are not able
+-- to be checked for errors, thus requiring Human intervention. We just write it
+-- out as a massive table, and put correct guessed entries here. See human.self.
+local cmdinfo = {
+	vkCreateInstance = {
+		self = false,
+	}, -- (pCreateInfo, pAllocator, pInstance, return)
+	vkDestroyInstance = {
+		self = {1, 'self.real'},
+	}, -- (instance, pAllocator)
+	vkEnumeratePhysicalDevices = {
+		self = {1, 'self.real'},
+	}, -- (instance, pPhysicalDeviceCount, pPhysicalDevices, return)
+	vkGetDeviceProcAddr = {
+		self = {1, 'self.real'},
+	}, -- (device, pName, return)
+	vkGetInstanceProcAddr = {
+		self = {1, 'self.real'},
+	}, -- (instance, pName, return)
+	vkGetPhysicalDeviceProperties = {
+		self = {1, 'self.real'},
+	}, -- (physicalDevice, pProperties)
+	vkGetPhysicalDeviceQueueFamilyProperties = {
+		self = {1, 'self.real'},
+	}, -- (physicalDevice, pQueueFamilyPropertyCount, pQueueFamilyProperties)
+	vkGetPhysicalDeviceMemoryProperties = {
+		self = {1, 'self.real'},
+	}, -- (physicalDevice, pMemoryProperties)
+	vkGetPhysicalDeviceFeatures = {
+		self = {1, 'self.real'},
+	}, -- (physicalDevice, pFeatures)
+	vkGetPhysicalDeviceFormatProperties = {
+		self = {1, 'self.real'},
+	}, -- (physicalDevice, format, pFormatProperties)
+	vkGetPhysicalDeviceImageFormatProperties = {
+		self = {1, 'self.real'},
+	}, -- (physicalDevice, format, type, tiling, usage, flags, pImageFormatProperties, return)
+	vkCreateDevice = {
+		self = {1, 'self.real'},
+	}, -- (physicalDevice, pCreateInfo, pAllocator, pDevice, return)
+	vkDestroyDevice = {
+		self = {1, 'self.real'},
+	}, -- (device, pAllocator)
+	vkEnumerateInstanceVersion = {
+		self = false,
+	}, -- (pApiVersion, return)
+	vkEnumerateInstanceLayerProperties = {
+		self = false,
+	}, -- (pPropertyCount, pProperties, return)
+	vkEnumerateInstanceExtensionProperties = {
+		self = false,
+	}, -- (pLayerName, pPropertyCount, pProperties, return)
+	vkEnumerateDeviceLayerProperties = {
+		self = {1, 'self.real'},
+	}, -- (physicalDevice, pPropertyCount, pProperties, return)
+	vkEnumerateDeviceExtensionProperties = {
+		self = {1, 'self.real'},
+	}, -- (physicalDevice, pLayerName, pPropertyCount, pProperties, return)
+	vkGetDeviceQueue = {
+		self = {1, 'self.real'},
+	}, -- (device, queueFamilyIndex, queueIndex, pQueue)
+	vkQueueSubmit = {
+		self = {1, 'self.real'},
+	}, -- (queue, submitCount, pSubmits, fence, return)
+	vkQueueWaitIdle = {
+		self = {1, 'self.real'},
+	}, -- (queue, return)
+	vkDeviceWaitIdle = {
+		self = {1, 'self.real'},
+	}, -- (device, return)
+	vkAllocateMemory = {
+		self = {1, 'self.real'},
+	}, -- (device, pAllocateInfo, pAllocator, pMemory, return)
+	vkFreeMemory = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, memory, pAllocator)
+	vkMapMemory = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, memory, offset, size, flags, ppData, return)
+	vkUnmapMemory = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, memory)
+	vkFlushMappedMemoryRanges = {
+		self = {1, 'self.real'},
+	}, -- (device, memoryRangeCount, pMemoryRanges, return)
+	vkInvalidateMappedMemoryRanges = {
+		self = {1, 'self.real'},
+	}, -- (device, memoryRangeCount, pMemoryRanges, return)
+	vkGetDeviceMemoryCommitment = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, memory, pCommittedMemoryInBytes)
+	vkGetBufferMemoryRequirements = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, buffer, pMemoryRequirements)
+	vkBindBufferMemory = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, buffer, memory, memoryOffset, return)
+	vkGetImageMemoryRequirements = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, image, pMemoryRequirements)
+	vkBindImageMemory = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, image, memory, memoryOffset, return)
+	vkGetImageSparseMemoryRequirements = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, image, pSparseMemoryRequirementCount, pSparseMemoryRequirements)
+	vkGetPhysicalDeviceSparseImageFormatProperties = {
+		self = {1, 'self.real'},
+	}, -- (physicalDevice, format, type, samples, usage, tiling, pPropertyCount, pProperties)
+	vkQueueBindSparse = {
+		self = {1, 'self.real'},
+	}, -- (queue, bindInfoCount, pBindInfo, fence, return)
+	vkCreateFence = {
+		self = {1, 'self.real'},
+	}, -- (device, pCreateInfo, pAllocator, pFence, return)
+	vkDestroyFence = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, fence, pAllocator)
+	vkResetFences = {
+		self = {1, 'self.real'},
+	}, -- (device, fenceCount, pFences, return)
+	vkGetFenceStatus = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, fence, return)
+	vkWaitForFences = {
+		self = {1, 'self.real'},
+	}, -- (device, fenceCount, pFences, waitAll, timeout, return)
+	vkCreateSemaphore = {
+		self = {1, 'self.real'},
+	}, -- (device, pCreateInfo, pAllocator, pSemaphore, return)
+	vkDestroySemaphore = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, semaphore, pAllocator)
+	vkCreateEvent = {
+		self = {1, 'self.real'},
+	}, -- (device, pCreateInfo, pAllocator, pEvent, return)
+	vkDestroyEvent = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, event, pAllocator)
+	vkGetEventStatus = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, event, return)
+	vkSetEvent = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, event, return)
+	vkResetEvent = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, event, return)
+	vkCreateQueryPool = {
+		self = {1, 'self.real'},
+	}, -- (device, pCreateInfo, pAllocator, pQueryPool, return)
+	vkDestroyQueryPool = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, queryPool, pAllocator)
+	vkGetQueryPoolResults = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, queryPool, firstQuery, queryCount, dataSize, pData, stride, flags, return)
+	vkCreateBuffer = {
+		self = {1, 'self.real'},
+	}, -- (device, pCreateInfo, pAllocator, pBuffer, return)
+	vkDestroyBuffer = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, buffer, pAllocator)
+	vkCreateBufferView = {
+		self = {1, 'self.real'},
+	}, -- (device, pCreateInfo, pAllocator, pView, return)
+	vkDestroyBufferView = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, bufferView, pAllocator)
+	vkCreateImage = {
+		self = {1, 'self.real'},
+	}, -- (device, pCreateInfo, pAllocator, pImage, return)
+	vkDestroyImage = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, image, pAllocator)
+	vkGetImageSubresourceLayout = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, image, pSubresource, pLayout)
+	vkCreateImageView = {
+		self = {1, 'self.real'},
+	}, -- (device, pCreateInfo, pAllocator, pView, return)
+	vkDestroyImageView = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, imageView, pAllocator)
+	vkCreateShaderModule = {
+		self = {1, 'self.real'},
+	}, -- (device, pCreateInfo, pAllocator, pShaderModule, return)
+	vkDestroyShaderModule = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, shaderModule, pAllocator)
+	vkCreatePipelineCache = {
+		self = {1, 'self.real'},
+	}, -- (device, pCreateInfo, pAllocator, pPipelineCache, return)
+	vkDestroyPipelineCache = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, pipelineCache, pAllocator)
+	vkGetPipelineCacheData = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, pipelineCache, pDataSize, pData, return)
+	vkMergePipelineCaches = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, dstCache, srcCacheCount, pSrcCaches, return)
+	vkCreateGraphicsPipelines = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, pipelineCache, createInfoCount, pCreateInfos, pAllocator, pPipelines, return)
+	vkCreateComputePipelines = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, pipelineCache, createInfoCount, pCreateInfos, pAllocator, pPipelines, return)
+	vkDestroyPipeline = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, pipeline, pAllocator)
+	vkCreatePipelineLayout = {
+		self = {1, 'self.real'},
+	}, -- (device, pCreateInfo, pAllocator, pPipelineLayout, return)
+	vkDestroyPipelineLayout = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, pipelineLayout, pAllocator)
+	vkCreateSampler = {
+		self = {1, 'self.real'},
+	}, -- (device, pCreateInfo, pAllocator, pSampler, return)
+	vkDestroySampler = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, sampler, pAllocator)
+	vkCreateDescriptorSetLayout = {
+		self = {1, 'self.real'},
+	}, -- (device, pCreateInfo, pAllocator, pSetLayout, return)
+	vkDestroyDescriptorSetLayout = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, descriptorSetLayout, pAllocator)
+	vkCreateDescriptorPool = {
+		self = {1, 'self.real'},
+	}, -- (device, pCreateInfo, pAllocator, pDescriptorPool, return)
+	vkDestroyDescriptorPool = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, descriptorPool, pAllocator)
+	vkResetDescriptorPool = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, descriptorPool, flags, return)
+	vkAllocateDescriptorSets = {
+		self = {1, 'self.real'},
+	}, -- (device, pAllocateInfo, pDescriptorSets, return)
+	vkFreeDescriptorSets = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, descriptorPool, descriptorSetCount, pDescriptorSets, return)
+	vkUpdateDescriptorSets = {
+		self = {1, 'self.real'},
+	}, -- (device, descriptorWriteCount, pDescriptorWrites, descriptorCopyCount, pDescriptorCopies)
+	vkCreateFramebuffer = {
+		self = {1, 'self.real'},
+	}, -- (device, pCreateInfo, pAllocator, pFramebuffer, return)
+	vkDestroyFramebuffer = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, framebuffer, pAllocator)
+	vkCreateRenderPass = {
+		self = {1, 'self.real'},
+	}, -- (device, pCreateInfo, pAllocator, pRenderPass, return)
+	vkDestroyRenderPass = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, renderPass, pAllocator)
+	vkGetRenderAreaGranularity = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, renderPass, pGranularity)
+	vkCreateCommandPool = {
+		self = {1, 'self.real'},
+	}, -- (device, pCreateInfo, pAllocator, pCommandPool, return)
+	vkDestroyCommandPool = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, commandPool, pAllocator)
+	vkResetCommandPool = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, commandPool, flags, return)
+	vkAllocateCommandBuffers = {
+		self = {1, 'self.real'},
+	}, -- (device, pAllocateInfo, pCommandBuffers, return)
+	vkFreeCommandBuffers = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, commandPool, commandBufferCount, pCommandBuffers)
+	vkBeginCommandBuffer = {
+		self = {1, 'self.real'},
+	}, -- (commandBuffer, pBeginInfo, return)
+	vkEndCommandBuffer = {
+		self = {1, 'self.real'},
+	}, -- (commandBuffer, return)
+	vkResetCommandBuffer = {
+		self = {1, 'self.real'},
+	}, -- (commandBuffer, flags, return)
+	vkCmdBindPipeline = {
+		self = {1, 'self.real'},
+	}, -- (commandBuffer, pipelineBindPoint, pipeline)
+	vkCmdSetViewport = {
+		self = {1, 'self.real'},
+	}, -- (commandBuffer, firstViewport, viewportCount, pViewports)
+	vkCmdSetScissor = {
+		self = {1, 'self.real'},
+	}, -- (commandBuffer, firstScissor, scissorCount, pScissors)
+	vkCmdSetLineWidth = {
+		self = {1, 'self.real'},
+	}, -- (commandBuffer, lineWidth)
+	vkCmdSetDepthBias = {
+		self = {1, 'self.real'},
+	}, -- (commandBuffer, depthBiasConstantFactor, depthBiasClamp, depthBiasSlopeFactor)
+	vkCmdSetBlendConstants = {
+		self = {1, 'self.real'},
+	}, -- (commandBuffer, blendConstants)
+	vkCmdSetDepthBounds = {
+		self = {1, 'self.real'},
+	}, -- (commandBuffer, minDepthBounds, maxDepthBounds)
+	vkCmdSetStencilCompareMask = {
+		self = {1, 'self.real'},
+	}, -- (commandBuffer, faceMask, compareMask)
+	vkCmdSetStencilWriteMask = {
+		self = {1, 'self.real'},
+	}, -- (commandBuffer, faceMask, writeMask)
+	vkCmdSetStencilReference = {
+		self = {1, 'self.real'},
+	}, -- (commandBuffer, faceMask, reference)
+	vkCmdBindDescriptorSets = {
+		self = {1, 'self.real'},
+	}, -- (commandBuffer, pipelineBindPoint, layout, firstSet, descriptorSetCount, pDescriptorSets, dynamicOffsetCount, pDynamicOffsets)
+	vkCmdBindIndexBuffer = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (commandBuffer, buffer, offset, indexType)
+	vkCmdBindVertexBuffers = {
+		self = {1, 'self.real'},
+	}, -- (commandBuffer, firstBinding, bindingCount, pBuffers, pOffsets)
+	vkCmdDraw = {
+		self = {1, 'self.real'},
+	}, -- (commandBuffer, vertexCount, instanceCount, firstVertex, firstInstance)
+	vkCmdDrawIndexed = {
+		self = {1, 'self.real'},
+	}, -- (commandBuffer, indexCount, instanceCount, firstIndex, vertexOffset, firstInstance)
+	vkCmdDrawIndirect = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (commandBuffer, buffer, offset, drawCount, stride)
+	vkCmdDrawIndexedIndirect = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (commandBuffer, buffer, offset, drawCount, stride)
+	vkCmdDispatch = {
+		self = {1, 'self.real'},
+	}, -- (commandBuffer, groupCountX, groupCountY, groupCountZ)
+	vkCmdDispatchIndirect = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (commandBuffer, buffer, offset)
+	vkCmdCopyBuffer = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (commandBuffer, srcBuffer, dstBuffer, regionCount, pRegions)
+	vkCmdCopyImage = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (commandBuffer, srcImage, srcImageLayout, dstImage, dstImageLayout, regionCount, pRegions)
+	vkCmdBlitImage = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (commandBuffer, srcImage, srcImageLayout, dstImage, dstImageLayout, regionCount, pRegions, filter)
+	vkCmdCopyBufferToImage = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (commandBuffer, srcBuffer, dstImage, dstImageLayout, regionCount, pRegions)
+	vkCmdCopyImageToBuffer = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (commandBuffer, srcImage, srcImageLayout, dstBuffer, regionCount, pRegions)
+	vkCmdUpdateBuffer = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (commandBuffer, dstBuffer, dstOffset, dataSize, pData)
+	vkCmdFillBuffer = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (commandBuffer, dstBuffer, dstOffset, size, data)
+	vkCmdClearColorImage = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (commandBuffer, image, imageLayout, pColor, rangeCount, pRanges)
+	vkCmdClearDepthStencilImage = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (commandBuffer, image, imageLayout, pDepthStencil, rangeCount, pRanges)
+	vkCmdClearAttachments = {
+		self = {1, 'self.real'},
+	}, -- (commandBuffer, attachmentCount, pAttachments, rectCount, pRects)
+	vkCmdResolveImage = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (commandBuffer, srcImage, srcImageLayout, dstImage, dstImageLayout, regionCount, pRegions)
+	vkCmdSetEvent = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (commandBuffer, event, stageMask)
+	vkCmdResetEvent = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (commandBuffer, event, stageMask)
+	vkCmdWaitEvents = {
+		self = {1, 'self.real'},
+	}, -- (commandBuffer, eventCount, pEvents, srcStageMask, dstStageMask, memoryBarrierCount, pMemoryBarriers, bufferMemoryBarrierCount, pBufferMemoryBarriers, imageMemoryBarrierCount, pImageMemoryBarriers)
+	vkCmdPipelineBarrier = {
+		self = {1, 'self.real'},
+	}, -- (commandBuffer, srcStageMask, dstStageMask, dependencyFlags, memoryBarrierCount, pMemoryBarriers, bufferMemoryBarrierCount, pBufferMemoryBarriers, imageMemoryBarrierCount, pImageMemoryBarriers)
+	vkCmdBeginQuery = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (commandBuffer, queryPool, query, flags)
+	vkCmdEndQuery = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (commandBuffer, queryPool, query)
+	vkCmdResetQueryPool = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (commandBuffer, queryPool, firstQuery, queryCount)
+	vkCmdWriteTimestamp = {
+		self = {1, 'self.real'},
+	}, -- (commandBuffer, pipelineStage, queryPool, query)
+	vkCmdCopyQueryPoolResults = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (commandBuffer, queryPool, firstQuery, queryCount, dstBuffer, dstOffset, stride, flags)
+	vkCmdPushConstants = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (commandBuffer, layout, stageFlags, offset, size, pValues)
+	vkCmdBeginRenderPass = {
+		self = {1, 'self.real'},
+	}, -- (commandBuffer, pRenderPassBegin, contents)
+	vkCmdNextSubpass = {
+		self = {1, 'self.real'},
+	}, -- (commandBuffer, contents)
+	vkCmdEndRenderPass = {
+		self = {1, 'self.real'},
+	}, -- (commandBuffer)
+	vkCmdExecuteCommands = {
+		self = {1, 'self.real'},
+	}, -- (commandBuffer, commandBufferCount, pCommandBuffers)
+	vkCreateAndroidSurfaceKHR = {
+		self = {1, 'self.real'},
+	}, -- (instance, pCreateInfo, pAllocator, pSurface, return)
+	vkGetPhysicalDeviceDisplayPropertiesKHR = {
+		self = {1, 'self.real'},
+	}, -- (physicalDevice, pPropertyCount, pProperties, return)
+	vkGetPhysicalDeviceDisplayPlanePropertiesKHR = {
+		self = {1, 'self.real'},
+	}, -- (physicalDevice, pPropertyCount, pProperties, return)
+	vkGetDisplayPlaneSupportedDisplaysKHR = {
+		self = {1, 'self.real'},
+	}, -- (physicalDevice, planeIndex, pDisplayCount, pDisplays, return)
+	vkGetDisplayModePropertiesKHR = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (physicalDevice, display, pPropertyCount, pProperties, return)
+	vkCreateDisplayModeKHR = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (physicalDevice, display, pCreateInfo, pAllocator, pMode, return)
+	vkGetDisplayPlaneCapabilitiesKHR = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (physicalDevice, mode, planeIndex, pCapabilities, return)
+	vkCreateDisplayPlaneSurfaceKHR = {
+		self = {1, 'self.real'},
+	}, -- (instance, pCreateInfo, pAllocator, pSurface, return)
+	vkCreateSharedSwapchainsKHR = {
+		self = {1, 'self.real'},
+	}, -- (device, swapchainCount, pCreateInfos, pAllocator, pSwapchains, return)
+	vkCreateMirSurfaceKHR = {
+		self = {1, 'self.real'},
+	}, -- (instance, pCreateInfo, pAllocator, pSurface, return)
+	vkGetPhysicalDeviceMirPresentationSupportKHR = {
+		self = {1, 'self.real'},
+	}, -- (physicalDevice, queueFamilyIndex, connection, return)
+	vkDestroySurfaceKHR = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (instance, surface, pAllocator)
+	vkGetPhysicalDeviceSurfaceSupportKHR = {
+		self = {1, 'self.real'},
+	}, -- (physicalDevice, queueFamilyIndex, surface, pSupported, return)
+	vkGetPhysicalDeviceSurfaceCapabilitiesKHR = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (physicalDevice, surface, pSurfaceCapabilities, return)
+	vkGetPhysicalDeviceSurfaceFormatsKHR = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (physicalDevice, surface, pSurfaceFormatCount, pSurfaceFormats, return)
+	vkGetPhysicalDeviceSurfacePresentModesKHR = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (physicalDevice, surface, pPresentModeCount, pPresentModes, return)
+	vkCreateSwapchainKHR = {
+		self = {1, 'self.real'},
+	}, -- (device, pCreateInfo, pAllocator, pSwapchain, return)
+	vkDestroySwapchainKHR = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, swapchain, pAllocator)
+	vkGetSwapchainImagesKHR = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, swapchain, pSwapchainImageCount, pSwapchainImages, return)
+	vkAcquireNextImageKHR = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, swapchain, timeout, semaphore, fence, pImageIndex, return)
+	vkQueuePresentKHR = {
+		self = {1, 'self.real'},
+	}, -- (queue, pPresentInfo, return)
+	vkCreateViSurfaceNN = {
+		self = {1, 'self.real'},
+	}, -- (instance, pCreateInfo, pAllocator, pSurface, return)
+	vkCreateWaylandSurfaceKHR = {
+		self = {1, 'self.real'},
+	}, -- (instance, pCreateInfo, pAllocator, pSurface, return)
+	vkGetPhysicalDeviceWaylandPresentationSupportKHR = {
+		self = {1, 'self.real'},
+	}, -- (physicalDevice, queueFamilyIndex, display, return)
+	vkCreateWin32SurfaceKHR = {
+		self = {1, 'self.real'},
+	}, -- (instance, pCreateInfo, pAllocator, pSurface, return)
+	vkGetPhysicalDeviceWin32PresentationSupportKHR = {
+		self = {1, 'self.real'},
+	}, -- (physicalDevice, queueFamilyIndex, return)
+	vkCreateXlibSurfaceKHR = {
+		self = {1, 'self.real'},
+	}, -- (instance, pCreateInfo, pAllocator, pSurface, return)
+	vkGetPhysicalDeviceXlibPresentationSupportKHR = {
+		self = {1, 'self.real'},
+	}, -- (physicalDevice, queueFamilyIndex, dpy, visualID, return)
+	vkCreateXcbSurfaceKHR = {
+		self = {1, 'self.real'},
+	}, -- (instance, pCreateInfo, pAllocator, pSurface, return)
+	vkGetPhysicalDeviceXcbPresentationSupportKHR = {
+		self = {1, 'self.real'},
+	}, -- (physicalDevice, queueFamilyIndex, connection, visual_id, return)
+	vkCreateDebugReportCallbackEXT = {
+		self = {1, 'self.real'},
+	}, -- (instance, pCreateInfo, pAllocator, pCallback, return)
+	vkDestroyDebugReportCallbackEXT = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (instance, callback, pAllocator)
+	vkDebugReportMessageEXT = {
+		self = {1, 'self.real'},
+	}, -- (instance, flags, objectType, object, location, messageCode, pLayerPrefix, pMessage)
+	vkDebugMarkerSetObjectNameEXT = {
+		self = {1, 'self.real'},
+	}, -- (device, pNameInfo, return)
+	vkDebugMarkerSetObjectTagEXT = {
+		self = {1, 'self.real'},
+	}, -- (device, pTagInfo, return)
+	vkCmdDebugMarkerBeginEXT = {
+		self = {1, 'self.real'},
+	}, -- (commandBuffer, pMarkerInfo)
+	vkCmdDebugMarkerEndEXT = {
+		self = {1, 'self.real'},
+	}, -- (commandBuffer)
+	vkCmdDebugMarkerInsertEXT = {
+		self = {1, 'self.real'},
+	}, -- (commandBuffer, pMarkerInfo)
+	vkGetPhysicalDeviceExternalImageFormatPropertiesNV = {
+		self = {1, 'self.real'},
+	}, -- (physicalDevice, format, type, tiling, usage, flags, externalHandleType, pExternalImageFormatProperties, return)
+	vkGetMemoryWin32HandleNV = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, memory, handleType, pHandle, return)
+	vkCmdDrawIndirectCountAMD = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (commandBuffer, buffer, offset, countBuffer, countBufferOffset, maxDrawCount, stride)
+	vkCmdDrawIndexedIndirectCountAMD = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (commandBuffer, buffer, offset, countBuffer, countBufferOffset, maxDrawCount, stride)
+	vkCmdProcessCommandsNVX = {
+		self = {1, 'self.real'},
+	}, -- (commandBuffer, pProcessCommandsInfo)
+	vkCmdReserveSpaceForCommandsNVX = {
+		self = {1, 'self.real'},
+	}, -- (commandBuffer, pReserveSpaceInfo)
+	vkCreateIndirectCommandsLayoutNVX = {
+		self = {1, 'self.real'},
+	}, -- (device, pCreateInfo, pAllocator, pIndirectCommandsLayout, return)
+	vkDestroyIndirectCommandsLayoutNVX = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, indirectCommandsLayout, pAllocator)
+	vkCreateObjectTableNVX = {
+		self = {1, 'self.real'},
+	}, -- (device, pCreateInfo, pAllocator, pObjectTable, return)
+	vkDestroyObjectTableNVX = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, objectTable, pAllocator)
+	vkRegisterObjectsNVX = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, objectTable, objectCount, ppObjectTableEntries, pObjectIndices, return)
+	vkUnregisterObjectsNVX = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, objectTable, objectCount, pObjectEntryTypes, pObjectIndices, return)
+	vkGetPhysicalDeviceGeneratedCommandsPropertiesNVX = {
+		self = {1, 'self.real'},
+	}, -- (physicalDevice, pFeatures, pLimits)
+	vkGetPhysicalDeviceFeatures2 = {
+		self = {1, 'self.real'},
+	}, -- (physicalDevice, pFeatures)
+	vkGetPhysicalDeviceProperties2 = {
+		self = {1, 'self.real'},
+	}, -- (physicalDevice, pProperties)
+	vkGetPhysicalDeviceFormatProperties2 = {
+		self = {1, 'self.real'},
+	}, -- (physicalDevice, format, pFormatProperties)
+	vkGetPhysicalDeviceImageFormatProperties2 = {
+		self = {1, 'self.real'},
+	}, -- (physicalDevice, pImageFormatInfo, pImageFormatProperties, return)
+	vkGetPhysicalDeviceQueueFamilyProperties2 = {
+		self = {1, 'self.real'},
+	}, -- (physicalDevice, pQueueFamilyPropertyCount, pQueueFamilyProperties)
+	vkGetPhysicalDeviceMemoryProperties2 = {
+		self = {1, 'self.real'},
+	}, -- (physicalDevice, pMemoryProperties)
+	vkGetPhysicalDeviceSparseImageFormatProperties2 = {
+		self = {1, 'self.real'},
+	}, -- (physicalDevice, pFormatInfo, pPropertyCount, pProperties)
+	vkCmdPushDescriptorSetKHR = {
+		self = {1, 'self.real'},
+	}, -- (commandBuffer, pipelineBindPoint, layout, set, descriptorWriteCount, pDescriptorWrites)
+	vkTrimCommandPool = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, commandPool, flags)
+	vkGetPhysicalDeviceExternalBufferProperties = {
+		self = {1, 'self.real'},
+	}, -- (physicalDevice, pExternalBufferInfo, pExternalBufferProperties)
+	vkGetMemoryWin32HandleKHR = {
+		self = {1, 'self.real'},
+	}, -- (device, pGetWin32HandleInfo, pHandle, return)
+	vkGetMemoryWin32HandlePropertiesKHR = {
+		self = {1, 'self.real'},
+	}, -- (device, handleType, handle, pMemoryWin32HandleProperties, return)
+	vkGetMemoryFdKHR = {
+		self = {1, 'self.real'},
+	}, -- (device, pGetFdInfo, pFd, return)
+	vkGetMemoryFdPropertiesKHR = {
+		self = {1, 'self.real'},
+	}, -- (device, handleType, fd, pMemoryFdProperties, return)
+	vkGetPhysicalDeviceExternalSemaphoreProperties = {
+		self = {1, 'self.real'},
+	}, -- (physicalDevice, pExternalSemaphoreInfo, pExternalSemaphoreProperties)
+	vkGetSemaphoreWin32HandleKHR = {
+		self = {1, 'self.real'},
+	}, -- (device, pGetWin32HandleInfo, pHandle, return)
+	vkImportSemaphoreWin32HandleKHR = {
+		self = {1, 'self.real'},
+	}, -- (device, pImportSemaphoreWin32HandleInfo, return)
+	vkGetSemaphoreFdKHR = {
+		self = {1, 'self.real'},
+	}, -- (device, pGetFdInfo, pFd, return)
+	vkImportSemaphoreFdKHR = {
+		self = {1, 'self.real'},
+	}, -- (device, pImportSemaphoreFdInfo, return)
+	vkGetPhysicalDeviceExternalFenceProperties = {
+		self = {1, 'self.real'},
+	}, -- (physicalDevice, pExternalFenceInfo, pExternalFenceProperties)
+	vkGetFenceWin32HandleKHR = {
+		self = {1, 'self.real'},
+	}, -- (device, pGetWin32HandleInfo, pHandle, return)
+	vkImportFenceWin32HandleKHR = {
+		self = {1, 'self.real'},
+	}, -- (device, pImportFenceWin32HandleInfo, return)
+	vkGetFenceFdKHR = {
+		self = {1, 'self.real'},
+	}, -- (device, pGetFdInfo, pFd, return)
+	vkImportFenceFdKHR = {
+		self = {1, 'self.real'},
+	}, -- (device, pImportFenceFdInfo, return)
+	vkReleaseDisplayEXT = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (physicalDevice, display, return)
+	vkAcquireXlibDisplayEXT = {
+		self = {1, 'self.real'},
+	}, -- (physicalDevice, dpy, display, return)
+	vkGetRandROutputDisplayEXT = {
+		self = {1, 'self.real'},
+	}, -- (physicalDevice, dpy, rrOutput, pDisplay, return)
+	vkDisplayPowerControlEXT = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, display, pDisplayPowerInfo, return)
+	vkRegisterDeviceEventEXT = {
+		self = {1, 'self.real'},
+	}, -- (device, pDeviceEventInfo, pAllocator, pFence, return)
+	vkRegisterDisplayEventEXT = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, display, pDisplayEventInfo, pAllocator, pFence, return)
+	vkGetSwapchainCounterEXT = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, swapchain, counter, pCounterValue, return)
+	vkGetPhysicalDeviceSurfaceCapabilities2EXT = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (physicalDevice, surface, pSurfaceCapabilities, return)
+	vkEnumeratePhysicalDeviceGroups = {
+		self = {1, 'self.real'},
+	}, -- (instance, pPhysicalDeviceGroupCount, pPhysicalDeviceGroupProperties, return)
+	vkGetDeviceGroupPeerMemoryFeatures = {
+		self = {1, 'self.real'},
+	}, -- (device, heapIndex, localDeviceIndex, remoteDeviceIndex, pPeerMemoryFeatures)
+	vkBindBufferMemory2 = {
+		self = {1, 'self.real'},
+	}, -- (device, bindInfoCount, pBindInfos, return)
+	vkBindImageMemory2 = {
+		self = {1, 'self.real'},
+	}, -- (device, bindInfoCount, pBindInfos, return)
+	vkCmdSetDeviceMask = {
+		self = {1, 'self.real'},
+	}, -- (commandBuffer, deviceMask)
+	vkGetDeviceGroupPresentCapabilitiesKHR = {
+		self = {1, 'self.real'},
+	}, -- (device, pDeviceGroupPresentCapabilities, return)
+	vkGetDeviceGroupSurfacePresentModesKHR = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, surface, pModes, return)
+	vkAcquireNextImage2KHR = {
+		self = {1, 'self.real'},
+	}, -- (device, pAcquireInfo, pImageIndex, return)
+	vkCmdDispatchBase = {
+		self = {1, 'self.real'},
+	}, -- (commandBuffer, baseGroupX, baseGroupY, baseGroupZ, groupCountX, groupCountY, groupCountZ)
+	vkGetPhysicalDevicePresentRectanglesKHR = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (physicalDevice, surface, pRectCount, pRects, return)
+	vkCreateDescriptorUpdateTemplate = {
+		self = {1, 'self.real'},
+	}, -- (device, pCreateInfo, pAllocator, pDescriptorUpdateTemplate, return)
+	vkDestroyDescriptorUpdateTemplate = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, descriptorUpdateTemplate, pAllocator)
+	vkUpdateDescriptorSetWithTemplate = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, descriptorSet, descriptorUpdateTemplate, pData)
+	vkCmdPushDescriptorSetWithTemplateKHR = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (commandBuffer, descriptorUpdateTemplate, layout, set, pData)
+	vkSetHdrMetadataEXT = {
+		self = {1, 'self.real'},
+	}, -- (device, swapchainCount, pSwapchains, pMetadata)
+	vkGetSwapchainStatusKHR = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, swapchain, return)
+	vkGetRefreshCycleDurationGOOGLE = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, swapchain, pDisplayTimingProperties, return)
+	vkGetPastPresentationTimingGOOGLE = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, swapchain, pPresentationTimingCount, pPresentationTimings, return)
+	vkCreateIOSSurfaceMVK = {
+		self = {1, 'self.real'},
+	}, -- (instance, pCreateInfo, pAllocator, pSurface, return)
+	vkCreateMacOSSurfaceMVK = {
+		self = {1, 'self.real'},
+	}, -- (instance, pCreateInfo, pAllocator, pSurface, return)
+	vkCmdSetViewportWScalingNV = {
+		self = {1, 'self.real'},
+	}, -- (commandBuffer, firstViewport, viewportCount, pViewportWScalings)
+	vkCmdSetDiscardRectangleEXT = {
+		self = {1, 'self.real'},
+	}, -- (commandBuffer, firstDiscardRectangle, discardRectangleCount, pDiscardRectangles)
+	vkCmdSetSampleLocationsEXT = {
+		self = {1, 'self.real'},
+	}, -- (commandBuffer, pSampleLocationsInfo)
+	vkGetPhysicalDeviceMultisamplePropertiesEXT = {
+		self = {1, 'self.real'},
+	}, -- (physicalDevice, samples, pMultisampleProperties)
+	vkGetPhysicalDeviceSurfaceCapabilities2KHR = {
+		self = {1, 'self.real'},
+	}, -- (physicalDevice, pSurfaceInfo, pSurfaceCapabilities, return)
+	vkGetPhysicalDeviceSurfaceFormats2KHR = {
+		self = {1, 'self.real'},
+	}, -- (physicalDevice, pSurfaceInfo, pSurfaceFormatCount, pSurfaceFormats, return)
+	vkGetBufferMemoryRequirements2 = {
+		self = {1, 'self.real'},
+	}, -- (device, pInfo, pMemoryRequirements)
+	vkGetImageMemoryRequirements2 = {
+		self = {1, 'self.real'},
+	}, -- (device, pInfo, pMemoryRequirements)
+	vkGetImageSparseMemoryRequirements2 = {
+		self = {1, 'self.real'},
+	}, -- (device, pInfo, pSparseMemoryRequirementCount, pSparseMemoryRequirements)
+	vkCreateSamplerYcbcrConversion = {
+		self = {1, 'self.real'},
+	}, -- (device, pCreateInfo, pAllocator, pYcbcrConversion, return)
+	vkDestroySamplerYcbcrConversion = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, ycbcrConversion, pAllocator)
+	vkGetDeviceQueue2 = {
+		self = {1, 'self.real'},
+	}, -- (device, pQueueInfo, pQueue)
+	vkCreateValidationCacheEXT = {
+		self = {1, 'self.real'},
+	}, -- (device, pCreateInfo, pAllocator, pValidationCache, return)
+	vkDestroyValidationCacheEXT = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, validationCache, pAllocator)
+	vkGetValidationCacheDataEXT = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, validationCache, pDataSize, pData, return)
+	vkMergeValidationCachesEXT = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, dstCache, srcCacheCount, pSrcCaches, return)
+	vkGetDescriptorSetLayoutSupport = {
+		self = {1, 'self.real'},
+	}, -- (device, pCreateInfo, pSupport)
+	vkGetSwapchainGrallocUsageANDROID = {
+		self = {1, 'self.real'},
+	}, -- (device, format, imageUsage, grallocUsage, return)
+	vkAcquireImageANDROID = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, image, nativeFenceFd, semaphore, fence, return)
+	vkQueueSignalReleaseImageANDROID = {
+		self = {1, 'self.real'},
+	}, -- (queue, waitSemaphoreCount, pWaitSemaphores, image, pNativeFenceFd, return)
+	vkGetShaderInfoAMD = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (device, pipeline, shaderStage, infoType, pInfoSize, pInfo, return)
+	vkSetDebugUtilsObjectNameEXT = {
+		self = {1, 'self.real'},
+	}, -- (device, pNameInfo, return)
+	vkSetDebugUtilsObjectTagEXT = {
+		self = {1, 'self.real'},
+	}, -- (device, pTagInfo, return)
+	vkQueueBeginDebugUtilsLabelEXT = {
+		self = {1, 'self.real'},
+	}, -- (queue, pLabelInfo)
+	vkQueueEndDebugUtilsLabelEXT = {
+		self = {1, 'self.real'},
+	}, -- (queue)
+	vkQueueInsertDebugUtilsLabelEXT = {
+		self = {1, 'self.real'},
+	}, -- (queue, pLabelInfo)
+	vkCmdBeginDebugUtilsLabelEXT = {
+		self = {1, 'self.real'},
+	}, -- (commandBuffer, pLabelInfo)
+	vkCmdEndDebugUtilsLabelEXT = {
+		self = {1, 'self.real'},
+	}, -- (commandBuffer)
+	vkCmdInsertDebugUtilsLabelEXT = {
+		self = {1, 'self.real'},
+	}, -- (commandBuffer, pLabelInfo)
+	vkCreateDebugUtilsMessengerEXT = {
+		self = {1, 'self.real'},
+	}, -- (instance, pCreateInfo, pAllocator, pMessenger, return)
+	vkDestroyDebugUtilsMessengerEXT = {
+		self = {2, 'self.parent.real', 'self.real'},
+	}, -- (instance, messenger, pAllocator)
+	vkSubmitDebugUtilsMessageEXT = {
+		self = {1, 'self.real'},
+	}, -- (instance, messageSeverity, messageTypes, pCallbackData)
+	vkGetMemoryHostPointerPropertiesEXT = {
+		self = {1, 'self.real'},
+	}, -- (device, handleType, pHostPointer, pMemoryHostPointerProperties, return)
+	vkCmdWriteBufferMarkerAMD = {
+		self = {1, 'self.real'},
+	}, -- (commandBuffer, pipelineStage, dstBuffer, dstOffset, marker)
+	vkGetAndroidHardwareBufferPropertiesANDROID = {
+		self = {1, 'self.real'},
+	}, -- (device, buffer, pProperties, return)
+	vkGetMemoryAndroidHardwareBufferANDROID = {
+		self = {1, 'self.real'},
+	}, -- (device, pInfo, pBuffer, return)
+}
+
 -- The "len" attribute of <member> and <param> tags are, generally speaking,
 -- a big pain. They are something like a bit of C++ code, but for math its
 -- close enough to Lua that we use metatables to read in the expression.
@@ -138,288 +975,6 @@ function human.length(elem, partype, lenvar, parent)
 	end
 end
 
--- There's no good way to find errors in the self-guesser, so we just write them
--- all out as a massive table. See human.self below for details.
-local selves = {
-	vkCreateInstance = true,
-	vkDestroyInstance = {1, 'self.real'},
-	vkEnumeratePhysicalDevices = {1, 'self.real'},
-	vkGetDeviceProcAddr = {1, 'self.real'},
-	vkGetInstanceProcAddr = {1, 'self.real'},
-	vkGetPhysicalDeviceProperties = {1, 'self.real'},
-	vkGetPhysicalDeviceQueueFamilyProperties = {1, 'self.real'},
-	vkGetPhysicalDeviceMemoryProperties = {1, 'self.real'},
-	vkGetPhysicalDeviceFeatures = {1, 'self.real'},
-	vkGetPhysicalDeviceFormatProperties = {1, 'self.real'},
-	vkGetPhysicalDeviceImageFormatProperties = {1, 'self.real'},
-	vkCreateDevice = {1, 'self.real'},
-	vkDestroyDevice = {1, 'self.real'},
-	vkEnumerateInstanceVersion = true,
-	vkEnumerateInstanceLayerProperties = true,
-	vkEnumerateInstanceExtensionProperties = true,
-	vkEnumerateDeviceLayerProperties = {1, 'self.real'},
-	vkEnumerateDeviceExtensionProperties = {1, 'self.real'},
-	vkGetDeviceQueue = {1, 'self.real'},
-	vkQueueSubmit = {1, 'self.real'},
-	vkQueueWaitIdle = {1, 'self.real'},
-	vkDeviceWaitIdle = {1, 'self.real'},
-	vkAllocateMemory = {1, 'self.real'},
-	vkFreeMemory = {2, 'self.parent.real', 'self.real'},
-	vkMapMemory = {2, 'self.parent.real', 'self.real'},
-	vkUnmapMemory = {2, 'self.parent.real', 'self.real'},
-	vkFlushMappedMemoryRanges = {1, 'self.real'}, -- (device, memoryRangeCount, pMemoryRanges, return)
-	vkInvalidateMappedMemoryRanges = {1, 'self.real'}, -- (device, memoryRangeCount, pMemoryRanges, return)
-	vkGetDeviceMemoryCommitment = {2, 'self.parent.real', 'self.real'}, -- (device, memory, pCommittedMemoryInBytes)
-	vkGetBufferMemoryRequirements = {2, 'self.parent.real', 'self.real'}, -- (device, buffer, pMemoryRequirements)
-	vkBindBufferMemory = {2, 'self.parent.real', 'self.real'}, -- (device, buffer, memory, memoryOffset, return)
-	vkGetImageMemoryRequirements = {2, 'self.parent.real', 'self.real'}, -- (device, image, pMemoryRequirements)
-	vkBindImageMemory = {2, 'self.parent.real', 'self.real'}, -- (device, image, memory, memoryOffset, return)
-	vkGetImageSparseMemoryRequirements = {2, 'self.parent.real', 'self.real'}, -- (device, image, pSparseMemoryRequirementCount, pSparseMemoryRequirements)
-	vkGetPhysicalDeviceSparseImageFormatProperties = {1, 'self.real'}, -- (physicalDevice, format, type, samples, usage, tiling, pPropertyCount, pProperties)
-	vkQueueBindSparse = {1, 'self.real'}, -- (queue, bindInfoCount, pBindInfo, fence, return)
-	vkCreateFence = {1, 'self.real'}, -- (device, pCreateInfo, pAllocator, pFence, return)
-	vkDestroyFence = {2, 'self.parent.real', 'self.real'}, -- (device, fence, pAllocator)
-	vkResetFences = {1, 'self.real'}, -- (device, fenceCount, pFences, return)
-	vkGetFenceStatus = {2, 'self.parent.real', 'self.real'}, -- (device, fence, return)
-	vkWaitForFences = {1, 'self.real'}, -- (device, fenceCount, pFences, waitAll, timeout, return)
-	vkCreateSemaphore = {1, 'self.real'}, -- (device, pCreateInfo, pAllocator, pSemaphore, return)
-	vkDestroySemaphore = {2, 'self.parent.real', 'self.real'}, -- (device, semaphore, pAllocator)
-	vkCreateEvent = {1, 'self.real'}, -- (device, pCreateInfo, pAllocator, pEvent, return)
-	vkDestroyEvent = {2, 'self.parent.real', 'self.real'}, -- (device, event, pAllocator)
-	vkGetEventStatus = {2, 'self.parent.real', 'self.real'}, -- (device, event, return)
-	vkSetEvent = {2, 'self.parent.real', 'self.real'}, -- (device, event, return)
-	vkResetEvent = {2, 'self.parent.real', 'self.real'}, -- (device, event, return)
-	vkCreateQueryPool = {1, 'self.real'}, -- (device, pCreateInfo, pAllocator, pQueryPool, return)
-	vkDestroyQueryPool = {2, 'self.parent.real', 'self.real'}, -- (device, queryPool, pAllocator)
-	vkGetQueryPoolResults = {2, 'self.parent.real', 'self.real'}, -- (device, queryPool, firstQuery, queryCount, dataSize, pData, stride, flags, return)
-	vkCreateBuffer = {1, 'self.real'}, -- (device, pCreateInfo, pAllocator, pBuffer, return)
-	vkDestroyBuffer = {2, 'self.parent.real', 'self.real'}, -- (device, buffer, pAllocator)
-	vkCreateBufferView = {1, 'self.real'}, -- (device, pCreateInfo, pAllocator, pView, return)
-	vkDestroyBufferView = {2, 'self.parent.real', 'self.real'}, -- (device, bufferView, pAllocator)
-	vkCreateImage = {1, 'self.real'}, -- (device, pCreateInfo, pAllocator, pImage, return)
-	vkDestroyImage = {2, 'self.parent.real', 'self.real'}, -- (device, image, pAllocator)
-	vkGetImageSubresourceLayout = {2, 'self.parent.real', 'self.real'}, -- (device, image, pSubresource, pLayout)
-	vkCreateImageView = {1, 'self.real'}, -- (device, pCreateInfo, pAllocator, pView, return)
-	vkDestroyImageView = {2, 'self.parent.real', 'self.real'}, -- (device, imageView, pAllocator)
-	vkCreateShaderModule = {1, 'self.real'}, -- (device, pCreateInfo, pAllocator, pShaderModule, return)
-	vkDestroyShaderModule = {2, 'self.parent.real', 'self.real'}, -- (device, shaderModule, pAllocator)
-	vkCreatePipelineCache = {1, 'self.real'}, -- (device, pCreateInfo, pAllocator, pPipelineCache, return)
-	vkDestroyPipelineCache = {2, 'self.parent.real', 'self.real'}, -- (device, pipelineCache, pAllocator)
-	vkGetPipelineCacheData = {2, 'self.parent.real', 'self.real'}, -- (device, pipelineCache, pDataSize, pData, return)
-	vkMergePipelineCaches = {2, 'self.parent.real', 'self.real'}, -- (device, dstCache, srcCacheCount, pSrcCaches, return)
-	vkCreateGraphicsPipelines = {2, 'self.parent.real', 'self.real'}, -- (device, pipelineCache, createInfoCount, pCreateInfos, pAllocator, pPipelines, return)
-	vkCreateComputePipelines = {2, 'self.parent.real', 'self.real'}, -- (device, pipelineCache, createInfoCount, pCreateInfos, pAllocator, pPipelines, return)
-	vkDestroyPipeline = {2, 'self.parent.real', 'self.real'}, -- (device, pipeline, pAllocator)
-	vkCreatePipelineLayout = {1, 'self.real'}, -- (device, pCreateInfo, pAllocator, pPipelineLayout, return)
-	vkDestroyPipelineLayout = {2, 'self.parent.real', 'self.real'}, -- (device, pipelineLayout, pAllocator)
-	vkCreateSampler = {1, 'self.real'}, -- (device, pCreateInfo, pAllocator, pSampler, return)
-	vkDestroySampler = {2, 'self.parent.real', 'self.real'}, -- (device, sampler, pAllocator)
-	vkCreateDescriptorSetLayout = {1, 'self.real'}, -- (device, pCreateInfo, pAllocator, pSetLayout, return)
-	vkDestroyDescriptorSetLayout = {2, 'self.parent.real', 'self.real'}, -- (device, descriptorSetLayout, pAllocator)
-	vkCreateDescriptorPool = {1, 'self.real'}, -- (device, pCreateInfo, pAllocator, pDescriptorPool, return)
-	vkDestroyDescriptorPool = {2, 'self.parent.real', 'self.real'}, -- (device, descriptorPool, pAllocator)
-	vkResetDescriptorPool = {2, 'self.parent.real', 'self.real'}, -- (device, descriptorPool, flags, return)
-	vkAllocateDescriptorSets = {1, 'self.real'}, -- (device, pAllocateInfo, pDescriptorSets, return)
-	vkFreeDescriptorSets = {2, 'self.parent.real', 'self.real'}, -- (device, descriptorPool, descriptorSetCount, pDescriptorSets, return)
-	vkUpdateDescriptorSets = {1, 'self.real'}, -- (device, descriptorWriteCount, pDescriptorWrites, descriptorCopyCount, pDescriptorCopies)
-	vkCreateFramebuffer = {1, 'self.real'}, -- (device, pCreateInfo, pAllocator, pFramebuffer, return)
-	vkDestroyFramebuffer = {2, 'self.parent.real', 'self.real'}, -- (device, framebuffer, pAllocator)
-	vkCreateRenderPass = {1, 'self.real'}, -- (device, pCreateInfo, pAllocator, pRenderPass, return)
-	vkDestroyRenderPass = {2, 'self.parent.real', 'self.real'}, -- (device, renderPass, pAllocator)
-	vkGetRenderAreaGranularity = {2, 'self.parent.real', 'self.real'}, -- (device, renderPass, pGranularity)
-	vkCreateCommandPool = {1, 'self.real'}, -- (device, pCreateInfo, pAllocator, pCommandPool, return)
-	vkDestroyCommandPool = {2, 'self.parent.real', 'self.real'}, -- (device, commandPool, pAllocator)
-	vkResetCommandPool = {2, 'self.parent.real', 'self.real'}, -- (device, commandPool, flags, return)
-	vkAllocateCommandBuffers = {1, 'self.real'}, -- (device, pAllocateInfo, pCommandBuffers, return)
-	vkFreeCommandBuffers = {2, 'self.parent.real', 'self.real'}, -- (device, commandPool, commandBufferCount, pCommandBuffers)
-	vkBeginCommandBuffer = {1, 'self.real'}, -- (commandBuffer, pBeginInfo, return)
-	vkEndCommandBuffer = {1, 'self.real'}, -- (commandBuffer, return)
-	vkResetCommandBuffer = {1, 'self.real'}, -- (commandBuffer, flags, return)
-	vkCmdBindPipeline = {1, 'self.real'}, -- (commandBuffer, pipelineBindPoint, pipeline)
-	vkCmdSetViewport = {1, 'self.real'}, -- (commandBuffer, firstViewport, viewportCount, pViewports)
-	vkCmdSetScissor = {1, 'self.real'}, -- (commandBuffer, firstScissor, scissorCount, pScissors)
-	vkCmdSetLineWidth = {1, 'self.real'}, -- (commandBuffer, lineWidth)
-	vkCmdSetDepthBias = {1, 'self.real'}, -- (commandBuffer, depthBiasConstantFactor, depthBiasClamp, depthBiasSlopeFactor)
-	vkCmdSetBlendConstants = {1, 'self.real'}, -- (commandBuffer, blendConstants)
-	vkCmdSetDepthBounds = {1, 'self.real'}, -- (commandBuffer, minDepthBounds, maxDepthBounds)
-	vkCmdSetStencilCompareMask = {1, 'self.real'}, -- (commandBuffer, faceMask, compareMask)
-	vkCmdSetStencilWriteMask = {1, 'self.real'}, -- (commandBuffer, faceMask, writeMask)
-	vkCmdSetStencilReference = {1, 'self.real'}, -- (commandBuffer, faceMask, reference)
-	vkCmdBindDescriptorSets = {1, 'self.real'}, -- (commandBuffer, pipelineBindPoint, layout, firstSet, descriptorSetCount, pDescriptorSets, dynamicOffsetCount, pDynamicOffsets)
-	vkCmdBindIndexBuffer = {2, 'self.parent.real', 'self.real'}, -- (commandBuffer, buffer, offset, indexType)
-	vkCmdBindVertexBuffers = {1, 'self.real'}, -- (commandBuffer, firstBinding, bindingCount, pBuffers, pOffsets)
-	vkCmdDraw = {1, 'self.real'}, -- (commandBuffer, vertexCount, instanceCount, firstVertex, firstInstance)
-	vkCmdDrawIndexed = {1, 'self.real'}, -- (commandBuffer, indexCount, instanceCount, firstIndex, vertexOffset, firstInstance)
-	vkCmdDrawIndirect = {2, 'self.parent.real', 'self.real'}, -- (commandBuffer, buffer, offset, drawCount, stride)
-	vkCmdDrawIndexedIndirect = {2, 'self.parent.real', 'self.real'}, -- (commandBuffer, buffer, offset, drawCount, stride)
-	vkCmdDispatch = {1, 'self.real'}, -- (commandBuffer, groupCountX, groupCountY, groupCountZ)
-	vkCmdDispatchIndirect = {2, 'self.parent.real', 'self.real'}, -- (commandBuffer, buffer, offset)
-	vkCmdCopyBuffer = {2, 'self.parent.real', 'self.real'}, -- (commandBuffer, srcBuffer, dstBuffer, regionCount, pRegions)
-	vkCmdCopyImage = {2, 'self.parent.real', 'self.real'}, -- (commandBuffer, srcImage, srcImageLayout, dstImage, dstImageLayout, regionCount, pRegions)
-	vkCmdBlitImage = {2, 'self.parent.real', 'self.real'}, -- (commandBuffer, srcImage, srcImageLayout, dstImage, dstImageLayout, regionCount, pRegions, filter)
-	vkCmdCopyBufferToImage = {2, 'self.parent.real', 'self.real'}, -- (commandBuffer, srcBuffer, dstImage, dstImageLayout, regionCount, pRegions)
-	vkCmdCopyImageToBuffer = {2, 'self.parent.real', 'self.real'}, -- (commandBuffer, srcImage, srcImageLayout, dstBuffer, regionCount, pRegions)
-	vkCmdUpdateBuffer = {2, 'self.parent.real', 'self.real'}, -- (commandBuffer, dstBuffer, dstOffset, dataSize, pData)
-	vkCmdFillBuffer = {2, 'self.parent.real', 'self.real'}, -- (commandBuffer, dstBuffer, dstOffset, size, data)
-	vkCmdClearColorImage = {2, 'self.parent.real', 'self.real'}, -- (commandBuffer, image, imageLayout, pColor, rangeCount, pRanges)
-	vkCmdClearDepthStencilImage = {2, 'self.parent.real', 'self.real'}, -- (commandBuffer, image, imageLayout, pDepthStencil, rangeCount, pRanges)
-	vkCmdClearAttachments = {1, 'self.real'}, -- (commandBuffer, attachmentCount, pAttachments, rectCount, pRects)
-	vkCmdResolveImage = {2, 'self.parent.real', 'self.real'}, -- (commandBuffer, srcImage, srcImageLayout, dstImage, dstImageLayout, regionCount, pRegions)
-	vkCmdSetEvent = {2, 'self.parent.real', 'self.real'}, -- (commandBuffer, event, stageMask)
-	vkCmdResetEvent = {2, 'self.parent.real', 'self.real'}, -- (commandBuffer, event, stageMask)
-	vkCmdWaitEvents = {1, 'self.real'}, -- (commandBuffer, eventCount, pEvents, srcStageMask, dstStageMask, memoryBarrierCount, pMemoryBarriers, bufferMemoryBarrierCount, pBufferMemoryBarriers, imageMemoryBarrierCount, pImageMemoryBarriers)
-	vkCmdPipelineBarrier = {1, 'self.real'}, -- (commandBuffer, srcStageMask, dstStageMask, dependencyFlags, memoryBarrierCount, pMemoryBarriers, bufferMemoryBarrierCount, pBufferMemoryBarriers, imageMemoryBarrierCount, pImageMemoryBarriers)
-	vkCmdBeginQuery = {2, 'self.parent.real', 'self.real'}, -- (commandBuffer, queryPool, query, flags)
-	vkCmdEndQuery = {2, 'self.parent.real', 'self.real'}, -- (commandBuffer, queryPool, query)
-	vkCmdResetQueryPool = {2, 'self.parent.real', 'self.real'}, -- (commandBuffer, queryPool, firstQuery, queryCount)
-	vkCmdWriteTimestamp = {1, 'self.real'}, -- (commandBuffer, pipelineStage, queryPool, query)
-	vkCmdCopyQueryPoolResults = {2, 'self.parent.real', 'self.real'}, -- (commandBuffer, queryPool, firstQuery, queryCount, dstBuffer, dstOffset, stride, flags)
-	vkCmdPushConstants = {2, 'self.parent.real', 'self.real'}, -- (commandBuffer, layout, stageFlags, offset, size, pValues)
-	vkCmdBeginRenderPass = {1, 'self.real'}, -- (commandBuffer, pRenderPassBegin, contents)
-	vkCmdNextSubpass = {1, 'self.real'}, -- (commandBuffer, contents)
-	vkCmdEndRenderPass = {1, 'self.real'}, -- (commandBuffer)
-	vkCmdExecuteCommands = {1, 'self.real'}, -- (commandBuffer, commandBufferCount, pCommandBuffers)
-	vkCreateAndroidSurfaceKHR = {1, 'self.real'}, -- (instance, pCreateInfo, pAllocator, pSurface, return)
-	vkGetPhysicalDeviceDisplayPropertiesKHR = {1, 'self.real'}, -- (physicalDevice, pPropertyCount, pProperties, return)
-	vkGetPhysicalDeviceDisplayPlanePropertiesKHR = {1, 'self.real'}, -- (physicalDevice, pPropertyCount, pProperties, return)
-	vkGetDisplayPlaneSupportedDisplaysKHR = {1, 'self.real'}, -- (physicalDevice, planeIndex, pDisplayCount, pDisplays, return)
-	vkGetDisplayModePropertiesKHR = {2, 'self.parent.real', 'self.real'}, -- (physicalDevice, display, pPropertyCount, pProperties, return)
-	vkCreateDisplayModeKHR = {2, 'self.parent.real', 'self.real'}, -- (physicalDevice, display, pCreateInfo, pAllocator, pMode, return)
-	vkGetDisplayPlaneCapabilitiesKHR = {2, 'self.parent.real', 'self.real'}, -- (physicalDevice, mode, planeIndex, pCapabilities, return)
-	vkCreateDisplayPlaneSurfaceKHR = {1, 'self.real'}, -- (instance, pCreateInfo, pAllocator, pSurface, return)
-	vkCreateSharedSwapchainsKHR = {1, 'self.real'}, -- (device, swapchainCount, pCreateInfos, pAllocator, pSwapchains, return)
-	vkCreateMirSurfaceKHR = {1, 'self.real'}, -- (instance, pCreateInfo, pAllocator, pSurface, return)
-	vkGetPhysicalDeviceMirPresentationSupportKHR = {1, 'self.real'}, -- (physicalDevice, queueFamilyIndex, connection, return)
-	vkDestroySurfaceKHR = {2, 'self.parent.real', 'self.real'}, -- (instance, surface, pAllocator)
-	vkGetPhysicalDeviceSurfaceSupportKHR = {1, 'self.real'}, -- (physicalDevice, queueFamilyIndex, surface, pSupported, return)
-	vkGetPhysicalDeviceSurfaceCapabilitiesKHR = {2, 'self.parent.real', 'self.real'}, -- (physicalDevice, surface, pSurfaceCapabilities, return)
-	vkGetPhysicalDeviceSurfaceFormatsKHR = {2, 'self.parent.real', 'self.real'}, -- (physicalDevice, surface, pSurfaceFormatCount, pSurfaceFormats, return)
-	vkGetPhysicalDeviceSurfacePresentModesKHR = {2, 'self.parent.real', 'self.real'}, -- (physicalDevice, surface, pPresentModeCount, pPresentModes, return)
-	vkCreateSwapchainKHR = {1, 'self.real'}, -- (device, pCreateInfo, pAllocator, pSwapchain, return)
-	vkDestroySwapchainKHR = {2, 'self.parent.real', 'self.real'}, -- (device, swapchain, pAllocator)
-	vkGetSwapchainImagesKHR = {2, 'self.parent.real', 'self.real'}, -- (device, swapchain, pSwapchainImageCount, pSwapchainImages, return)
-	vkAcquireNextImageKHR = {2, 'self.parent.real', 'self.real'}, -- (device, swapchain, timeout, semaphore, fence, pImageIndex, return)
-	vkQueuePresentKHR = {1, 'self.real'}, -- (queue, pPresentInfo, return)
-	vkCreateViSurfaceNN = {1, 'self.real'}, -- (instance, pCreateInfo, pAllocator, pSurface, return)
-	vkCreateWaylandSurfaceKHR = {1, 'self.real'}, -- (instance, pCreateInfo, pAllocator, pSurface, return)
-	vkGetPhysicalDeviceWaylandPresentationSupportKHR = {1, 'self.real'}, -- (physicalDevice, queueFamilyIndex, display, return)
-	vkCreateWin32SurfaceKHR = {1, 'self.real'}, -- (instance, pCreateInfo, pAllocator, pSurface, return)
-	vkGetPhysicalDeviceWin32PresentationSupportKHR = {1, 'self.real'}, -- (physicalDevice, queueFamilyIndex, return)
-	vkCreateXlibSurfaceKHR = {1, 'self.real'}, -- (instance, pCreateInfo, pAllocator, pSurface, return)
-	vkGetPhysicalDeviceXlibPresentationSupportKHR = {1, 'self.real'}, -- (physicalDevice, queueFamilyIndex, dpy, visualID, return)
-	vkCreateXcbSurfaceKHR = {1, 'self.real'}, -- (instance, pCreateInfo, pAllocator, pSurface, return)
-	vkGetPhysicalDeviceXcbPresentationSupportKHR = {1, 'self.real'}, -- (physicalDevice, queueFamilyIndex, connection, visual_id, return)
-	vkCreateDebugReportCallbackEXT = {1, 'self.real'}, -- (instance, pCreateInfo, pAllocator, pCallback, return)
-	vkDestroyDebugReportCallbackEXT = {2, 'self.parent.real', 'self.real'}, -- (instance, callback, pAllocator)
-	vkDebugReportMessageEXT = {1, 'self.real'}, -- (instance, flags, objectType, object, location, messageCode, pLayerPrefix, pMessage)
-	vkDebugMarkerSetObjectNameEXT = {1, 'self.real'}, -- (device, pNameInfo, return)
-	vkDebugMarkerSetObjectTagEXT = {1, 'self.real'}, -- (device, pTagInfo, return)
-	vkCmdDebugMarkerBeginEXT = {1, 'self.real'}, -- (commandBuffer, pMarkerInfo)
-	vkCmdDebugMarkerEndEXT = {1, 'self.real'}, -- (commandBuffer)
-	vkCmdDebugMarkerInsertEXT = {1, 'self.real'}, -- (commandBuffer, pMarkerInfo)
-	vkGetPhysicalDeviceExternalImageFormatPropertiesNV = {1, 'self.real'}, -- (physicalDevice, format, type, tiling, usage, flags, externalHandleType, pExternalImageFormatProperties, return)
-	vkGetMemoryWin32HandleNV = {2, 'self.parent.real', 'self.real'}, -- (device, memory, handleType, pHandle, return)
-	vkCmdDrawIndirectCountAMD = {2, 'self.parent.real', 'self.real'}, -- (commandBuffer, buffer, offset, countBuffer, countBufferOffset, maxDrawCount, stride)
-	vkCmdDrawIndexedIndirectCountAMD = {2, 'self.parent.real', 'self.real'}, -- (commandBuffer, buffer, offset, countBuffer, countBufferOffset, maxDrawCount, stride)
-	vkCmdProcessCommandsNVX = {1, 'self.real'}, -- (commandBuffer, pProcessCommandsInfo)
-	vkCmdReserveSpaceForCommandsNVX = {1, 'self.real'}, -- (commandBuffer, pReserveSpaceInfo)
-	vkCreateIndirectCommandsLayoutNVX = {1, 'self.real'}, -- (device, pCreateInfo, pAllocator, pIndirectCommandsLayout, return)
-	vkDestroyIndirectCommandsLayoutNVX = {2, 'self.parent.real', 'self.real'}, -- (device, indirectCommandsLayout, pAllocator)
-	vkCreateObjectTableNVX = {1, 'self.real'}, -- (device, pCreateInfo, pAllocator, pObjectTable, return)
-	vkDestroyObjectTableNVX = {2, 'self.parent.real', 'self.real'}, -- (device, objectTable, pAllocator)
-	vkRegisterObjectsNVX = {2, 'self.parent.real', 'self.real'}, -- (device, objectTable, objectCount, ppObjectTableEntries, pObjectIndices, return)
-	vkUnregisterObjectsNVX = {2, 'self.parent.real', 'self.real'}, -- (device, objectTable, objectCount, pObjectEntryTypes, pObjectIndices, return)
-	vkGetPhysicalDeviceGeneratedCommandsPropertiesNVX = {1, 'self.real'}, -- (physicalDevice, pFeatures, pLimits)
-	vkGetPhysicalDeviceFeatures2 = {1, 'self.real'}, -- (physicalDevice, pFeatures)
-	vkGetPhysicalDeviceProperties2 = {1, 'self.real'}, -- (physicalDevice, pProperties)
-	vkGetPhysicalDeviceFormatProperties2 = {1, 'self.real'}, -- (physicalDevice, format, pFormatProperties)
-	vkGetPhysicalDeviceImageFormatProperties2 = {1, 'self.real'}, -- (physicalDevice, pImageFormatInfo, pImageFormatProperties, return)
-	vkGetPhysicalDeviceQueueFamilyProperties2 = {1, 'self.real'}, -- (physicalDevice, pQueueFamilyPropertyCount, pQueueFamilyProperties)
-	vkGetPhysicalDeviceMemoryProperties2 = {1, 'self.real'}, -- (physicalDevice, pMemoryProperties)
-	vkGetPhysicalDeviceSparseImageFormatProperties2 = {1, 'self.real'}, -- (physicalDevice, pFormatInfo, pPropertyCount, pProperties)
-	vkCmdPushDescriptorSetKHR = {1, 'self.real'}, -- (commandBuffer, pipelineBindPoint, layout, set, descriptorWriteCount, pDescriptorWrites)
-	vkTrimCommandPool = {2, 'self.parent.real', 'self.real'}, -- (device, commandPool, flags)
-	vkGetPhysicalDeviceExternalBufferProperties = {1, 'self.real'}, -- (physicalDevice, pExternalBufferInfo, pExternalBufferProperties)
-	vkGetMemoryWin32HandleKHR = {1, 'self.real'}, -- (device, pGetWin32HandleInfo, pHandle, return)
-	vkGetMemoryWin32HandlePropertiesKHR = {1, 'self.real'}, -- (device, handleType, handle, pMemoryWin32HandleProperties, return)
-	vkGetMemoryFdKHR = {1, 'self.real'}, -- (device, pGetFdInfo, pFd, return)
-	vkGetMemoryFdPropertiesKHR = {1, 'self.real'}, -- (device, handleType, fd, pMemoryFdProperties, return)
-	vkGetPhysicalDeviceExternalSemaphoreProperties = {1, 'self.real'}, -- (physicalDevice, pExternalSemaphoreInfo, pExternalSemaphoreProperties)
-	vkGetSemaphoreWin32HandleKHR = {1, 'self.real'}, -- (device, pGetWin32HandleInfo, pHandle, return)
-	vkImportSemaphoreWin32HandleKHR = {1, 'self.real'}, -- (device, pImportSemaphoreWin32HandleInfo, return)
-	vkGetSemaphoreFdKHR = {1, 'self.real'}, -- (device, pGetFdInfo, pFd, return)
-	vkImportSemaphoreFdKHR = {1, 'self.real'}, -- (device, pImportSemaphoreFdInfo, return)
-	vkGetPhysicalDeviceExternalFenceProperties = {1, 'self.real'}, -- (physicalDevice, pExternalFenceInfo, pExternalFenceProperties)
-	vkGetFenceWin32HandleKHR = {1, 'self.real'}, -- (device, pGetWin32HandleInfo, pHandle, return)
-	vkImportFenceWin32HandleKHR = {1, 'self.real'}, -- (device, pImportFenceWin32HandleInfo, return)
-	vkGetFenceFdKHR = {1, 'self.real'}, -- (device, pGetFdInfo, pFd, return)
-	vkImportFenceFdKHR = {1, 'self.real'}, -- (device, pImportFenceFdInfo, return)
-	vkReleaseDisplayEXT = {2, 'self.parent.real', 'self.real'}, -- (physicalDevice, display, return)
-	vkAcquireXlibDisplayEXT = {1, 'self.real'}, -- (physicalDevice, dpy, display, return)
-	vkGetRandROutputDisplayEXT = {1, 'self.real'}, -- (physicalDevice, dpy, rrOutput, pDisplay, return)
-	vkDisplayPowerControlEXT = {2, 'self.parent.real', 'self.real'}, -- (device, display, pDisplayPowerInfo, return)
-	vkRegisterDeviceEventEXT = {1, 'self.real'}, -- (device, pDeviceEventInfo, pAllocator, pFence, return)
-	vkRegisterDisplayEventEXT = {2, 'self.parent.real', 'self.real'}, -- (device, display, pDisplayEventInfo, pAllocator, pFence, return)
-	vkGetSwapchainCounterEXT = {2, 'self.parent.real', 'self.real'}, -- (device, swapchain, counter, pCounterValue, return)
-	vkGetPhysicalDeviceSurfaceCapabilities2EXT = {2, 'self.parent.real', 'self.real'}, -- (physicalDevice, surface, pSurfaceCapabilities, return)
-	vkEnumeratePhysicalDeviceGroups = {1, 'self.real'}, -- (instance, pPhysicalDeviceGroupCount, pPhysicalDeviceGroupProperties, return)
-	vkGetDeviceGroupPeerMemoryFeatures = {1, 'self.real'}, -- (device, heapIndex, localDeviceIndex, remoteDeviceIndex, pPeerMemoryFeatures)
-	vkBindBufferMemory2 = {1, 'self.real'}, -- (device, bindInfoCount, pBindInfos, return)
-	vkBindImageMemory2 = {1, 'self.real'}, -- (device, bindInfoCount, pBindInfos, return)
-	vkCmdSetDeviceMask = {1, 'self.real'}, -- (commandBuffer, deviceMask)
-	vkGetDeviceGroupPresentCapabilitiesKHR = {1, 'self.real'}, -- (device, pDeviceGroupPresentCapabilities, return)
-	vkGetDeviceGroupSurfacePresentModesKHR = {2, 'self.parent.real', 'self.real'}, -- (device, surface, pModes, return)
-	vkAcquireNextImage2KHR = {1, 'self.real'}, -- (device, pAcquireInfo, pImageIndex, return)
-	vkCmdDispatchBase = {1, 'self.real'}, -- (commandBuffer, baseGroupX, baseGroupY, baseGroupZ, groupCountX, groupCountY, groupCountZ)
-	vkGetPhysicalDevicePresentRectanglesKHR = {2, 'self.parent.real', 'self.real'}, -- (physicalDevice, surface, pRectCount, pRects, return)
-	vkCreateDescriptorUpdateTemplate = {1, 'self.real'}, -- (device, pCreateInfo, pAllocator, pDescriptorUpdateTemplate, return)
-	vkDestroyDescriptorUpdateTemplate = {2, 'self.parent.real', 'self.real'}, -- (device, descriptorUpdateTemplate, pAllocator)
-	vkUpdateDescriptorSetWithTemplate = {2, 'self.parent.real', 'self.real'}, -- (device, descriptorSet, descriptorUpdateTemplate, pData)
-	vkCmdPushDescriptorSetWithTemplateKHR = {2, 'self.parent.real', 'self.real'}, -- (commandBuffer, descriptorUpdateTemplate, layout, set, pData)
-	vkSetHdrMetadataEXT = {1, 'self.real'}, -- (device, swapchainCount, pSwapchains, pMetadata)
-	vkGetSwapchainStatusKHR = {2, 'self.parent.real', 'self.real'}, -- (device, swapchain, return)
-	vkGetRefreshCycleDurationGOOGLE = {2, 'self.parent.real', 'self.real'}, -- (device, swapchain, pDisplayTimingProperties, return)
-	vkGetPastPresentationTimingGOOGLE = {2, 'self.parent.real', 'self.real'}, -- (device, swapchain, pPresentationTimingCount, pPresentationTimings, return)
-	vkCreateIOSSurfaceMVK = {1, 'self.real'}, -- (instance, pCreateInfo, pAllocator, pSurface, return)
-	vkCreateMacOSSurfaceMVK = {1, 'self.real'}, -- (instance, pCreateInfo, pAllocator, pSurface, return)
-	vkCmdSetViewportWScalingNV = {1, 'self.real'}, -- (commandBuffer, firstViewport, viewportCount, pViewportWScalings)
-	vkCmdSetDiscardRectangleEXT = {1, 'self.real'}, -- (commandBuffer, firstDiscardRectangle, discardRectangleCount, pDiscardRectangles)
-	vkCmdSetSampleLocationsEXT = {1, 'self.real'}, -- (commandBuffer, pSampleLocationsInfo)
-	vkGetPhysicalDeviceMultisamplePropertiesEXT = {1, 'self.real'}, -- (physicalDevice, samples, pMultisampleProperties)
-	vkGetPhysicalDeviceSurfaceCapabilities2KHR = {1, 'self.real'}, -- (physicalDevice, pSurfaceInfo, pSurfaceCapabilities, return)
-	vkGetPhysicalDeviceSurfaceFormats2KHR = {1, 'self.real'}, -- (physicalDevice, pSurfaceInfo, pSurfaceFormatCount, pSurfaceFormats, return)
-	vkGetBufferMemoryRequirements2 = {1, 'self.real'}, -- (device, pInfo, pMemoryRequirements)
-	vkGetImageMemoryRequirements2 = {1, 'self.real'}, -- (device, pInfo, pMemoryRequirements)
-	vkGetImageSparseMemoryRequirements2 = {1, 'self.real'}, -- (device, pInfo, pSparseMemoryRequirementCount, pSparseMemoryRequirements)
-	vkCreateSamplerYcbcrConversion = {1, 'self.real'}, -- (device, pCreateInfo, pAllocator, pYcbcrConversion, return)
-	vkDestroySamplerYcbcrConversion = {2, 'self.parent.real', 'self.real'}, -- (device, ycbcrConversion, pAllocator)
-	vkGetDeviceQueue2 = {1, 'self.real'}, -- (device, pQueueInfo, pQueue)
-	vkCreateValidationCacheEXT = {1, 'self.real'}, -- (device, pCreateInfo, pAllocator, pValidationCache, return)
-	vkDestroyValidationCacheEXT = {2, 'self.parent.real', 'self.real'}, -- (device, validationCache, pAllocator)
-	vkGetValidationCacheDataEXT = {2, 'self.parent.real', 'self.real'}, -- (device, validationCache, pDataSize, pData, return)
-	vkMergeValidationCachesEXT = {2, 'self.parent.real', 'self.real'}, -- (device, dstCache, srcCacheCount, pSrcCaches, return)
-	vkGetDescriptorSetLayoutSupport = {1, 'self.real'}, -- (device, pCreateInfo, pSupport)
-	vkGetSwapchainGrallocUsageANDROID = {1, 'self.real'}, -- (device, format, imageUsage, grallocUsage, return)
-	vkAcquireImageANDROID = {2, 'self.parent.real', 'self.real'}, -- (device, image, nativeFenceFd, semaphore, fence, return)
-	vkQueueSignalReleaseImageANDROID = {1, 'self.real'}, -- (queue, waitSemaphoreCount, pWaitSemaphores, image, pNativeFenceFd, return)
-	vkGetShaderInfoAMD = {2, 'self.parent.real', 'self.real'}, -- (device, pipeline, shaderStage, infoType, pInfoSize, pInfo, return)
-	vkSetDebugUtilsObjectNameEXT = {1, 'self.real'}, -- (device, pNameInfo, return)
-	vkSetDebugUtilsObjectTagEXT = {1, 'self.real'}, -- (device, pTagInfo, return)
-	vkQueueBeginDebugUtilsLabelEXT = {1, 'self.real'}, -- (queue, pLabelInfo)
-	vkQueueEndDebugUtilsLabelEXT = {1, 'self.real'}, -- (queue)
-	vkQueueInsertDebugUtilsLabelEXT = {1, 'self.real'}, -- (queue, pLabelInfo)
-	vkCmdBeginDebugUtilsLabelEXT = {1, 'self.real'}, -- (commandBuffer, pLabelInfo)
-	vkCmdEndDebugUtilsLabelEXT = {1, 'self.real'}, -- (commandBuffer)
-	vkCmdInsertDebugUtilsLabelEXT = {1, 'self.real'}, -- (commandBuffer, pLabelInfo)
-	vkCreateDebugUtilsMessengerEXT = {1, 'self.real'}, -- (instance, pCreateInfo, pAllocator, pMessenger, return)
-	vkDestroyDebugUtilsMessengerEXT = {2, 'self.parent.real', 'self.real'}, -- (instance, messenger, pAllocator)
-	vkSubmitDebugUtilsMessageEXT = {1, 'self.real'}, -- (instance, messageSeverity, messageTypes, pCallbackData)
-	vkGetMemoryHostPointerPropertiesEXT = {1, 'self.real'}, -- (device, handleType, pHostPointer, pMemoryHostPointerProperties, return)
-	vkCmdWriteBufferMarkerAMD = {1, 'self.real'}, -- (commandBuffer, pipelineStage, dstBuffer, dstOffset, marker)
-	vkGetAndroidHardwareBufferPropertiesANDROID = {1, 'self.real'}, -- (device, buffer, pProperties, return)
-	vkGetMemoryAndroidHardwareBufferANDROID = {1, 'self.real'}, -- (device, pInfo, pBuffer, return)
-}
-
 -- Handles are connected by a parenting scheme, but it doesn't always work right...
 human.parent = {
 	VkInstance = false,	-- Parent is Vk
@@ -427,26 +982,31 @@ human.parent = {
 	VkDisplayModeKHR = 'DisplayKHR',
 }
 
+-- When there is no info on a particular command, we try and guess its properties.
+-- These functions here do the guessing. They are designed to handle about 90%.
+local function ishandle(t)	-- Guess whether the type is a handle or not.
+	return not t.__index and not t.__mask and not t.__enum and t.__raw and t.__raw:match '^Vk'
+end
+local function guess(entries, name)
+	local out = "false"
+	if entries[2] and ishandle(entries[2].type) then
+		out = "{2, 'self.parent.real', 'self.real'}"
+	elseif entries[1] and ishandle(entries[1].type) then
+		out = "{1, 'self.real'}"
+	end
+	local names = {}
+	for _,e in ipairs(entries) do names[#names+1] = e.name end
+	human.herror('\t'..name..' = {\n\t\tself = '..out..',\n\t}, -- ('..table.concat(names,', ')..')')
+end
+
 -- Commands in Vulkan are not associated with any particular handle, but most
 -- only make sense within the context of one, so we make the association ourselves.
 -- `entries` is the raw argument list to work with
 -- `name` is the name of the command in question.
-local function ishandle(t)
-	return not t.__index and not t.__mask and not t.__enum and t.__raw and t.__raw:match '^Vk'
-end
 function human.self(entries, name)
-	local s = selves[name]
-	if not s then
-		local guess = "true"
-		if entries[2] and ishandle(entries[2].type) then
-			guess = "{2, 'self.parent.real', 'self.real'}"
-		elseif entries[1] and ishandle(entries[1].type) then
-			guess = "{1, 'self.real'}"
-		end
-		local names = {}
-		for _,e in ipairs(entries) do names[#names+1] = e.name end
-		return human.herror('\t'..name..' = '..guess..', -- ('..table.concat(names,', ')..')')
-	elseif s ~= true then return entries[s[1]].type, table.unpack(s, 2) end
+	local s = cmdinfo[name]
+	if not s then guess(entries, name)
+	elseif s.self then return entries[s.self[1]].type, table.unpack(s.self, 2) end
 end
 
 return human
