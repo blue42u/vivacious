@@ -107,8 +107,7 @@ for _,c in ipairs(vk.Vk.__index) do if not c.aliasof then
 	c.type.__call.method = true
 
 	-- Figure out where this entry should actually go, and move it there.
-	local selfsets = {human.self(c.type.__call, c.name)}
-	local self = table.remove(selfsets, 1)
+	local self = human.self(c.type.__call, c.name)
 	if self then
 		if not handle[self] then
 			vk[self.__name] = {
@@ -117,13 +116,14 @@ for _,c in ipairs(vk.Vk.__index) do if not c.aliasof then
 					{name='parent', version='0.0.0'}}
 			}
 			handle[self] = vk[self.__name]
-			handle[self].__index[2].type = handle[self]	-- TODO: Fix this
+			handle[self].__index[2].type = vk.Vk
 			if not self._parent then
 				hassert(human.parent[self.__name] ~= nil, 'No parent for '..self.__name)
 			end
 			connect[handle[self]] = (self._parent and self._parent:gsub('^Vk', ''))
 				or human.parent[self.__name] or nil
 			self._parent = nil
+			self.__name = 'opaque handle/'..self.__name
 		end
 		local ind = handle[self].__index
 		removed[c] = true
@@ -132,10 +132,10 @@ for _,c in ipairs(vk.Vk.__index) do if not c.aliasof then
 			removed[a] = true
 			ind[#ind+1] = a
 		end
-		for i,s in ipairs(selfsets) do c.type.__call[i].setto = {s} end
 	end
 end end
-for h,p in pairs(connect) do h.__index[2].type = assert(handle[vk[p]], 'No handle '..p) end
+for h,p in pairs(connect) do
+	h.__index[2].type = assert(handle[vk[p]], 'No handle '..p) end
 for _,c in ipairs(vk.Vk.__index) do if not c.aliasof then
 	-- Use the _len fields to assign setto's accordingly
 	local names,lens = {},{}

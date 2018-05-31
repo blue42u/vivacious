@@ -36,7 +36,7 @@ local function cansetto(sts, env, opt)
 	for _,s in ipairs(sts or {}) do if not s:find '#' then
 		return s:gsub('[%w%.]+', function(n)
 			local map = {}
-			for _,e in ipairs(env or {}) do map[e.name] = e end
+			for _,e in ipairs(env or {}) do map[e.retname or e.name] = e end
 			if opt and opt.self then map.self = {type=opt.self} end
 			if not n:find '%.' then return n else
 				local new = {}
@@ -45,7 +45,7 @@ local function cansetto(sts, env, opt)
 					new[#new+1] = p
 					new[#new+1] = (ep.extraptr or callit(ep.type, p):find '%*') and '->' or '.'
 					map = {}
-					for _,e in ipairs(ep.type.__index or {}) do map[e.name] = e end
+					for _,e in ipairs(ep.type.__index or {}) do map[e.retname or e.name] = e end
 				end
 				table.remove(new)
 				return table.concat(new)
@@ -68,7 +68,7 @@ function callit(ty, na, opt)
 	if type(ty) == 'string' then
 		assert(basetypes[ty], 'Unknown basic type '..ty)
 		return basetypes[ty]..sna
-	elseif (not opt or not opt.forcereal) and ty.__raw then return ty.__raw..sna
+	elseif ty.__raw then return ty.__raw..sna
 	elseif ty.__name then return 'Vv'..ty.__name..((opt and opt.inarr) and '' or '*')..sna
 	elseif ty.__call then
 		local as = {}
@@ -96,7 +96,9 @@ function callit(ty, na, opt)
 			if #nrets > 0 then ret = nrets[1]
 			else ret = rets[1] end	-- Just take the first one
 		end
-		for _,r in ipairs(rets) do if r ~= ret then table.insert(as, callit(r.type, '*')) end end
+		for _,r in ipairs(rets) do if r ~= ret then
+			table.insert(as, callit(r.type, '*'..(r.retname or '')))
+		end end
 		ret = ret and ret.type or {__raw='void'}
 		if opt and opt.proto then
 			return callit(ret, (na or '')..'('..table.concat(as,', ')..')')
@@ -173,14 +175,16 @@ gen.traversal.df(spec, function(ty)
 							f:write(indent(callit(e.type.__ifndef, e.name, {self=ty}), '\t\t')..';\n')
 							f:write '#endif\n'
 						end
-						if e.type.__call and e.exbinding then
+						if e.type.__raw then	-- Raw callables are special...
 							if ifdef then atend[#atend+1] = '#if '..ifdef..'\n' end
 							atend[#atend+1] = 'static inline '..
-								callit(e.type, 'vV'..e.name, {self=ty, proto=true, forcereal=true})..' {\n'
+								callit(e.type, 'vV'..e.name,
+									{self=ty, proto=true, forcereal=true})..' {\n'
 							local args = {}
 							for _,ee in ipairs(e.type.__call) do
 								if ee.name ~= 'return' then
-									table.insert(args, cansetto(ee.setto, e.type.__call, {self=ty}) or ee.name)
+									table.insert(args,
+										cansetto(ee.setto, e.type.__call, {self=ty}) or ee.name)
 								end
 							end
 							atend[#atend+1] =
