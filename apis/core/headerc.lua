@@ -56,9 +56,9 @@ local function exptoC(exs, env, opt, raw)
 					new[#new+1] = isptr[p] and '->' or '.'
 					local ty = m[p]
 					isptr,m = {},{}
-					for _,e in ipairs(ty.__index or {}) do
+					for _,e in ipairs(ty.__index or {}) do if not e.aliasof then
 						isptr[e.name],m[e.name] = callit(e.type, ''):find '%*', e.type
-					end
+					end end
 					for _,e in ipairs(ty.__raw and ty.__raw.index or {}) do
 						if e.name then isptr[e.name] = isptr[e.name] or e.extraptr end
 					end
@@ -152,7 +152,6 @@ gen.traversal.df(spec, function(ty)
 			for _,d in ipairs(ty.__directives) do f:write('#'..d..'\n') end
 		end
 
-		local post
 		if ty.__index then
 			f:write('typedef struct Vv'..ty.__name..' Vv'..ty.__name..';\n')
 			coroutine.yield(); coroutine.yield()	-- Wait for after everything else
@@ -180,7 +179,7 @@ gen.traversal.df(spec, function(ty)
 						f:write '#endif\n'
 					end
 					if e.type.__raw then	-- Raw callables are special...
-						post = function()
+						coroutine.yield(function()
 							local types = {}
 							for _,ce in ipairs(e.type.__call) do types[ce.name] = ce.type end
 							local pargs,args = {callit(ty, 'self', {self=ty})},{}
@@ -189,22 +188,32 @@ gen.traversal.df(spec, function(ty)
 									{self=ty}, e.type.__raw.call)
 								if ex then
 									args[#args+1] = ex
-									if types[ex] then
-										pargs[#pargs+1] = callit(types[ex], ex, {self=ty}) end
+									if types[ex] or re.type then
+										pargs[#pargs+1] = callit(types[ex] or re.type, ex, {self=ty})
+										if re.extraptr and not pargs[#pargs]:find '%*' then
+											pargs[#pargs] = callit(types[ex] or re.type, '*'..ex, {self=ty})
+										end
+									end
 								else
-									assert(re.type, "Unexpressable raw __call field with no type")
-									pargs[#pargs+1] = callit(re.type, '_rawval'..i)
+									assert(re.type, "Unexpressable raw __call field with no type"
+										.." ("..(re.value or table.concat(re.values, ', '))..")")
+									pargs[#pargs+1] = callit(re.type, '_rawval'..i, {self=ty})
+									if re.extraptr and not pargs[#pargs]:find '%*' then
+										pargs[#pargs] = callit(re.type, '*_rawval'..i, {self=ty})
+									end
 									args[#args+1] = '_rawval'..i
 								end
 							end
 
+							local ret = e.type.__raw.call.ret or {__raw={C='void'}}
 							if ifdef then f:write('#if '..ifdef..'\n') end
-							f:write(('static inline %s vV%s(%s) {\n'):format(
-								ret, e.name, table.concat(pargs, ', ')))
+							f:write(('static inline %s {\n'):format(
+								callit(ret, 'vV'..e.name..'('..table.concat(pargs, ', ')..')',
+									{self=ty, proto=true})))
 							f:write(('return self->_M->%s(%s);\n}\n'):format(
 								e.name, table.concat(args, ', ')))
 							if ifdef then f:write '#endif\n' end
-						end
+						end)
 					else
 						f:write('#ifdef __GNUC__\n#define vV'..e.name
 							..'(_S, ...) ( __typeof__(_S) _s = (_S),  _s->_M->'..e.name
@@ -241,10 +250,6 @@ gen.traversal.df(spec, function(ty)
 			f:write('};\n\n')
 		end
 		f:write '\n'
-		if post then
-			coroutine.yield()
-			post()
-		end
 	end elseif ty == spec then
 		coroutine.yield()	-- Wait for sub-things
 		f:write '\n'

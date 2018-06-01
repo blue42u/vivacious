@@ -49,8 +49,16 @@ local smalltypes = {
 -- equivalent C. This tests whether the expression is valid.
 local function testexp(ex, env, opt)
 	opt = opt or {}
-	local function obj(ents)
+	local general
+	local gf = function() return general end
+	general = setmetatable({}, {
+		__len = gf,
+		__add = gf, __sub = gf, __mul = gf, __div = gf,
+		__isobj = true,
+	})
+	local function obj(ents, self)
 		local m,todo = {},{}
+		if self then m.self = self end
 		for _,e in ipairs(ents) do
 			if e.type then m[e.name] = e.type else todo[e] = true end
 		end
@@ -66,12 +74,12 @@ local function testexp(ex, env, opt)
 		return setmetatable({}, {
 			__index=function(t,k)
 				assert(m[k], "Invalid access in expression "..ex.." (field "..k..")")
-				t[k] = m[k].__index and obj(m[k].__index) or 7
+				t[k] = m[k].__index and obj(m[k].__index) or general
 				return t[k]
 			end,
 			__len = function(self)
 				assert(self.__sequence, "Tried to get length in expression "..ex)
-				return 7
+				return general
 			end,
 			__isobj = true,
 		})
@@ -79,11 +87,11 @@ local function testexp(ex, env, opt)
 
 	assert(not ex:find'[][{}:"\']', "Non-C compatible characters in expression "..ex)
 
-	local envmap = obj(env)
-	if opt.self then envmap.self = opt.self end
+	local envmap = obj(env, opt.self)
 	local out = assert(load('return ('..ex..')', nil, 't', envmap))()
-	assert(type(out) == 'number' or getmetatable(out).__isobj,
-		"All expressions should result in numbers or object-likes")
+	assert(type(out) == 'number' or (getmetatable(out) and getmetatable(out).__isobj),
+		"All expressions should result in numbers or object-likes, got "..tostring(out)
+		.." from "..ex)
 end
 
 -- List of leftover _-keys to warn about
@@ -221,7 +229,7 @@ local function testit(ty, from, opt)
 				lintfor_(e)
 				assert(type(e.name) == 'string', "__call fields need names", from)
 				names[e.name] = true
-				assert(e.type, "__call fields need types", from)
+				assert(e.type, "__call fields need types", from..'('..e.name)
 				testit(e.type, from..'('..e.name)
 			end
 			if ty.__call.method then

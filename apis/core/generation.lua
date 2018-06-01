@@ -24,49 +24,67 @@ gen.traversal = {}
 -- the key, which may be a function that is called after the sub-tree is fully
 -- completed.
 
-local function handle(ty, handler, next)
-	local co
+local function cocreate(f)
 	if gen.gendebug then
-		co = coroutine.create(function(...)
-			assert(xpcall(handler, debug.traceback, ...))
+		return coroutine.create(function(...)
+			assert(xpcall(f, debug.traceback, ...))
 		end)
-	else co = coroutine.create(handler) end
-	assert(coroutine.resume(co, ty))
-	for k in pairs(ty) do if not k:match '^__' then table.insert(next, k) end end
-	return co, next
+	else return coroutine.create(f) end
 end
 
-local function post()
-	return setmetatable({}, {
+local post
+do
+	local named = {}
+	local resume
+	post = setmetatable({}, {
 		__call=function(self)
 			repeat
-				for co in pairs(self) do
-					assert(coroutine.resume(co))
-					if coroutine.status(co) ~= 'suspended' then self[co] = nil end
-				end
+				for co in pairs(self) do resume(co) end
 			until not next(self)
 		end,
-		__newindex=function(self, co)
-			if coroutine.status(co) == 'suspended' then
-				rawset(self, co, true)
-			end
+		__newindex=function(self, k, co)
+			if type(co) == 'thread' then
+				if coroutine.status(co) == 'suspended' then
+					rawset(self, co, true)
+					if k ~= nil then named[k] = co end
+				end
+			elseif k ~= nil then named[k] = nil end
+		end,
+		__index=function(self, k)
+			local co = named[k]
+			return function(...) if co and rawget(self, co) then resume(co, ...) end end
 		end,
 	})
+	function resume(co, ...)
+		assert(coroutine.status(co) == 'suspended')
+		repeat
+			local res = {coroutine.resume(co, ...)}
+			assert(res[1], res[2])
+			for i=2,#res do post[nil] = cocreate(res[i]) end
+		until #res == 1
+		if coroutine.status(co) ~= 'suspended' then rawset(post, co, nil) end
+	end
+end
+
+local function handle(ty, handler, next)
+	post.handle = cocreate(handler)
+	post.handle(ty)
+	for k in pairs(ty) do if not k:match '^__' then table.insert(next, k) end end
+	return next
 end
 
 -- Basic depth-first traversal, designed for traversing the type-tree.
 function gen.traversal.df(start, handler)
-	local done,after = {}, post()
+	local done = {}
 	local function trav(ty)
 		if done[ty] then return else done[ty] = true end
-		local co,next = handle(ty, handler, {})
+		local next = handle(ty, handler, {})
 		table.sort(next)
 		for _,k in ipairs(next) do trav(ty[k]) end
-		if coroutine.status(co) == 'suspended' then assert(coroutine.resume(co)) end
-		after[co] = true
+		post.handle()
 	end
 	trav(start)
-	after()
+	post()
 end
 
 -- The other thing this `require` does is add a new entry into package.path,

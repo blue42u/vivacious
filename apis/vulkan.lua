@@ -87,83 +87,99 @@ end end
 for _,v in pairs(vk) do if (v.__index or v.__call) and not handled[v] then
 	handled[v] = true
 
-	local names,lens = {},{}
+	local names,raws,eptr = {},{},{}
+	for _,re in ipairs(v.__raw and (v.__raw.index or v.__raw.call) or {}) do
+		raws[re.name] = re
+	end
 	for _,e in ipairs(v.__index or v.__call) do
 		names[e.name] = e
 		if e._len then
 			local r,x = human.length(e, v, '#'..e.name, v.__index or v.__call)
-			if r then if lens[r] then lens[r][#lens[r]+1] = x else lens[r] = {x} end end
+			if r then
+				local n = names[r]
+				n.canbenil = true
+				raws[r].value = nil
+				raws[r].values = raws[r].values or {}
+				table.insert(raws[r].values, x)
+			end
 		end
 		if e._value then
 			assert(enumnames[e._value], 'Unknown value: '..e._value)
-			e.setto = {enumnames[e._value]}
+			raws[e.name].C = enumnames[e._value]
+			e._value = nil
 		end
+		if e._extraptr then eptr[e.name],e._extraptr = true,nil end
 	end
-	for r,xs in pairs(lens) do
-		if names[r] then names[r].canbenil, names[r].setto = true, xs end
+	for _,re in ipairs(v.__raw and (v.__raw.index or v.__raw.call) or {}) do
+		if eptr[re.name] then re.extraptr = true end
 	end
 end end
 
 -- Process the commands.
 local alias = {}
 for _,c in ipairs(vk.Vk.__index) do if c.aliasof then
- if not alias[c.aliasof] then alias[c.aliasof] = {} end
- table.insert(alias[c.aliasof], c)
+	if not alias[c.aliasof] then alias[c.aliasof] = {} end
+	table.insert(alias[c.aliasof], c)
 end end
 local removed,handle,connect = {},{},{}
 for _,c in ipairs(vk.Vk.__index) do if not c.aliasof then
- c.exbinding = true
- c.type.__call.method = true
+	c.exbinding = true
+	c.type.__call.method = true
 
- -- Figure out where this entry should actually go, and move it there.
- local self = human.self(c.type.__call, c.name)
- if self then
-	 if not handle[self] then
-		 vk[self.__name] = {
-			 __name = self.__name,
-			 __index = {{name='real', version='0.0.0', type=self},
-				 {name='parent', version='0.0.0'}}
-		 }
-		 handle[self] = vk[self.__name]
-		 handle[self].__index[2].type = vk.Vk
-		 if not self._parent then
-			 hassert(human.parent[self.__name] ~= nil, 'No parent for '..self.__name)
-		 end
-		 connect[handle[self]] = (self._parent and self._parent:gsub('^Vk', ''))
-			 or human.parent[self.__name] or nil
-		 self._parent = nil
-		 self.__name = 'opaque handle/'..self.__name
-	 end
-	 local ind = handle[self].__index
-	 removed[c] = true
-	 ind[#ind+1] = c
-	 for _,a in ipairs(alias[c.name] or {}) do
-		 removed[a] = true
-		 ind[#ind+1] = a
-	 end
- end
+	-- Figure out where this entry should actually go, and move it there.
+	local self = human.self(c.type.__call, c.name)
+	if self then
+		if not handle[self] then
+			vk[self.__name] = {
+				__name = self.__name,
+				__index = {{name='real', version='0.0.0', type=self},
+					{name='parent', version='0.0.0'}}
+			}
+			handle[self] = vk[self.__name]
+			handle[self].__index[2].type = vk.Vk
+			if not self._parent then
+				hassert(human.parent[self.__name] ~= nil, 'No parent for '..self.__name)
+			end
+			connect[handle[self]] = (self._parent and self._parent:gsub('^Vk', ''))
+				or human.parent[self.__name] or nil
+			self._parent = nil
+			self.__name = 'opaque handle/'..self.__name
+		end
+		local ind = handle[self].__index
+		removed[c] = true
+		ind[#ind+1] = c
+		for _,a in ipairs(alias[c.name] or {}) do
+			removed[a] = true
+			ind[#ind+1] = a
+		end
+	end
 end end
 for h,p in pairs(connect) do
- h.__index[2].type = assert(handle[vk[p]], 'No handle '..p) end
+	h.__index[2].type = assert(handle[vk[p]], 'No handle '..p) end
 for _,c in ipairs(vk.Vk.__index) do if not c.aliasof then
- -- Use the _len fields to assign setto's accordingly
- local names,lens = {},{}
- for _,e in ipairs(c.type.__call) do
-	 names[e.name] = e
-	 if e._len then
-		 local r,x = human.length(e, c.type, '#'..e.name, c.type.__call)
-		 if r then if lens[r] then lens[r][#lens[r]+1] = x else lens[r] = {x} end end
-	 end
-	 if not e.setto and handle[e.type] then
-		 e.type,e.setto = handle[e.type],{e.name..'.real', noskip=true} end
- end
- for r,xs in pairs(lens) do
-	 if names[r] then names[r].setto = xs end
- end
+	local raws,eptr = {},{}
+	for _,re in ipairs(c.type.__raw.call) do raws[re.value] = re end
+	for _,e in ipairs(c.type.__call) do
+		if e._len then
+			local r,x = human.length(e, c.type, '#'..e.name, c.type.__call)
+			if r and raws[r] then
+				raws[r].value = nil
+				raws[r].values = raws[r].values or {}
+				table.insert(raws[r].values, x)
+			end
+		end
+		if raws[e.name] and not raws[e.name].values and handle[e.type] then
+			e.type, raws[e.name].value = handle[e.type], e.name..'.real'
+		end
+		if e._extraptr then eptr[e.name],e._extraptr = true,nil end
+	end
+	for _,re in ipairs(c.type.__raw.call) do
+		if eptr[re.value] then re.extraptr = true end
+	end
 end end
 local newindex = {}
 for _,c in ipairs(vk.Vk.__index) do
- if not removed[c] then newindex[#newindex+1] = c end
+	if not removed[c] then newindex[#newindex+1] = c end
 end
 vk.Vk.__index = newindex
 

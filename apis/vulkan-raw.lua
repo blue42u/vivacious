@@ -298,7 +298,10 @@ for t in xtrav(xml.root, {_name='commands'}, {_name='command'}) do
 		local pro = transform({}, xtrav(t, {_name='proto'})())
 		out.name, out.type.__raw.C = pro.name, 'PFN_'..pro.name
 		pro.name, pro.mainret = 'return', true
-		if pro.type ~= vkraw.void then table.insert(out.type.__call, pro) end
+		if pro.type ~= vkraw.void then
+			table.insert(out.type.__call, pro)
+			out.type.__raw.call.ret = pro.type
+		end
 
 		table.insert(vk.Vk.__index, out)
 	else
