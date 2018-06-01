@@ -1,3 +1,7 @@
+gen(USE linter OUTDIR ${CMAKE_CURRENT_BINARY_DIR} SUFFIX .lint
+	SPECS vulkan vkinitializer
+	TARGET lint)
+
 gen(USE headerc OUTDIR ${CMAKE_BINARY_DIR}/include/vivacious SUFFIX .h
 	SPECS vulkan vkinitializer
 	TARGET include)

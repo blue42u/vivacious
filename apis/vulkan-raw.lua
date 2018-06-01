@@ -106,16 +106,15 @@ end
 -- Now we get Vulkan's types loaded in. First we need to make some empty shells.
 local vkraw = {}	-- Same as `vk`, but uses Vulkan's names rather than vV's.
 local cats = {
-	basetype=true, handle=true, enum=true, bitmask=true,
+	basetype=true, handle=true, enum=true,bitmask=true,
 	funcpointer=true, struct=true, union=true,
 }
 local masks = {}
 for t in xtrav(xml.root, {_name='types'}, {_name='type'}) do
 	if not t.attr.category or cats[t.attr.category] ~= nil then
-		local rn = t.attr.name
-			or xtrav(t, {_name='name'}, {_type='text'})().value
+		local rn = t.attr.name or xtrav(t, {_name='name'}, {_type='text'})().value
 		local sel = t.attr.alias and vkraw[t.attr.alias]
-			or {__name=rn:match '^PFN_(.*)' or rn, __raw=rn}
+			or {__name=rn:match '^PFN_(.*)' or rn, __raw={C=rn}}
 		vkraw[rn] = sel
 		if t.attr.category then
 			vk[rn:match '^Vk(.*)' or rn:match '^PFN_(.*)'] = sel
@@ -128,8 +127,8 @@ for t in xtrav(xml.root, {_name='types'}, {_name='type'}) do
 	end
 end
 -- Two are odd, they live in the "define" category
-vkraw.ANativeWindow = {__name='ANativeWindow', __raw='struct ANativeWindow'}
-vkraw.AHardwareBuffer = {__name='AHardwareBuffer', __raw='struct AHardwareBuffer'}
+vkraw.ANativeWindow = {__name='ANativeWindow', __raw={C='struct ANativeWindow'}}
+vkraw.AHardwareBuffer = {__name='AHardwareBuffer', __raw={C='struct AHardwareBuffer'}}
 
 -- A handful of types should only appear as pointers, so the *'s are integrated.
 for k,v in pairs{
@@ -147,26 +146,38 @@ end
 
 -- Load in the enumerations
 for t in xtrav(xml.root, {_name='enums'}) do if vkraw[t.attr.name] then
-	local out = {}
-	vkraw[t.attr.name].__enum = out
+	local self = vkraw[t.attr.name]
+	self.__enum,self.__raw.enum = {},{}
+
 	for et in xtrav(t, {_name='enum'}) do
-		table.insert(out, {raw=et.attr.name, name=et.attr.name}) end
-	for et in xtrav(xml.root, {_name='feature'}, {_name='require'},
-		{_name='enum', extends=t.attr.name}) do
-			table.insert(out, {raw=et.attr.name, name=et.attr.name}) end
+		if not self.__raw.enum[et.attr.name] then
+			table.insert(self.__enum, {name=et.attr.name})
+			self.__raw.enum[et.attr.name] = {C=et.attr.name}
+		end
+	end
+	for et in xtrav(xml.root,
+		{_name='feature'}, {_name='require'}, {_name='enum', extends=t.attr.name}) do
+		if not self.__raw.enum[et.attr.name] then
+			table.insert(self.__enum, {name=et.attr.name})
+			self.__raw.enum[et.attr.name] = {C=et.attr.name}
+		end
+	end
 	for ext in xtrav(xml.root, {_name='extensions'}, {_name='extension'}) do
 		for et in xtrav(ext, {_name='require'}, {_name='enum', extends=t.attr.name}) do
-			table.insert(out, {raw=et.attr.name, name=et.attr.name, ifdef=ext.attr.name}) end end
-
-	-- We do the least bit of work here, stripping the AIDs and _BIT suffixes
-	for _,e in ipairs(out) do
-		e.name = stripAIDs(e.name, '_'):gsub('_BIT$', '')
+			if not self.__raw.enum[et.attr.name] then
+				table.insert(self.__enum, {name=et.attr.name})
+				self.__raw.enum[et.attr.name] = {C=et.attr.name, ifdef=ext.attr.name}
+			end
+		end
 	end
 end end
 
 -- Connect the __enum tags and __mask tags of corrosponding bitmask/enums
 for rq,v in pairs(masks) do for rn in pairs(v) do
-	if vkraw[rq] then vkraw[rn].__mask = vkraw[rq].__enum end
+	vkraw[rn].__mask = true
+	if vkraw[rq] then
+		vkraw[rn].__enum,vkraw[rn].__raw.enum = vkraw[rq].__enum,vkraw[rq].__raw.enum
+	end
 end end
 
 -- Common code for functions, structures and unions.
@@ -216,7 +227,7 @@ local function transform(res, t)
 		local arr = #tx:gsub('[^[*]', '')
 		-- Sometimes Vulkan has an extra pointer that's not an array, detect this.
 		if arr == 1 and not res._len and res.type ~= vkraw.void then
-			res.extraptr = true
+			res._extraptr = true
 		elseif arr > 0 then
 			assert(not array[res.type].__index or res._len, 'Arrays need lengths! '..res.name)
 			if res.type == vkraw.char then
@@ -231,11 +242,15 @@ local function transform(res, t)
 end
 
 -- Load in the structures and unions
-for t in xtrav(xml.root, {_name='types'}, {_name='type', category={'struct', 'union'}}) do
+for t in xtrav(xml.root,
+	{_name='types'}, {_name='type', category={'struct', 'union'}}) do
 	if not t.attr.alias then
-		vkraw[t.attr.name].__index = {}
+		local self = vkraw[t.attr.name]
+		self.__index, self.__raw.index = {}, {}
 		for mt in xtrav(t, {_name='member'}) do
-			table.insert(vkraw[t.attr.name].__index, transform({version='0.0.0'}, mt))
+			local r = transform({}, mt)
+			table.insert(self.__index, r)
+			table.insert(self.__raw.index, {name=r.name, value=r.name})
 		end
 	end
 end
@@ -243,54 +258,56 @@ end
 -- Load in the funcpointers
 for t in xtrav(xml.root, {_name='types'}, {_name='type', category='funcpointer'}) do
 	local nam = xtrav(t, {_name='name'}, {_type='text'})().value
-	vkraw[nam].__call = {}
+	local self = vkraw[nam]
+	self.__call, self.__raw.call = {}, {}
 	local lastty, text = nil, {}
 	for _,mt in ipairs(t.kids) do
 		if mt.type == 'text' then table.insert(text, mt.value)
 		elseif mt.name == 'type' then
 			if lastty then
 				text = table.concat(text):gsub('[%s,);]', '')
-				local res = {name=text:gsub('[^%w]', ''), type=vkraw[lastty], version='0.0.0'}
+				local res = {name=text:gsub('[^%w]', ''), type=vkraw[lastty]}
 				if res.type == vkraw.char then res._len = 'null-terminated' end
 				transform(res, text)
-				table.insert(vkraw[nam].__call, res)
+				table.insert(self.__call, res)
+				table.insert(self.__raw.call, {name=res.name, value=res.name})
 			end
 			lastty, text = xtrav(mt, {_type='text'})().value, {}
 		end
 	end
 	if lastty then
 		text = table.concat(text):gsub('[%s,);]', '')
-		local res = {name=text:gsub('[^%w]', ''), type=vkraw[lastty], version='0.0.0'}
+		local res = {name=text:gsub('[^%w]', ''), type=vkraw[lastty]}
 		transform(res, text)
-		table.insert(vkraw[nam].__call, res)
+		table.insert(self.__call, res)
+		table.insert(self.__raw.call, {name=res.name, value=res.name})
 	end
 end
 
 -- Load in the commands (these all go to Vk)
 vk.Vk.__index = {}
 for t in xtrav(xml.root, {_name='commands'}, {_name='command'}) do
-	if not t.attr.alias then -- We can't yet handle aliases properly
-		local out = {
-			type = {__call = {} },
-			version = '0.0.0',
-		}
+	if not t.attr.alias then
+		local out = {type = {__call = {}, __raw={call={}}}}
 		for par in xtrav(t, {_name='param'}) do
-			table.insert(out.type.__call, transform({version='0.0.0'}, par))
+			local r = transform({}, par)
+			table.insert(out.type.__call, r)
+			table.insert(out.type.__raw.call, {value=r.name})
 		end
 
-		local pro = transform({version='0.0.0'}, xtrav(t, {_name='proto'})())
-		out.name, out.type.__raw = pro.name, 'PFN_'..pro.name
+		local pro = transform({}, xtrav(t, {_name='proto'})())
+		out.name, out.type.__raw.C = pro.name, 'PFN_'..pro.name
 		pro.name, pro.mainret = 'return', true
 		if pro.type ~= vkraw.void then table.insert(out.type.__call, pro) end
 
 		table.insert(vk.Vk.__index, out)
 	else
-		table.insert(vk.Vk.__index, {name=t.attr.name, aliasof=t.attr.alias, version='0.0.0'})
+		table.insert(vk.Vk.__index, {name=t.attr.name, aliasof=t.attr.alias})
 	end
 end
 
 -- Figure out the C ifdef's for everything
-local voidf,voidp = {__raw='PFN_vkVoidFunction'},{__raw='void*'}
+local voidf,voidp = {__raw={C='PFN_vkVoidFunction'}},{__raw={C='void*'}}
 local cmds = {}
 for _,c in ipairs(vk.Vk.__index) do cmds[c.name] = c.type or cmds[c.aliasof] end
 for ext in xtrav(xml.root, {_name='extensions'}, {_name='extension'}) do
@@ -299,11 +316,14 @@ for ext in xtrav(xml.root, {_name='extensions'}, {_name='extension'}) do
 		assert(t, 'No vkraw for '..et.attr.name)
 		if not t.__ifdef then t.__ifdef = {} end
 		table.insert(t.__ifdef, ext.attr.name)
-		if et.parent.attr.extension then table.insert(t.__ifdef, et.parent.attr.extension) end
+		if et.parent.attr.extension then
+			table.insert(t.__ifdef, et.parent.attr.extension)
+		end
 		t.__ifndef = et.name == 'type' and voidp or voidf
 	end
 end
-for et in xtrav(xml.root, {_name='feature'}, {_name='require'}, {_name={'type', 'command'}}) do
+for et in xtrav(xml.root, {_name='feature'}, {_name='require'},
+	{_name={'type', 'command'}}) do
 	if not et.attr.name:match '^[Vv][Kk]_' then
 		local t = (et.name == 'type' and vkraw or cmds)[et.attr.name]
 		assert(t, 'No vkraw for '..et.attr.name)

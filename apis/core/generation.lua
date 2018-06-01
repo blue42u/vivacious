@@ -25,23 +25,48 @@ gen.traversal = {}
 -- completed.
 
 local function handle(ty, handler, next)
-	local co = coroutine.create(handler)
+	local co
+	if gen.gendebug then
+		co = coroutine.create(function(...)
+			assert(xpcall(handler, debug.traceback, ...))
+		end)
+	else co = coroutine.create(handler) end
 	assert(coroutine.resume(co, ty))
 	for k in pairs(ty) do if not k:match '^__' then table.insert(next, k) end end
 	return co, next
 end
 
+local function post()
+	return setmetatable({}, {
+		__call=function(self)
+			repeat
+				for co in pairs(self) do
+					assert(coroutine.resume(co))
+					if coroutine.status(co) ~= 'suspended' then self[co] = nil end
+				end
+			until not next(self)
+		end,
+		__newindex=function(self, co)
+			if coroutine.status(co) == 'suspended' then
+				rawset(self, co, true)
+			end
+		end,
+	})
+end
+
 -- Basic depth-first traversal, designed for traversing the type-tree.
 function gen.traversal.df(start, handler)
-	local done = {}
+	local done,after = {}, post()
 	local function trav(ty)
 		if done[ty] then return else done[ty] = true end
 		local co,next = handle(ty, handler, {})
 		table.sort(next)
 		for _,k in ipairs(next) do trav(ty[k]) end
 		if coroutine.status(co) == 'suspended' then assert(coroutine.resume(co)) end
+		after[co] = true
 	end
 	trav(start)
+	after()
 end
 
 -- The other thing this `require` does is add a new entry into package.path,

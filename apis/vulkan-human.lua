@@ -964,10 +964,11 @@ function human.length(elem, partype, lenvar, parent)
 			human.herror('Attempt to get field '..k..' of '..(self._setvar or '(env)'))
 		end
 	end
-	local val = assert(load('return ('..elem._len:gsub('::', '.')..')', nil, 't', new(parent)))()
+	local val = assert(load('return ('..elem._len:gsub('::', '.')..')',
+		nil, 't', new(parent)))()
 	if type(val) == 'table' then
 		if elem.canbenil then
-			local k = partype.__raw..'_'..elem.name
+			local k = partype.__raw.C..'_'..elem.name
 			human.hassert(optionallens[k] ~= nil, 'Unhandled op/len: '..k..' = nil!')
 			if not optionallens[k] then return end
 		end
@@ -985,8 +986,7 @@ human.parent = {
 -- When there is no info on a particular command, we try and guess its properties.
 -- These functions here do the guessing. They are designed to handle about 90%.
 local function ishandle(t)	-- Guess whether the type is a handle or not.
-	return not t.__index and not t.__mask and not t.__enum
-		and t.__raw and t.__raw:match '^Vk'
+	return not t.__index and not t.__enum and t.__raw and t.__raw.C:match '^Vk'
 end
 local function guess(entries, name)
 	local out = "self = false"

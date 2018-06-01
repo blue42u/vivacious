@@ -18,7 +18,6 @@ local gen = require 'apis.core.generation'
 
 -- Nab the arguments, and get ready for the storm.
 local specname,outdir = ...
-assert(specname and outdir, "Usage: lua *.lua <spec name> <out directory>")
 local f = assert(io.open(outdir..package.config:match'^(.-)\n'..specname..'.h', 'w'))
 local spec = require(specname)
 
@@ -30,22 +29,39 @@ local function indent(s, pre)
 	return table.concat(lines, '\n')
 end
 
+-- Check if an expression (from __raw.*.value[s]) will work as C code, and
+-- perform any nessesary transformations to make it valid C.
+-- Returns the C expression and its type
 local callit
--- Check whether we can respect the setto of a __call field, and return the C.
-local function cansetto(sts, env, opt)
-	for _,s in ipairs(sts or {}) do if not s:find '#' then
-		return s:gsub('[%w%.]+', function(n)
-			local map = {}
-			for _,e in ipairs(env or {}) do map[e.retname or e.name] = e end
-			if opt and opt.self then map.self = {type=opt.self} end
-			if not n:find '%.' then return n else
+local function exptoC(exs, env, opt, raw)
+	if type(exs) == 'string' then exs = {exs} end
+	for _,ex in ipairs(exs) do if not ex:find '#' then
+		return ex:gsub('[%w.]+', function(ref)
+			if not ref:find '%.' then return ref else
+				local isptr,m = {},{}
+				for _,e in ipairs(env or {}) do
+					isptr[e.name],m[e.name] = callit(e.type, ''):find '%*', e.type
+				end
+				if opt and opt.self then
+					isptr.self = callit(opt.self, 'self'):find '%*'
+					m.self = opt.self
+				end
+				for _,e in ipairs(raw or {}) do
+					if e.name then isptr[e.name] = isptr[e.name] or e.extraptr end
+				end
+
 				local new = {}
-				for p in (n..'.'):gmatch '([^%.]+)%.' do
-					local ep = assert(map[p], 'Cound not find entry '..p..' in '..s)
+				for p in (ref..'.'):gmatch '([^.]+)%.' do
 					new[#new+1] = p
-					new[#new+1] = (ep.extraptr or callit(ep.type, p):find '%*') and '->' or '.'
-					map = {}
-					for _,e in ipairs(ep.type.__index or {}) do map[e.retname or e.name] = e end
+					new[#new+1] = isptr[p] and '->' or '.'
+					local ty = m[p]
+					isptr,m = {},{}
+					for _,e in ipairs(ty.__index or {}) do
+						isptr[e.name],m[e.name] = callit(e.type, ''):find '%*', e.type
+					end
+					for _,e in ipairs(ty.__raw and ty.__raw.index or {}) do
+						if e.name then isptr[e.name] = isptr[e.name] or e.extraptr end
+					end
 				end
 				table.remove(new)
 				return table.concat(new)
@@ -63,43 +79,39 @@ local basetypes = {
 	boolean = 'bool',
 }
 function callit(ty, na, opt)
-	assert(ty, "Nil type! "..tostring(na)..' '..tostring(opt))
 	local sna = na and ' '..na or ''
-	if type(ty) == 'string' then
-		assert(basetypes[ty], 'Unknown basic type '..ty)
-		return basetypes[ty]..sna
-	elseif ty.__raw then return ty.__raw..sna
-	elseif ty.__name then return 'Vv'..ty.__name..((opt and opt.inarr) and '' or '*')..sna
+	local asna = ((opt and opt.inarr) and '' or '*')..sna
+	if type(ty) == 'string' then return basetypes[ty]..sna
+	elseif ty.__raw then
+		assert(ty.__raw.C, "No C field for "..tostring(ty.__raw))
+		return ty.__raw.C..sna
+	elseif ty.__name then return 'Vv'..ty.__name..asna
 	elseif ty.__call then
 		local as = {}
 		if not opt or not opt.noself then
-			if ty.__call.method then
-				assert(opt and opt.self, 'Method __index without a self!')
-				table.insert(as, callit(opt.self, 'self'))
+			if ty.__call.method then table.insert(as, callit(opt.self, 'self'))
 			else table.insert(as, 'void* udata') end
 		end
 		local rets = {}
 		for _,a in ipairs(ty.__call) do
-			assert(a.name, 'Anonymous __call fields are not allowed')
-			assert(a.type, 'No type for __call field '..a.name)
-			if a.name == 'return' then table.insert(rets, a)
-			elseif not a.setto or a.setto.noskip or not cansetto(a.setto, ty.__call, opt) then
-				table.insert(as, callit(a.type, (a.extraptr and '*' or '')..a.name))
+			if a.name == 'return' then rets[#rets+1] = a else
+				as[#as+1] = callit(a.type, a.name)
 			end
 		end
 		local ret
-		for _,r in ipairs(rets) do if r.mainret then
-			assert(not ret, 'Multiple mainrets!'); ret = r end end
+		for _,r in ipairs(rets) do
+			if r.mainret then assert(not ret, 'Multiple mainrets!'); ret = r
+		end end
 		if not ret then	-- If there are no mainret's, then try one that can't be nil
 			local nrets = {}
 			for _,r in ipairs(rets) do if not r.canbenil then table.insert(nrets, r) end end
 			if #nrets > 0 then ret = nrets[1]
 			else ret = rets[1] end	-- Just take the first one
 		end
-		for _,r in ipairs(rets) do if r ~= ret then
-			table.insert(as, callit(r.type, '*'..(r.retname or '')))
+		for i,r in ipairs(rets) do if r ~= ret then
+			as[#as+1] = callit(r.type, '*ret'..i)
 		end end
-		ret = ret and ret.type or {__raw='void'}
+		ret = ret and ret.type or {__raw={C='void'}}
 		if opt and opt.proto then
 			return callit(ret, (na or '')..'('..table.concat(as,', ')..')')
 		else
@@ -109,8 +121,6 @@ function callit(ty, na, opt)
 		local out = {}
 		local udatad = false
 		for _,e in ipairs(ty.__index or {}) do
-			assert(e.name, 'Anonymous __index fields are not allowed')
-			assert(e.type, 'No type for __index field '..e.name)
 			if e.name == '__sequence' then
 				assert(#ty.__index == 1, '__sequence __index fields must be alone')
 				return callit(e.type, 'const *'..(na or ''), {inarr=true})
@@ -136,124 +146,115 @@ function callit(ty, na, opt)
 end
 
 -- The main traversal
-local post,atend = {},{}
 gen.traversal.df(spec, function(ty)
-	assert(type(ty) == 'table', "Trying to handle a non-type-y type of type "
-		..type(ty)..' ('..tostring(ty)..')')
-
 	if ty.__name then if not ty.__raw then
 		if ty.__directives then
 			for _,d in ipairs(ty.__directives) do f:write('#'..d..'\n') end
 		end
 
+		local post
 		if ty.__index then
 			f:write('typedef struct Vv'..ty.__name..' Vv'..ty.__name..';\n')
-			table.insert(post, function()
-				f:write('struct Vv'..ty.__name..' {\n')
-				local foundone = false
-				for _,e in ipairs(ty.__index) do if not e.aliasof then
-					assert(e.name, 'Anonymous __index fields are not allowed')
-					assert(e.version, 'No version for __index field '..e.name)
-					assert(e.version:match '%d+%.%d+%.%d+', 'Invalid version '..e.version)
-					assert(e.type, 'No type for __index field '..e.name)
-					if e.type.__call and e.type.__call.method then
-						if not foundone then
-							f:write('\tconst struct Vv'..ty.__name..'_M {\n')
-							foundone = true
-						end
-						local ifdef
-						if e.type.__ifdef then
-							local ss = {}
-							for _,s in ipairs(e.type.__ifdef) do ss[#ss+1] = 'defined('..s..')' end
-							ifdef = table.concat(ss, ' && ')
-							f:write('#if '..ifdef..'\n')
-						end
-						f:write(indent(callit(e.type, e.name, {self=ty}), '\t\t')..';\n')
-						if e.type.__ifdef then
-							f:write '#else\n'
-							assert(e.type.__ifndef, 'Type with __ifdef but not __ifndef!')
-							f:write(indent(callit(e.type.__ifndef, e.name, {self=ty}), '\t\t')..';\n')
-							f:write '#endif\n'
-						end
-						if e.type.__raw then	-- Raw callables are special...
-							if ifdef then atend[#atend+1] = '#if '..ifdef..'\n' end
-							atend[#atend+1] = 'static inline '..
-								callit(e.type, 'vV'..e.name,
-									{self=ty, proto=true, forcereal=true})..' {\n'
-							local args = {}
-							for _,ee in ipairs(e.type.__call) do
-								if ee.name ~= 'return' then
-									table.insert(args,
-										cansetto(ee.setto, e.type.__call, {self=ty}) or ee.name)
+			coroutine.yield(); coroutine.yield()	-- Wait for after everything else
+			f:write('struct Vv'..ty.__name..' {\n')
+			local foundone = false
+			for _,e in ipairs(ty.__index) do if not e.aliasof then
+				local ifdef,ifndef
+				if e.type.__ifdef then
+					local ss = {}
+					for _,s in ipairs(e.type.__ifdef) do ss[#ss+1] = 'defined('..s..')' end
+					ifdef = table.concat(ss, ' && ')
+					ifndef = assert(e.type.__ifndef, "Type with __ifdef but not __ifndef")
+				end
+
+				if e.type.__call and e.type.__call.method then
+					if not foundone then
+						f:write('\tconst struct Vv'..ty.__name..'_M {\n')
+						foundone = true
+					end
+					if ifdef then f:write('#if '..ifdef..'\n') end
+					f:write(indent(callit(e.type, e.name, {self=ty}), '\t\t')..';\n')
+					if ifdef then
+						f:write '#else\n'
+						f:write(indent(callit(ifndef, e.name, {self=ty}), '\t\t')..';\n')
+						f:write '#endif\n'
+					end
+					if e.type.__raw then	-- Raw callables are special...
+						post = function()
+							local types = {}
+							for _,ce in ipairs(e.type.__call) do types[ce.name] = ce.type end
+							local pargs,args = {callit(ty, 'self', {self=ty})},{}
+							for i,re in ipairs(e.type.__raw.call) do
+								local ex = exptoC(re.value or re.values, e.type.__call,
+									{self=ty}, e.type.__raw.call)
+								if ex then
+									args[#args+1] = ex
+									if types[ex] then
+										pargs[#pargs+1] = callit(types[ex], ex, {self=ty}) end
+								else
+									assert(re.type, "Unexpressable raw __call field with no type")
+									pargs[#pargs+1] = callit(re.type, '_rawval'..i)
+									args[#args+1] = '_rawval'..i
 								end
 							end
-							atend[#atend+1] =
-								'\treturn self->_M->'..e.name..'('..table.concat(args, ', ')..');\n}\n'
-							if ifdef then atend[#atend+1] = '#endif\n' end
-						else
-							atend[#atend+1] = '#ifdef __GNUC__\n#define vV'..e.name
-								..'(_S, ...) ( __typeof__(_S) _s = (_S),  _s->_M->'..e.name
-								..'(_s, ##__VA_ARGS__ ) )\n#endif\n'
+
+							if ifdef then f:write('#if '..ifdef..'\n') end
+							f:write(('static inline %s vV%s(%s) {\n'):format(
+								ret, e.name, table.concat(pargs, ', ')))
+							f:write(('return self->_M->%s(%s);\n}\n'):format(
+								e.name, table.concat(args, ', ')))
+							if ifdef then f:write '#endif\n' end
 						end
+					else
+						f:write('#ifdef __GNUC__\n#define vV'..e.name
+							..'(_S, ...) ( __typeof__(_S) _s = (_S),  _s->_M->'..e.name
+							..'(_s, ##__VA_ARGS__ ) )\n#endif\n')
 					end
-				end end
-				if foundone then f:write('\t} *_M;\n') end
-				local udatad = false
-				for _,e in ipairs(ty.__index) do if not e.aliasof then
-					if not udatad and e.type.__call and not e.type.__call.method then
-						f:write('\tvoid* udata;\n')
-						udatad = true
+				end
+			end end
+			if foundone then f:write('\t} *_M;\n') end
+			local udatad = false
+			for _,e in ipairs(ty.__index) do if not e.aliasof then
+				if not udatad and e.type.__call and not e.type.__call.method then
+					f:write('\tvoid* udata;\n')
+					udatad = true
+				end
+				if e.type.__index and e.type.__index[1]
+					and e.type.__index[1].name == '__sequence' then
+						f:write('\tsize_t '..e.name..'_cnt;\n')
+				end
+				if not e.type.__call or not e.type.__call.method then
+					if e.type.__ifdef then
+						local ss = {}
+						for _,s in ipairs(e.type.__ifdef) do ss[#ss+1] = 'defined('..s..')' end
+						f:write('#if '..table.concat(ss, ' && ')..'\n')
 					end
-					if e.type.__index and e.type.__index[1]
-						and e.type.__index[1].name == '__sequence' then
-							f:write('\tsize_t '..e.name..'_cnt;\n')
+					f:write(indent(callit(e.type, e.name, {self=ty}))..';\n')
+					if e.type.__ifdef then
+						f:write '#else\n'
+						assert(e.type.__ifndef, 'Type with __ifdef but not __ifndef!')
+					f:write(indent(callit(e.type.__ifndef, e.name, {self=ty}))..';\n')
+						f:write '#endif\n'
 					end
-					if not e.type.__call or not e.type.__call.method then
-						if e.type.__ifdef then
-							local ss = {}
-							for _,s in ipairs(e.type.__ifdef) do ss[#ss+1] = 'defined('..s..')' end
-							f:write('#if '..table.concat(ss, ' && ')..'\n')
-						end
-						f:write(indent(callit(e.type, e.name, {self=ty}))..';\n')
-						if e.type.__ifdef then
-							f:write '#else\n'
-							assert(e.type.__ifndef, 'Type with __ifdef but not __ifndef!')
-						f:write(indent(callit(e.type.__ifndef, e.name, {self=ty}))..';\n')
-							f:write '#endif\n'
-						end
-					end
-				end end
-				f:write('};\n\n')
-			end)
-			return
+				end
+			end end
+			f:write('};\n\n')
 		end
-
-		if ty.__mask then error '__mask not handled in headerc yet' end
-
-		if ty.__enum then error '__enum not handled in headerc yet' end
-
 		f:write '\n'
+		if post then
+			coroutine.yield()
+			post()
+		end
 	end elseif ty == spec then
-		coroutine.yield()
+		coroutine.yield()	-- Wait for sub-things
 		f:write '\n'
 		if ty.__index then
 			for _,e in ipairs(ty.__index) do
-				assert(e.name, 'Anonymous __index fields are not allowed')
-				assert(e.version, 'No version for __index field '..e.name)
-				assert(e.version:match '%d+%.%d+%.%d+', 'Invalid version '..e.version)
-				assert(e.type, 'No type for __index field '..e.name)
 				f:write(callit(e.type, 'vV'..e.name, {proto=true})..';\n')
 			end
 		end
-	else
-		for k,v in pairs(ty) do print('>', k, v) end
-		error 'Anonymous type that isn\'t the spec!'
 	end
 end)
-
-f:write '\n'
-for _,p in ipairs(post) do p() end
-f:write(table.concat(atend))
 
 -- Close up, to be nice to the OS
 f:close()

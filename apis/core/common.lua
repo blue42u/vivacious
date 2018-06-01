@@ -44,6 +44,7 @@ function callable(base)
 	for i,v in ipairs(base) do
 		v.name,v.type = v.name or v[1], v.type or v[2]
 		base.type.__call[i] = v
+		base[i] = nil
 	end
 	return base
 end

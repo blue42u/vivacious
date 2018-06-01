@@ -18,7 +18,6 @@ local gen = require 'apis.core.generation'
 
 -- Nab the arguments, and get ready for the storm.
 local specname,outdir = ...
-assert(specname and outdir, "Usage: lua btest.lua <spec name> <out directory>")
 local f = assert(io.open(outdir..package.config:match'^(.-)\n'..specname..'.md', 'w'))
 local spec = require(specname)
 spec.__spec = specname
@@ -35,14 +34,11 @@ end
 
 -- Find a suffix to indicate a type.
 local function callit(ty, na)
-	assert(ty, "Nil type!")
 	if type(ty) == 'string' then return (na and na..' ' or '')..'('..ty..')'
 	elseif ty.__name then return (na and na..' ' or '')..'('..ty.__name..')'
 	elseif ty.__call then
 		local as,rs = {},{}
 		for _,a in ipairs(ty.__call) do
-			assert(a.name, 'Anonymous __call fields are not allowed')
-			assert(a.type, 'No type for __call field '..a.name)
 			local x,y = '',''
 			if a.canbenil then x,y = '[',']' end
 			if not a.setto then
@@ -57,8 +53,6 @@ local function callit(ty, na)
 		local out = {}
 		local fin = {}
 		for _,e in ipairs(ty.__index or {}) do
-			assert(e.name, 'Anonymous __index fields are not allowed')
-			assert(e.type, 'No type for __index field '..e.name)
 			if e.name == '__sequence' then
 				table.insert(fin, callit(e.type))
 				table.insert(fin, '...')
@@ -75,12 +69,9 @@ end
 
 -- The main traversal
 gen.traversal.df(spec, function(ty)
-	assert(type(ty) == 'table', "Trying to handle a non-type-y type of type "
-		..type(ty)..' ('..tostring(ty)..')')
-
 	if ty.__name then
 		f:write(('## %s%s\n%s\n'):format(ty.__name,
-			ty.__raw and ' :{'..ty.__raw..'}' or '',
+			ty.__raw and ' :{'..ty.__raw.C..'}' or '',
 			rewhite(ty.__doc or 'No documentation.', '\t')))
 
 		if ty.__call then
@@ -91,42 +82,29 @@ gen.traversal.df(spec, function(ty)
 		if ty.__index then
 			f:write '### Contents\n'
 			for _,e in ipairs(ty.__index) do
-				assert(e.name, 'Anonymous __index fields are not allowed (in '..ty.__name..')')
-				assert(e.version, 'No version for __index field '..e.name)
-				assert(e.version:match '%d+%.%d+%.%d+', 'Invalid version '..e.version)
+				local ver = ''
+				if e.version then
+					assert(e.version:match '%d+%.%d+%.%d+', 'Invalid version '..e.version)
+					ver = ' *[Added in v'..e.version..']*'
+				end
 				if e.aliasof then
-					f:write(('\t- %s alias of %s *[Added in v%s]*\n'):format(
-						e.name, e.aliasof, e.version))
+					f:write(('\t- %s alias of %s%s\n'):format(e.name, e.aliasof, ver))
 				else
-					assert(e.type, 'No type for __index field '..e.name)
-					f:write(('\t- %s%s%s *[Added in v%s]*\n%s\n'):format(
+					f:write(('\t- %s%s%s%s\n%s'):format(
 						e.canbenil and '[' or '', callit(e.type, e.name),
-						e.canbenil and ']' or '', e.version,
-						rewhite(e.doc or 'No documentation.', '\t\t')))
-					if e.setto then
-						local a = {}
-						for _,s in ipairs(e.setto) do a[#a+1] = ('`%s`'):format(s) end
-						f:write('\t\t*Assigned as '..table.concat(a, ' or ')..'*\n')
-					end
+						e.canbenil and ']' or '', ver,
+						e.doc and rewhite(e.doc or 'No documentation.', '\t\t')..'\n' or ''))
 				end
 			end
 		end
 
-		if ty.__mask then
-			f:write '### Bitmask Values\n'
-			for _,e in ipairs(ty.__mask) do
-				assert(e.name, 'Anonymous __mask fields are not allowed (in '..ty.__name..')')
-				local flag = e.flag and " '"..e.flag.."'" or ''
-				local raw = e.raw and " :{"..e.raw.."}" or ''
-				f:write('\t- '..e.name..flag..raw..'\n')
-			end
-		end
-
 		if ty.__enum then
-			f:write '### Possible Values\n'
+			f:write '### Possible Values'
+			if ty.__mask then f:write ' (also works as a mask)' end
+			f:write '\n'
 			for _,e in ipairs(ty.__enum) do
-				assert(e.name, 'Anonymous __enum fields are not allowed (in '..ty.__name..')')
-				local raw = e.raw and " :{"..e.raw.."}" or ''
+				local raw = e.__raw and e.__raw.enum[e.name]
+					and " :{"..e.__raw.enum[e.name].C.."}" or ''
 				f:write('\t- '..e.name..raw..'\n')
 			end
 		end
@@ -142,23 +120,21 @@ gen.traversal.df(spec, function(ty)
 		if ty.__index then
 			f:write '## Global Contents\n'
 			for _,e in ipairs(ty.__index) do
-				assert(e.name, 'Anonymous __index fields are not allowed')
-				assert(e.version, 'No version for __index field '..e.name)
-				assert(e.version:match '%d+%.%d+%.%d+', 'Invalid version '..e.version)
-				assert(e.type, 'No type for __index field '..e.name)
-				f:write(('\t- %s *[Added in v%s]*\n%s\n'):format(
-					callit(e.type, e.name), e.version,
-					rewhite(e.doc or 'No documentation.', '\t\t')))
-				if e.setto then
-					local a = {}
-					for _,s in ipairs(e.setto) do a[#a+1] = ('`%s`'):format(s) end
-					f:write('\t\t*Assigned as '..table.concat(a, ' or ')..'*\n')
+				local ver = ''
+				if e.version then
+					assert(e.version:match '%d+%.%d+%.%d+', 'Invalid version '..e.version)
+					ver = ' *[Added in v'..e.version..']*'
+				end
+				if e.aliasof then
+					f:write(('\t- %s alias of %s%s\n'):format(e.name, e.aliasof, ver))
+				else
+					f:write(('\t- %s%s%s%s\n%s'):format(
+						e.canbenil and '[' or '', callit(e.type, e.name),
+						e.canbenil and ']' or '', ver,
+						e.doc and rewhite(e.doc or 'No documentation.', '\t\t')..'\n' or ''))
 				end
 			end
 		end
-	else
-		for k,v in pairs(ty) do print('>', k, v) end
-		error 'Anonymous type that isn\'t the spec!'
 	end
 end)
 
