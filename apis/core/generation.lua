@@ -32,45 +32,40 @@ local function cocreate(f)
 	else return coroutine.create(f) end
 end
 
-local post
-do
-	local named = {}
-	local resume
-	post = setmetatable({}, {
-		__call=function(self)
-			repeat
-				for co in pairs(self) do resume(co) end
-			until not next(self)
-		end,
-		__newindex=function(self, k, co)
-			if type(co) == 'thread' then
-				if coroutine.status(co) == 'suspended' then
-					rawset(self, co, true)
-					if k ~= nil then named[k] = co end
-				end
-			elseif k ~= nil then named[k] = nil end
-		end,
-		__index=function(self, k)
-			local co = named[k]
-			return function(...) if co and rawget(self, co) then resume(co, ...) end end
-		end,
-	})
-	function resume(co, ...)
-		assert(coroutine.status(co) == 'suspended')
-		repeat
-			local res = {coroutine.resume(co, ...)}
-			assert(res[1], res[2])
-			for i=2,#res do post[nil] = cocreate(res[i]) end
-		until #res == 1
-		if coroutine.status(co) ~= 'suspended' then rawset(post, co, nil) end
+local function coresume(co, ...)
+	local res = {coroutine.resume(co, ...)}
+	if not res[1] then error(res[2]) end
+	return table.unpack(res, 2)
+end
+
+local function hres(co, cansub, ...)
+	if coroutine.status(co) == 'suspended' then
+		local when = coresume(co, ...)
+		assert(not when == (coroutine.status(co) == 'dead'),
+			"Handler should yeild strings and return nil!")
+		if not cansub then assert(when ~= 'sub', "Handler cannot sub now!") end
+		if when then
+			assert(({sub=true, post=true})[when], "Handler should only indicate sub or post!")
+		end
+		return when
 	end
 end
 
-local function handle(ty, handler, next)
-	post.handle = cocreate(handler)
-	post.handle(ty)
-	for k in pairs(ty) do if not k:match '^__' then table.insert(next, k) end end
-	return next
+local afterwards = {}
+local function finishup()
+	repeat
+		for co in pairs(afterwards) do
+			if not hres(co) then afterwards[co] = nil end
+		end
+	until not next(afterwards)
+end
+
+local function onety(ty, handler, pump)
+	local co = cocreate(handler)
+	local when = hres(co, true, ty)
+	for k,v in pairs(ty) do if not k:match '^__' then pump(k, v) end end
+	if when == 'sub' then when = hres(co) end
+	if when == 'post' then afterwards[co] = true end
 end
 
 -- Basic depth-first traversal, designed for traversing the type-tree.
@@ -78,13 +73,10 @@ function gen.traversal.df(start, handler)
 	local done = {}
 	local function trav(ty)
 		if done[ty] then return else done[ty] = true end
-		local next = handle(ty, handler, {})
-		table.sort(next)
-		for _,k in ipairs(next) do trav(ty[k]) end
-		post.handle()
+		onety(ty, handler, function(_,v) trav(v) end)
 	end
 	trav(start)
-	post()
+	finishup()
 end
 
 -- The other thing this `require` does is add a new entry into package.path,

@@ -116,7 +116,7 @@ gen.traversal.df(spec, function(ty)
 
 		f:write '\n'
 	elseif ty == spec then
-		coroutine.yield()
+		coroutine.yield 'sub'
 		if ty.__index then
 			f:write '## Global Contents\n'
 			for _,e in ipairs(ty.__index) do

@@ -15,6 +15,7 @@
 --]========================================================================]
 
 local gen = require 'apis.core.generation'
+gen.gendebug = true
 
 -- Set the default output for `print` to stderr
 io.output(io.stderr)

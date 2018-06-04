@@ -127,7 +127,9 @@ for _,c in ipairs(vk.Vk.__index) do if not c.aliasof then
 	c.type.__call.method = true
 
 	-- Figure out where this entry should actually go, and move it there.
-	local self = human.self(c.type.__call, c.name)
+	local raws = {}
+	for _,re in ipairs(c.type.__raw.call) do raws[re.value] = re end
+	local self = human.self(c.type.__call, raws, c.name)
 	if self then
 		if not handle[self] then
 			vk[self.__name] = {
@@ -165,11 +167,13 @@ for _,c in ipairs(vk.Vk.__index) do if not c.aliasof then
 			if r and raws[r] then
 				raws[r].value = nil
 				raws[r].values = raws[r].values or {}
+				raws[r].type = 'integer'
 				table.insert(raws[r].values, x)
 			end
 		end
 		if raws[e.name] and not raws[e.name].values and handle[e.type] then
 			e.type, raws[e.name].value = handle[e.type], e.name..'.real'
+			raws[e.name].type = handle[e.type]
 		end
 		if e._extraptr then eptr[e.name],e._extraptr = true,nil end
 	end

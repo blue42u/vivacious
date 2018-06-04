@@ -31,7 +31,7 @@ end
 
 -- Check if an expression (from __raw.*.value[s]) will work as C code, and
 -- perform any nessesary transformations to make it valid C.
--- Returns the C expression and its type
+-- Returns the C expression and the base variables it references
 local callit
 local function exptoC(exs, env, opt, raw)
 	if type(exs) == 'string' then exs = {exs} end
@@ -154,9 +154,9 @@ gen.traversal.df(spec, function(ty)
 
 		if ty.__index then
 			f:write('typedef struct Vv'..ty.__name..' Vv'..ty.__name..';\n')
-			coroutine.yield(); coroutine.yield()	-- Wait for after everything else
+			coroutine.yield 'post'
 			f:write('struct Vv'..ty.__name..' {\n')
-			local foundone = false
+			local foundone,rawcall = false, {}
 			for _,e in ipairs(ty.__index) do if not e.aliasof then
 				local ifdef,ifndef
 				if e.type.__ifdef then
@@ -179,41 +179,7 @@ gen.traversal.df(spec, function(ty)
 						f:write '#endif\n'
 					end
 					if e.type.__raw then	-- Raw callables are special...
-						coroutine.yield(function()
-							local types = {}
-							for _,ce in ipairs(e.type.__call) do types[ce.name] = ce.type end
-							local pargs,args = {callit(ty, 'self', {self=ty})},{}
-							for i,re in ipairs(e.type.__raw.call) do
-								local ex = exptoC(re.value or re.values, e.type.__call,
-									{self=ty}, e.type.__raw.call)
-								if ex then
-									args[#args+1] = ex
-									if types[ex] or re.type then
-										pargs[#pargs+1] = callit(types[ex] or re.type, ex, {self=ty})
-										if re.extraptr and not pargs[#pargs]:find '%*' then
-											pargs[#pargs] = callit(types[ex] or re.type, '*'..ex, {self=ty})
-										end
-									end
-								else
-									assert(re.type, "Unexpressable raw __call field with no type"
-										.." ("..(re.value or table.concat(re.values, ', '))..")")
-									pargs[#pargs+1] = callit(re.type, '_rawval'..i, {self=ty})
-									if re.extraptr and not pargs[#pargs]:find '%*' then
-										pargs[#pargs] = callit(re.type, '*_rawval'..i, {self=ty})
-									end
-									args[#args+1] = '_rawval'..i
-								end
-							end
-
-							local ret = e.type.__raw.call.ret or {__raw={C='void'}}
-							if ifdef then f:write('#if '..ifdef..'\n') end
-							f:write(('static inline %s {\n'):format(
-								callit(ret, 'vV'..e.name..'('..table.concat(pargs, ', ')..')',
-									{self=ty, proto=true})))
-							f:write(('return self->_M->%s(%s);\n}\n'):format(
-								e.name, table.concat(args, ', ')))
-							if ifdef then f:write '#endif\n' end
-						end)
+						rawcall[e] = ifdef or false
 					else
 						f:write('#ifdef __GNUC__\n#define vV'..e.name
 							..'(_S, ...) ( __typeof__(_S) _s = (_S),  _s->_M->'..e.name
@@ -248,10 +214,45 @@ gen.traversal.df(spec, function(ty)
 				end
 			end end
 			f:write('};\n\n')
+			coroutine.yield 'post'
+			for e,ifdef in pairs(rawcall) do
+				local types = {}
+				for _,ce in ipairs(e.type.__call) do types[ce.name] = ce.type end
+				local pargs,args = {callit(ty, 'self', {self=ty})},{}
+				for i,re in ipairs(e.type.__raw.call) do
+					local ex = exptoC(re.value or re.values, e.type.__call,
+						{self=ty}, e.type.__raw.call)
+					if ex then
+						args[#args+1] = ex
+						if types[ex] or re.type then
+							pargs[#pargs+1] = callit(types[ex] or re.type, ex, {self=ty})
+							if re.extraptr and not pargs[#pargs]:find '%*' then
+								pargs[#pargs] = callit(types[ex] or re.type, '*'..ex, {self=ty})
+							end
+						end
+					else
+						assert(re.type, "Unexpressable raw __call field with no type"
+							.." ("..(re.value or table.concat(re.values, ', '))..")")
+						pargs[#pargs+1] = callit(re.type, '_rawval'..i, {self=ty})
+						if re.extraptr and not pargs[#pargs]:find '%*' then
+							pargs[#pargs] = callit(re.type, '*_rawval'..i, {self=ty})
+						end
+						args[#args+1] = '_rawval'..i
+					end
+				end
+
+				local ret = e.type.__raw.call.ret or {__raw={C='void'}}
+				if ifdef then f:write('#if '..ifdef..'\n') end
+				f:write(('static inline %s {\n'):format(
+					callit(ret, 'vV'..e.name..'('..table.concat(pargs, ', ')..')',
+						{self=ty, proto=true})))
+				f:write(('\treturn self->_M->%s(%s);\n}\n'):format(
+					e.name, table.concat(args, ', ')))
+				if ifdef then f:write '#endif\n' end
+			end
 		end
-		f:write '\n'
 	end elseif ty == spec then
-		coroutine.yield()	-- Wait for sub-things
+		coroutine.yield 'sub'	-- Wait for sub-things
 		f:write '\n'
 		if ty.__index then
 			for _,e in ipairs(ty.__index) do

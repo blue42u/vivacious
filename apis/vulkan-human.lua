@@ -1005,10 +1005,10 @@ end
 -- only make sense within the context of one, so we make the association ourselves.
 -- `entries` is the raw argument list to work with
 -- `name` is the name of the command in question.
-function human.self(args, name)
+function human.self(args, raws, name)
 	local c = cmdinfo[name]
 	if not c then guess(args, name) elseif c.self then
-		for i,s in ipairs(c.self) do args[i].setto = {s} end
+		for i,s in ipairs(c.self) do raws[args[i].name].value = s end
 		return args[c.self.owner].type
 	end
 end
