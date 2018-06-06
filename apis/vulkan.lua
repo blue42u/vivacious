@@ -37,6 +37,23 @@ end
 local function hassert(t, ...) if not t then herror(...) end end
 human.herror, human.hassert = herror, hassert	-- Let the Human have access
 
+-- A version of ipairs that allows the current entry to be removed
+-- Loop vars are value, removal function.
+local function rpairs(tab)
+	local addone = true
+	local i = 0
+	return function(t)
+		if addone then i = i + 1 end
+		addone = true
+		if t[i] ~= nil then
+			return t[i], function()
+				if addone then table.remove(t, i) end
+				addone = false
+			end
+		end
+	end, tab
+end
+
 -- Build the translations of the raw C names for enums, changing Lua's name.
 local enumnames = {}
 local handled = {}
@@ -115,77 +132,95 @@ for _,v in pairs(vk) do if (v.__index or v.__call) and not handled[v] then
 	end
 end end
 
--- Process the commands.
-local alias = {}
-for _,c in ipairs(vk.Vk.__index) do if c.aliasof then
-	if not alias[c.aliasof] then alias[c.aliasof] = {} end
-	table.insert(alias[c.aliasof], c)
-end end
-local removed,handle,connect = {},{},{}
-for _,c in ipairs(vk.Vk.__index) do if not c.aliasof then
-	c.exbinding = true
-	c.type.__call.method = true
-
-	-- Figure out where this entry should actually go, and move it there.
-	local raws = {}
-	for _,re in ipairs(c.type.__raw.call) do raws[re.value] = re end
-	local self = human.self(c.type.__call, raws, c.name)
-	if self then
-		if not handle[self] then
-			vk[self.__name] = {
-				__name = self.__name,
-				__index = {{name='real', version='0.0.0', type=self},
-					{name='parent', version='0.0.0'}}
-			}
-			handle[self] = vk[self.__name]
-			handle[self].__index[2].type = vk.Vk
-			if not self._parent then
-				hassert(human.parent[self.__name] ~= nil, 'No parent for '..self.__name)
-			end
-			connect[handle[self]] = (self._parent and self._parent:gsub('^Vk', ''))
-				or human.parent[self.__name] or nil
-			self._parent = nil
-			self.__name = 'opaque handle/'..self.__name
-		end
-		local ind = handle[self].__index
-		removed[c] = true
-		ind[#ind+1] = c
-		for _,a in ipairs(alias[c.name] or {}) do
-			removed[a] = true
-			ind[#ind+1] = a
-		end
+-- Vulkan structures that have an sType field are always dereferenced. Make it so.
+for _,v in pairs(vk) do
+	if v.__index and v.__raw and v.__index then
+		v.__raw.dereference = true
 	end
-end end
-for h,p in pairs(connect) do
-	h.__index[2].type = assert(handle[vk[p]], 'No handle '..p) end
-for _,c in ipairs(vk.Vk.__index) do if not c.aliasof then
-	local raws,eptr = {},{}
-	for _,re in ipairs(c.type.__raw.call) do raws[re.value] = re end
-	for _,e in ipairs(c.type.__call) do
-		if e._len then
-			local r,x = human.length(e, c.type, '#'..e.name, c.type.__call)
-			if r and raws[r] then
-				raws[r].value = nil
-				raws[r].values = raws[r].values or {}
-				raws[r].type = 'integer'
-				table.insert(raws[r].values, x)
-			end
-		end
-		if raws[e.name] and not raws[e.name].values and handle[e.type] then
-			e.type, raws[e.name].value = handle[e.type], e.name..'.real'
-			raws[e.name].type = handle[e.type]
-		end
-		if e._extraptr then eptr[e.name],e._extraptr = true,nil end
-	end
-	for _,re in ipairs(c.type.__raw.call) do
-		if eptr[re.value] then re.extraptr = true end
-	end
-end end
-local newindex = {}
-for _,c in ipairs(vk.Vk.__index) do
-	if not removed[c] then newindex[#newindex+1] = c end
 end
-vk.Vk.__index = newindex
 
+-- Process the commands. There's a lot to do.
+local wrappers,wrapped,moveto = {},{},{}
+for c,rmc in rpairs(vk.Vk.__index) do
+	if not c.aliasof then
+		c.type.__call.method = true	-- All commands are methods in vV
+
+		-- For later reference, some useful markings
+		local names,raws = {},{}
+		for i,e in ipairs(c.type.__call) do
+			names[e.name], raws[e.name] = e, c.type.__raw.call[i]
+		end
+
+		-- Figure out where all the commands should go, and move them there
+		local sargs = {human.self(c.type.__call, c.name)}
+		local rawself = table.remove(sargs, 1)
+		if rawself then
+			if not wrappers[rawself] then	-- Make the wrapper if it doesn't exist yet
+				wrappers[rawself] = {
+					__name = rawself.__name,
+					__index = {{name='real', type=rawself}, {name='parent'}},
+				}
+				vk[rawself.__name:gsub('^Vk', '')] = wrappers[rawself]
+				wrapped[wrappers[rawself]] = rawself
+			end
+			-- Move the command to its rightful owner or "self"
+			moveto[c.name] = wrappers[rawself]
+			table.insert(wrappers[rawself].__index, c)
+			rmc()
+
+			-- The first few fields are often provided by the self. Mark them as such.
+			for i,s in ipairs(sargs) do
+				c.type.__raw.call[i].value = s
+				table.remove(c.type.__call, 1)
+			end
+		end
+
+		for _,e in ipairs(c.type.__call) do
+			-- Some fields merely indicate the length of others. Mark them as such.
+			if e._len then
+				local r,x = human.length(e, c.type, '#'..e.name, c.type.__call)
+				if r and raws[r] then
+					raws[r].value = nil	-- It'll just be r at this point
+					raws[r].values = raws[r].values or {}
+					table.insert(raws[r].values, x)
+					local re = names[r]
+					re._islen = true
+				end
+			end
+
+			-- If there's an argument that's been wrapped, replace it.
+			if wrappers[e.type] and raws[e.name].value then
+				raws[e.name].value, e.type = e.name..'.real', wrappers[e.type]
+			end
+		end
+
+		-- Some fields are marked as lengths. Now we merge them for Lua.
+		for e,rme in rpairs(c.type.__call) do
+			if e._islen then
+				e._islen = nil
+				rme()
+			end
+		end
+	end
+end
+
+-- Some of the leftover commands are aliases. Now we get to move them.
+for c,rmc in rpairs(vk.Vk.__index) do
+	if moveto[c.aliasof] then
+		table.insert(moveto[c.aliasof].__index, c)
+		rmc()
+	end
+end
+
+-- Connect up the parent fields of the wrappers, so they actually make sense
+for rs,w in pairs(wrappers) do
+	local par = human.parent(rs._parent, rs.__name)
+	if par then assert(wrapped[vk[par]], "vk."..par.." isn't a wrapper!") end
+	w.__index[2].type = assert(vk[par or 'Vk'], 'No wrapper for '..(par or 'nil'))
+	rs._parent = nil
+	rs.__name = 'opaque handle/'..rs.__name
+end
+
+-- All set, let's do this!
 if humanerror then error 'VkHuman error detected!' end
 return vk

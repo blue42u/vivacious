@@ -15,7 +15,6 @@
 --]========================================================================]
 
 local gen = require 'apis.core.generation'
-gen.gendebug = true
 
 -- Set the default output for `print` to stderr
 io.output(io.stderr)
@@ -48,7 +47,7 @@ local smalltypes = {
 
 -- Raw values are written as a Lua expression that should be very close to the
 -- equivalent C. This tests whether the expression is valid.
-local function testexp(ex, env, opt)
+local function testexp(ex, env, opt, from)
 	opt = opt or {}
 	local general
 	local gf = function() return general end
@@ -74,7 +73,7 @@ local function testexp(ex, env, opt)
 		until not next(todo)
 		return setmetatable({}, {
 			__index=function(t,k)
-				assert(m[k], "Invalid access in expression "..ex.." (field "..k..")")
+				assert(m[k], "Invalid access in expression "..ex.." (field "..k..")", from)
 				t[k] = m[k].__index and obj(m[k].__index) or general
 				return t[k]
 			end,
@@ -122,6 +121,11 @@ local function testit(ty, from, opt)
 		if same then return end
 	end
 	tested[ty][opt] = true
+
+	if ty.__name then
+		assert(type(ty.__name) == 'string', "__names should always be a string", from)
+		from = ty.__name
+	end
 
 	assert(ty, "Types cannot be nil")
 	if type(ty) == 'string' then
@@ -183,7 +187,7 @@ local function testit(ty, from, opt)
 			end
 			for _,e in ipairs(ty.__index) do
 				if e.aliasof then
-					assert(names[e.aliasof], "Invalid __index aliasof", from..'.'..e.name)
+					assert(names[e.aliasof], "Invalid __index aliasof '"..e.aliasof.."'", from..'.'..e.name)
 				end
 			end
 			if names.__sequence then
@@ -207,13 +211,13 @@ local function testit(ty, from, opt)
 							assert(type(e.value) == 'string',
 								"__raw index values should be strings", from)
 							assert(not e.values, "Don't use both value and values...", from)
-							testexp(e.value, ty.__index)
+							testexp(e.value, ty.__index, nil, from)
 						else
 							lintfor_(e.values)
 							for _,s in ipairs(e.values) do
 								assert(type(s) == 'string',
 									"__raw index values should be strings", from)
-								testexp(s, ty.__index)
+								testexp(s, ty.__index, nil, from)
 							end
 						end
 					end
@@ -251,12 +255,12 @@ local function testit(ty, from, opt)
 							assert(type(e.value) == 'string',
 								"__raw call value should be a string: "..tostring(e.value), from)
 							assert(not e.values, "Don't use both value and values...", from)
-							testexp(e.value, ty.__call, {self=ty.__call.method and opt.inindex})
+							testexp(e.value, ty.__call, {self=ty.__call.method and opt.inindex}, from)
 						else
 							for _,s in ipairs(e.values) do
 								assert(type(s) == 'string',
 									"__raw call values should be strings: "..tostring(s), from)
-								testexp(s, ty.__call, {self=ty.__call.method and opt.inindex})
+								testexp(s, ty.__call, {self=ty.__call.method and opt.inindex}, from)
 							end
 						end
 					end

@@ -15,6 +15,7 @@
 --]========================================================================]
 
 local gen = require 'apis.core.generation'
+gen.gendebug = true
 
 -- Nab the arguments, and get ready for the storm.
 local specname,outdir = ...
@@ -33,41 +34,39 @@ end
 -- perform any nessesary transformations to make it valid C.
 -- Returns the C expression and the base variables it references
 local callit
-local function exptoC(exs, env, opt, raw)
-	if type(exs) == 'string' then exs = {exs} end
-	for _,ex in ipairs(exs) do if not ex:find '#' then
-		return ex:gsub('[%w.]+', function(ref)
-			if not ref:find '%.' then return ref else
-				local isptr,m = {},{}
-				for _,e in ipairs(env or {}) do
+local function exptoC(ex, env, opt, raw)
+	if type(ex) ~= 'string' then ex = ex[1] end
+	return ex:gsub('[%w.]+', function(ref)
+		if not ref:find '%.' then return ref else
+			local isptr,m = {},{}
+			for _,e in ipairs(env or {}) do
+				isptr[e.name],m[e.name] = callit(e.type, ''):find '%*', e.type
+			end
+			if opt and opt.self then
+				isptr.self = callit(opt.self, 'self'):find '%*'
+				m.self = opt.self
+			end
+			for _,e in ipairs(raw or {}) do
+				if e.name then isptr[e.name] = isptr[e.name] or e.extraptr end
+			end
+
+			local new = {}
+			for p in (ref..'.'):gmatch '([^.]+)%.' do
+				new[#new+1] = p
+				new[#new+1] = isptr[p] and '->' or '.'
+				local ty = m[p]
+				isptr,m = {},{}
+				for _,e in ipairs(ty.__index or {}) do if not e.aliasof then
 					isptr[e.name],m[e.name] = callit(e.type, ''):find '%*', e.type
-				end
-				if opt and opt.self then
-					isptr.self = callit(opt.self, 'self'):find '%*'
-					m.self = opt.self
-				end
-				for _,e in ipairs(raw or {}) do
+				end end
+				for _,e in ipairs(ty.__raw and ty.__raw.index or {}) do
 					if e.name then isptr[e.name] = isptr[e.name] or e.extraptr end
 				end
-
-				local new = {}
-				for p in (ref..'.'):gmatch '([^.]+)%.' do
-					new[#new+1] = p
-					new[#new+1] = isptr[p] and '->' or '.'
-					local ty = m[p]
-					isptr,m = {},{}
-					for _,e in ipairs(ty.__index or {}) do if not e.aliasof then
-						isptr[e.name],m[e.name] = callit(e.type, ''):find '%*', e.type
-					end end
-					for _,e in ipairs(ty.__raw and ty.__raw.index or {}) do
-						if e.name then isptr[e.name] = isptr[e.name] or e.extraptr end
-					end
-				end
-				table.remove(new)
-				return table.concat(new)
 			end
-		end)
-	end end
+			table.remove(new)
+			return table.concat(new)
+		end
+	end):gsub('#([%w.>-]+)', '%1_cnt')
 end
 
 -- Get a string representing a typed name.
@@ -82,19 +81,24 @@ function callit(ty, na, opt)
 	local sna = na and ' '..na or ''
 	local asna = ((opt and opt.inarr) and '' or '*')..sna
 	if type(ty) == 'string' then return basetypes[ty]..sna
-	elseif ty.__raw then
+	elseif ty.__raw and (not opt or not opt.noraw) then
 		assert(ty.__raw.C, "No C field for "..tostring(ty.__raw))
-		return ty.__raw.C..sna
+		if ty.__raw.dereference then
+			return ty.__raw.C..(asna:find '%*' and '' or '*')..asna
+		else return ty.__raw.C..sna end
 	elseif ty.__name then return 'Vv'..ty.__name..asna
 	elseif ty.__call then
 		local as = {}
 		if not opt or not opt.noself then
 			if ty.__call.method then table.insert(as, callit(opt.self, 'self'))
-			else table.insert(as, 'void* udata') end
+			else table.insert(as, callit('lightuserdata', 'udata')) end
 		end
 		local rets = {}
 		for _,a in ipairs(ty.__call) do
 			if a.name == 'return' then rets[#rets+1] = a else
+				if a.type.__index and a.type.__index[1].name == '__sequence' then
+					as[#as+1] = 'size_t '..a.name..'_cnt'
+				end
 				as[#as+1] = callit(a.type, a.name)
 			end
 		end
@@ -107,8 +111,14 @@ function callit(ty, na, opt)
 			for _,r in ipairs(rets) do if not r.canbenil then table.insert(nrets, r) end end
 			if #nrets > 0 then ret = nrets[1]
 			else ret = rets[1] end	-- Just take the first one
+			if ret and ret.type.__index and ret.type.__index[1].name == '__sequence' then
+				ret = nil	-- Arrays aren't returned that way
+			end
 		end
 		for i,r in ipairs(rets) do if r ~= ret then
+				if r.type.__index and r.type.__index[1].name == '__sequence' then
+					as[#as+1] = 'size_t *ret'..i..'_cnt'
+				end
 			as[#as+1] = callit(r.type, '*ret'..i)
 		end end
 		ret = ret and ret.type or {__raw={C='void'}}
@@ -216,38 +226,17 @@ gen.traversal.df(spec, function(ty)
 			f:write('};\n\n')
 			coroutine.yield 'post'
 			for e,ifdef in pairs(rawcall) do
-				local types = {}
-				for _,ce in ipairs(e.type.__call) do types[ce.name] = ce.type end
-				local pargs,args = {callit(ty, 'self', {self=ty})},{}
-				for i,re in ipairs(e.type.__raw.call) do
+				local args = {}
+				for _,re in ipairs(e.type.__raw.call) do
 					local ex = exptoC(re.value or re.values, e.type.__call,
 						{self=ty}, e.type.__raw.call)
-					if ex then
-						args[#args+1] = ex
-						if types[ex] or re.type then
-							pargs[#pargs+1] = callit(types[ex] or re.type, ex, {self=ty})
-							if re.extraptr and not pargs[#pargs]:find '%*' then
-								pargs[#pargs] = callit(types[ex] or re.type, '*'..ex, {self=ty})
-							end
-						end
-					else
-						assert(re.type, "Unexpressable raw __call field with no type"
-							.." ("..(re.value or table.concat(re.values, ', '))..")")
-						pargs[#pargs+1] = callit(re.type, '_rawval'..i, {self=ty})
-						if re.extraptr and not pargs[#pargs]:find '%*' then
-							pargs[#pargs] = callit(re.type, '*_rawval'..i, {self=ty})
-						end
-						args[#args+1] = '_rawval'..i
-					end
+					args[#args+1] = ex
 				end
 
-				local ret = e.type.__raw.call.ret or {__raw={C='void'}}
 				if ifdef then f:write('#if '..ifdef..'\n') end
-				f:write(('static inline %s {\n'):format(
-					callit(ret, 'vV'..e.name..'('..table.concat(pargs, ', ')..')',
-						{self=ty, proto=true})))
-				f:write(('\treturn self->_M->%s(%s);\n}\n'):format(
-					e.name, table.concat(args, ', ')))
+				f:write('static inline '..callit(e.type, e.name, {self=ty, proto=true, noraw=true})..' {\n')
+				f:write('\treturn self->_M->'..e.name..'('..table.concat(args, ', ')..');\n')
+				f:write '}\n'
 				if ifdef then f:write '#endif\n' end
 			end
 		end

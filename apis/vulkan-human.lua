@@ -408,7 +408,7 @@ local cmdinfo = {
 		self = {owner = 1, 'self.real'},
 	}, -- (commandBuffer, pipelineBindPoint, layout, firstSet, descriptorSetCount, pDescriptorSets, dynamicOffsetCount, pDynamicOffsets)
 	vkCmdBindIndexBuffer = {
-		self = {owner = 2, 'self.parent.real', 'self.real'},
+		self = {owner = 1, 'self.real'},
 	}, -- (commandBuffer, buffer, offset, indexType)
 	vkCmdBindVertexBuffers = {
 		self = {owner = 1, 'self.real'},
@@ -420,55 +420,55 @@ local cmdinfo = {
 		self = {owner = 1, 'self.real'},
 	}, -- (commandBuffer, indexCount, instanceCount, firstIndex, vertexOffset, firstInstance)
 	vkCmdDrawIndirect = {
-		self = {owner = 2, 'self.parent.real', 'self.real'},
+		self = {owner = 1, 'self.real'},
 	}, -- (commandBuffer, buffer, offset, drawCount, stride)
 	vkCmdDrawIndexedIndirect = {
-		self = {owner = 2, 'self.parent.real', 'self.real'},
+		self = {owner = 1, 'self.real'},
 	}, -- (commandBuffer, buffer, offset, drawCount, stride)
 	vkCmdDispatch = {
 		self = {owner = 1, 'self.real'},
 	}, -- (commandBuffer, groupCountX, groupCountY, groupCountZ)
 	vkCmdDispatchIndirect = {
-		self = {owner = 2, 'self.parent.real', 'self.real'},
+		self = {owner = 1, 'self.real'},
 	}, -- (commandBuffer, buffer, offset)
 	vkCmdCopyBuffer = {
-		self = {owner = 2, 'self.parent.real', 'self.real'},
+		self = {owner = 1, 'self.real'},
 	}, -- (commandBuffer, srcBuffer, dstBuffer, regionCount, pRegions)
 	vkCmdCopyImage = {
-		self = {owner = 2, 'self.parent.real', 'self.real'},
+		self = {owner = 1, 'self.real'},
 	}, -- (commandBuffer, srcImage, srcImageLayout, dstImage, dstImageLayout, regionCount, pRegions)
 	vkCmdBlitImage = {
-		self = {owner = 2, 'self.parent.real', 'self.real'},
+		self = {owner = 1, 'self.real'},
 	}, -- (commandBuffer, srcImage, srcImageLayout, dstImage, dstImageLayout, regionCount, pRegions, filter)
 	vkCmdCopyBufferToImage = {
-		self = {owner = 2, 'self.parent.real', 'self.real'},
+		self = {owner = 1, 'self.real'},
 	}, -- (commandBuffer, srcBuffer, dstImage, dstImageLayout, regionCount, pRegions)
 	vkCmdCopyImageToBuffer = {
-		self = {owner = 2, 'self.parent.real', 'self.real'},
+		self = {owner = 1, 'self.real'},
 	}, -- (commandBuffer, srcImage, srcImageLayout, dstBuffer, regionCount, pRegions)
 	vkCmdUpdateBuffer = {
-		self = {owner = 2, 'self.parent.real', 'self.real'},
+		self = {owner = 1, 'self.real'},
 	}, -- (commandBuffer, dstBuffer, dstOffset, dataSize, pData)
 	vkCmdFillBuffer = {
-		self = {owner = 2, 'self.parent.real', 'self.real'},
+		self = {owner = 1, 'self.real'},
 	}, -- (commandBuffer, dstBuffer, dstOffset, size, data)
 	vkCmdClearColorImage = {
-		self = {owner = 2, 'self.parent.real', 'self.real'},
+		self = {owner = 1, 'self.real'},
 	}, -- (commandBuffer, image, imageLayout, pColor, rangeCount, pRanges)
 	vkCmdClearDepthStencilImage = {
-		self = {owner = 2, 'self.parent.real', 'self.real'},
+		self = {owner = 1, 'self.real'},
 	}, -- (commandBuffer, image, imageLayout, pDepthStencil, rangeCount, pRanges)
 	vkCmdClearAttachments = {
 		self = {owner = 1, 'self.real'},
 	}, -- (commandBuffer, attachmentCount, pAttachments, rectCount, pRects)
 	vkCmdResolveImage = {
-		self = {owner = 2, 'self.parent.real', 'self.real'},
+		self = {owner = 1, 'self.real'},
 	}, -- (commandBuffer, srcImage, srcImageLayout, dstImage, dstImageLayout, regionCount, pRegions)
 	vkCmdSetEvent = {
-		self = {owner = 2, 'self.parent.real', 'self.real'},
+		self = {owner = 1, 'self.real'},
 	}, -- (commandBuffer, event, stageMask)
 	vkCmdResetEvent = {
-		self = {owner = 2, 'self.parent.real', 'self.real'},
+		self = {owner = 1, 'self.real'},
 	}, -- (commandBuffer, event, stageMask)
 	vkCmdWaitEvents = {
 		self = {owner = 1, 'self.real'},
@@ -477,22 +477,22 @@ local cmdinfo = {
 		self = {owner = 1, 'self.real'},
 	}, -- (commandBuffer, srcStageMask, dstStageMask, dependencyFlags, memoryBarrierCount, pMemoryBarriers, bufferMemoryBarrierCount, pBufferMemoryBarriers, imageMemoryBarrierCount, pImageMemoryBarriers)
 	vkCmdBeginQuery = {
-		self = {owner = 2, 'self.parent.real', 'self.real'},
+		self = {owner = 1, 'self.real'},
 	}, -- (commandBuffer, queryPool, query, flags)
 	vkCmdEndQuery = {
-		self = {owner = 2, 'self.parent.real', 'self.real'},
+		self = {owner = 1, 'self.real'},
 	}, -- (commandBuffer, queryPool, query)
 	vkCmdResetQueryPool = {
-		self = {owner = 2, 'self.parent.real', 'self.real'},
+		self = {owner = 1, 'self.real'},
 	}, -- (commandBuffer, queryPool, firstQuery, queryCount)
 	vkCmdWriteTimestamp = {
 		self = {owner = 1, 'self.real'},
 	}, -- (commandBuffer, pipelineStage, queryPool, query)
 	vkCmdCopyQueryPoolResults = {
-		self = {owner = 2, 'self.parent.real', 'self.real'},
+		self = {owner = 1, 'self.real'},
 	}, -- (commandBuffer, queryPool, firstQuery, queryCount, dstBuffer, dstOffset, stride, flags)
 	vkCmdPushConstants = {
-		self = {owner = 2, 'self.parent.real', 'self.real'},
+		self = {owner = 1, 'self.real'},
 	}, -- (commandBuffer, layout, stageFlags, offset, size, pValues)
 	vkCmdBeginRenderPass = {
 		self = {owner = 1, 'self.real'},
@@ -627,10 +627,10 @@ local cmdinfo = {
 		self = {owner = 2, 'self.parent.real', 'self.real'},
 	}, -- (device, memory, handleType, pHandle, return)
 	vkCmdDrawIndirectCountAMD = {
-		self = {owner = 2, 'self.parent.real', 'self.real'},
+		self = {owner = 1, 'self.real'},
 	}, -- (commandBuffer, buffer, offset, countBuffer, countBufferOffset, maxDrawCount, stride)
 	vkCmdDrawIndexedIndirectCountAMD = {
-		self = {owner = 2, 'self.parent.real', 'self.real'},
+		self = {owner = 1, 'self.real'},
 	}, -- (commandBuffer, buffer, offset, countBuffer, countBufferOffset, maxDrawCount, stride)
 	vkCmdProcessCommandsNVX = {
 		self = {owner = 1, 'self.real'},
@@ -795,7 +795,7 @@ local cmdinfo = {
 		self = {owner = 2, 'self.parent.real', 'self.real'},
 	}, -- (device, descriptorSet, descriptorUpdateTemplate, pData)
 	vkCmdPushDescriptorSetWithTemplateKHR = {
-		self = {owner = 2, 'self.parent.real', 'self.real'},
+		self = {owner = 1, 'self.real'},
 	}, -- (commandBuffer, descriptorUpdateTemplate, layout, set, pData)
 	vkSetHdrMetadataEXT = {
 		self = {owner = 1, 'self.real'},
@@ -930,7 +930,7 @@ local cmdinfo = {
 -- close enough to Lua that we use metatables to read in the expression.
 -- `elem` is the __index or __call field to get a length equation for.
 -- `partype` is the type that contains `elem`.
--- `forvar` is an expression that represents the length of the field.
+-- `lenvar` is an expression that represents the length of the field.
 -- `parent` is the the __index or __call sequence from which names may come.
 -- Returns the variable reference and value to assign the length.
 function human.length(elem, partype, lenvar, parent)
@@ -976,12 +976,59 @@ function human.length(elem, partype, lenvar, parent)
 	end
 end
 
--- Handles are connected by a parenting scheme, but it doesn't always work right...
-human.parent = {
-	VkInstance = false,	-- Parent is Vk
+-- Human-certified nearly correct parent links
+local parents = {
+	VkInstance = false,
 	VkDisplayKHR = 'PhysicalDevice',
 	VkDisplayModeKHR = 'DisplayKHR',
+	VkSurfaceKHR = true, -- VkInstance
+	VkPhysicalDevice = true, -- VkInstance
+	VkDebugReportCallbackEXT = true, -- VkInstance
+	VkDebugUtilsMessengerEXT = true, -- VkInstance
+	VkSwapchainKHR = true, -- VkSurfaceKHR
+	VkDevice = true, -- VkPhysicalDevice
+	VkCommandPool = true, -- VkDevice
+	VkDescriptorPool = true, -- VkDevice
+	VkSemaphore = true, -- VkDevice
+	VkImageView = true, -- VkDevice
+	VkQueryPool = true, -- VkDevice
+	VkPipeline = true, -- VkDevice
+	VkRenderPass = true, -- VkDevice
+	VkSampler = true, -- VkDevice
+	VkQueue = true, -- VkDevice
+	VkDescriptorSetLayout = true, -- VkDevice
+	VkSamplerYcbcrConversion = true, -- VkDevice
+	VkDeviceMemory = true, -- VkDevice
+	VkBuffer = true, -- VkDevice
+	VkFence = true, -- VkDevice
+	VkImage = true, -- VkDevice
+	VkEvent = true, -- VkDevice
+	VkShaderModule = true, -- VkDevice
+	VkFramebuffer = true, -- VkDevice
+	VkPipelineLayout = true, -- VkDevice
+	VkPipelineCache = true, -- VkDevice
+	VkBufferView = true, -- VkDevice
+	VkValidationCacheEXT = true, -- VkDevice
+	VkObjectTableNVX = true, -- VkDevice
+	VkIndirectCommandsLayoutNVX = true, -- VkDevice
+	VkDescriptorUpdateTemplate = true, -- VkDevice
+	VkDescriptorSet = true, -- VkDescriptorPool
+	VkCommandBuffer = true, -- VkCommandPool
 }
+
+-- Every non-dispatchable handle (and all but one dispatchable one) has a "parent"
+-- that creates them, and they often use their parent in commands. The XML has
+-- a "parent" entry a lot of the time, and its often correct, but not always...
+-- `par` is the parent entry in the XML, and `name` is the name of this handle.
+-- Returns the name (without the Vk) of the parent of this handle, or false-y
+function human.parent(par, name)
+	if parents[name] == false or type(parents[name]) == 'string' then
+		return parents[name]
+	elseif par then
+		human.hassert(parents[name], '\t'..name..' = true, -- '..par)
+		return par:gsub('^Vk', '')
+	else human.herror("Missing info on parent for "..name) end
+end
 
 -- When there is no info on a particular command, we try and guess its properties.
 -- These functions here do the guessing. They are designed to handle about 90%.
@@ -990,7 +1037,7 @@ local function ishandle(t)	-- Guess whether the type is a handle or not.
 end
 local function guess(entries, name)
 	local out = "self = false"
-	if entries[2] and ishandle(entries[2].type) then
+	if entries[2] and ishandle(entries[2].type) and not name:find '^vkCmd' then
 		out = "self = {owner = 2, 'self.parent.real', 'self.real'}"
 	elseif entries[1] and ishandle(entries[1].type) then
 		out = "self = {owner = 1, 'self.real'}"
@@ -1003,13 +1050,12 @@ end
 
 -- Commands in Vulkan are not associated with any particular handle, but most
 -- only make sense within the context of one, so we make the association ourselves.
--- `entries` is the raw argument list to work with
+-- `args` is the raw argument list to work with
 -- `name` is the name of the command in question.
-function human.self(args, raws, name)
+function human.self(args, name)
 	local c = cmdinfo[name]
 	if not c then guess(args, name) elseif c.self then
-		for i,s in ipairs(c.self) do raws[args[i].name].value = s end
-		return args[c.self.owner].type
+		return args[c.self.owner].type, table.unpack(c.self)
 	end
 end
 
