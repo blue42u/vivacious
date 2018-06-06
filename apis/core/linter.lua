@@ -183,6 +183,9 @@ local function testit(ty, from, opt)
 				if not e.aliasof then
 					assert(e.type, "Non-alias __index fields need types", from..'.'..e.name)
 					testit(e.type, from..'.'..e.name, {inindex=ty})
+					if e.lentype then
+						testit(e.lentype, from..'.'..e.name, {inindex=ty})
+					end
 				end
 			end
 			for _,e in ipairs(ty.__index) do
@@ -236,6 +239,9 @@ local function testit(ty, from, opt)
 				if e.name then names[e.name] = true end
 				assert(e.type, "__call fields need types", from..'('..(e.name or '-'))
 				testit(e.type, from..'('..(e.name or '-'))
+				if e.lentype then
+					testit(e.lentype, from..'.'..e.name, {inindex=ty})
+				end
 			end
 			if ty.__call.method then
 				assert(opt.inindex, "__call methods must be accessable via an __index", from)

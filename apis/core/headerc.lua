@@ -81,12 +81,11 @@ local basetypes = {
 }
 function callit(ty, na, opt)
 	local sna = na and ' '..na or ''
-	local asna = ((opt and opt.inarr) and '' or '*')..sna
+	local asna = (opt and opt.inarr and not opt.ret and '' or '*')..sna
 	if type(ty) == 'string' then return basetypes[ty]..sna
 	elseif ty.__raw and (not opt or not opt.noraw) then
 		assert(ty.__raw.C, "No C field for "..tostring(ty.__raw))
-		if ty.__raw.dereference then
-			return ty.__raw.C..(asna:find '%*' and '' or '*')..asna
+		if ty.__raw.dereference then return ty.__raw.C..asna
 		else return ty.__raw.C..sna end
 	elseif ty.__name then return 'Vv'..ty.__name..asna
 	elseif ty.__call then
@@ -99,7 +98,7 @@ function callit(ty, na, opt)
 		for _,a in ipairs(ty.__call) do
 			if a.ret then rets[#rets+1] = a else
 				if a.type.__index and a.type.__index[1].name == '__sequence' then
-					as[#as+1] = 'size_t '..a.name..'_cnt'
+					as[#as+1] = callit(a.lentype or {__raw={C='size_t'}}, a.name..'_cnt')
 				end
 				as[#as+1] = callit(a.type, a.name)
 			end
@@ -117,11 +116,13 @@ function callit(ty, na, opt)
 				ret = nil	-- Arrays aren't returned that way
 			end
 		end
-		for i,r in ipairs(rets) do if r ~= ret then
-				if r.type.__index and r.type.__index[1].name == '__sequence' then
-					as[#as+1] = callit({__raw={C='size_t'}}, '*'..(r.name and r.name..'_cnt' or ''))
-				end
-			as[#as+1] = callit(r.type, '*'..(r.name or ''))
+		for _,r in ipairs(rets) do if r ~= ret then
+			local inarr = r.type.__index and r.type.__index[1].name == '__sequence'
+			if inarr then
+				as[#as+1] = callit(r.lentype or {__raw={C='size_t'}},
+					'*'..(r.name and r.name..'_cnt' or ''))
+			end
+			as[#as+1] = callit(r.type, (inarr and '' or '*')..(r.name or ''), {ret=true})
 		end end
 		ret = ret and ret.type or {__raw={C='void'}}
 		if opt and opt.proto then
@@ -135,7 +136,8 @@ function callit(ty, na, opt)
 		for _,e in ipairs(ty.__index or {}) do
 			if e.name == '__sequence' then
 				assert(#ty.__index == 1, '__sequence __index fields must be alone')
-				return callit(e.type, 'const *'..(na or ''), {inarr=true})
+				return callit(e.type,
+					(opt and opt.ret and '' or 'const')..' *'..(na or ''), {inarr=true})
 			else
 				if not udatad and e.type.__call then
 					table.insert(out, callit('lightuserdata', 'udata'))

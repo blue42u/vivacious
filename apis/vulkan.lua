@@ -183,6 +183,7 @@ for c,rmc in rpairs(vk.Vk.__index) do
 					raws[r].value = nil	-- It'll just be r at this point
 					raws[r].values = raws[r].values or {}
 					table.insert(raws[r].values, x)
+					e.lentype = names[r].type
 					local re = names[r]
 					re._islen = true
 				end
