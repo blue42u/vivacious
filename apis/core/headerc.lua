@@ -40,7 +40,9 @@ local function exptoC(ex, env, opt, raw)
 		if not ref:find '%.' then return ref else
 			local isptr,m = {},{}
 			for _,e in ipairs(env or {}) do
-				isptr[e.name],m[e.name] = callit(e.type, ''):find '%*', e.type
+				if e.name then
+					isptr[e.name],m[e.name] = callit(e.type, ''):find '%*', e.type
+				end
 			end
 			if opt and opt.self then
 				isptr.self = callit(opt.self, 'self'):find '%*'
@@ -95,7 +97,7 @@ function callit(ty, na, opt)
 		end
 		local rets = {}
 		for _,a in ipairs(ty.__call) do
-			if a.name == 'return' then rets[#rets+1] = a else
+			if a.ret then rets[#rets+1] = a else
 				if a.type.__index and a.type.__index[1].name == '__sequence' then
 					as[#as+1] = 'size_t '..a.name..'_cnt'
 				end
@@ -117,9 +119,9 @@ function callit(ty, na, opt)
 		end
 		for i,r in ipairs(rets) do if r ~= ret then
 				if r.type.__index and r.type.__index[1].name == '__sequence' then
-					as[#as+1] = 'size_t *ret'..i..'_cnt'
+					as[#as+1] = callit({__raw={C='size_t'}}, '*'..(r.name and r.name..'_cnt' or ''))
 				end
-			as[#as+1] = callit(r.type, '*ret'..i)
+			as[#as+1] = callit(r.type, '*'..(r.name or ''))
 		end end
 		ret = ret and ret.type or {__raw={C='void'}}
 		if opt and opt.proto then

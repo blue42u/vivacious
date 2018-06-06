@@ -147,9 +147,9 @@ for c,rmc in rpairs(vk.Vk.__index) do
 
 		-- For later reference, some useful markings
 		local names,raws = {},{}
-		for i,e in ipairs(c.type.__call) do
+		for i,e in ipairs(c.type.__call) do if e.name then
 			names[e.name], raws[e.name] = e, c.type.__raw.call[i]
-		end
+		end end
 
 		-- Figure out where all the commands should go, and move them there
 		local sargs = {human.self(c.type.__call, c.name)}

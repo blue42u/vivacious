@@ -937,7 +937,7 @@ function human.length(elem, partype, lenvar, parent)
 	local meta = {}
 	local function new(base)
 		local names = {}
-		for _,e in ipairs(base) do names[e.name] = e end
+		for _,e in ipairs(base) do if e.name then names[e.name] = e end end
 		return setmetatable({_base=names}, meta)
 	end
 	local function math(op, rop)

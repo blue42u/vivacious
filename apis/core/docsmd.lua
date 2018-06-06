@@ -42,7 +42,7 @@ local function callit(ty, na)
 			local x,y = '',''
 			if a.canbenil then x,y = '[',']' end
 			if not a.setto then
-				if a.name == 'return' then table.insert(rs, x..callit(a.type)..y)
+				if a.ret then table.insert(rs, x..callit(a.type, a.name)..y)
 				else table.insert(as, x..callit(a.type, a.name)..y) end
 			end
 		end

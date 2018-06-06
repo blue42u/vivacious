@@ -46,19 +46,19 @@ vki.InstanceCreator = {__name = 'VkInstanceCreator',
 		{name='vulkan', type=vk.Vk, doc="The Vulkan that will create the Instance"},
 		'0.2.0',
 		method{'append', "Append the requirements specified in <info> to this Creator.",
-			{'return', vk.Result},
+			{'result', vk.Result, ret=true},
 			{'info', iInfo}
 		},
 		method{'create', "Attempt to create an Instance that satisfies all the requirements.",
-			{'return', vk.Instance, canbenil=true},
-			{'return', vk.Result}
+			{'instance', vk.Instance, canbenil=true, ret=true},
+			{'result', vk.Result, ret=true}
 		},
 		method{'reset', "Resets all the requirements in this Creator."},
 	},
 }
 table.insert(vki.__index, callable{'createVkInstanceCreator', version='0.1.0',
-	{'return', vki.InstanceCreator, canbenil=true},
-	{'return', 'string', canbenil=true},
+	{'instcreator', vki.InstanceCreator, canbenil=true, ret=true},
+	{'error', 'string', canbenil=true, ret=true},
 	{'vulkan', vk.Vk}
 })
 
@@ -88,13 +88,13 @@ local dInfo = {__name = 'VkDeviceInfo',
 		{name='tasks', type=array[dTask], canbenil=true,
 			doc="Tasks that will be assigned Queues."},
 		callable{'compare', "Defines a preference-order on PhysicalDevices.",
-			{'return', 'boolean'},
+			{nil, 'boolean', ret=true},
 			{'a', vk.PhysicalDevice},
 			{'b', vk.PhysicalDevice},
 			canbenil=true
 		},
 		callable{'valid', "Defines a validator on PhysicalDevices",
-			{'return', 'boolean'},
+			{nil, 'boolean', ret=true},
 			{'pd', vk.PhysicalDevice},
 			canbenil=true
 		},
@@ -119,20 +119,20 @@ vki.DeviceCreator = {__name = 'VkDeviceCreator',
 		{name='instance', type=vk.Instance, doc="The Instance that will create the Device"},
 		'0.2.0',
 		method{'append', "Append new requirements to the Creator.",
-			{'return', vk.Result},
+			{'result', vk.Result, ret=true},
 			{'info', dInfo}
 		},
 		method{'create', "Attempt to create a Device that satisfies the requirements.",
-			{'return', vk.Device, canbenil=true},
-			{'return', vk.PhysicalDevice, canbenil=true},
-			{'return', vk.Result}
+			{'device', vk.Device, canbenil=true, ret=true},
+			{'physical', vk.PhysicalDevice, canbenil=true, re=true},
+			{'result', vk.Result, ret=true}
 		},
 		method{'reset', "Reset all the requirements appended to this Creator."},
 	},
 }
 table.insert(vki.__index, callable{'createVkDeviceCreator', version='0.1.1',
-	{'return', vki.DeviceCreator, canbenil=true},
-	{'return', 'string', canbenil=true},
+	{'devcreator', vki.DeviceCreator, canbenil=true, ret=true},
+	{'error', 'string', canbenil=true, ret=true},
 	{'instance', vk.Instance}
 })
 
