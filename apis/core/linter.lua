@@ -60,7 +60,10 @@ local function testexp(ex, env, opt, from)
 		local m,todo = {},{}
 		if self then m.self = self end
 		for _,e in ipairs(ents) do
-			if e.type then if e.name then m[e.name] = e.type end else todo[e] = true end
+			if e.name then
+				if e.type then m[e.name] = e.type
+				elseif e.aliasof then todo[e] = true end
+			end
 		end
 		repeat
 			for td in pairs(todo) do
@@ -239,9 +242,7 @@ local function testit(ty, from, opt)
 				if e.name then names[e.name] = true end
 				assert(e.type, "__call fields need types", from..'('..(e.name or '-'))
 				testit(e.type, from..'('..(e.name or '-'))
-				if e.lentype then
-					testit(e.lentype, from..'.'..e.name, {inindex=ty})
-				end
+				if e.lentype then testit(e.lentype, from..'('..(e.name or '-')) end
 			end
 			if ty.__call.method then
 				assert(opt.inindex, "__call methods must be accessable via an __index", from)

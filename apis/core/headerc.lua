@@ -15,7 +15,6 @@
 --]========================================================================]
 
 local gen = require 'apis.core.generation'
-gen.gendebug = true
 
 -- Nab the arguments, and get ready for the storm.
 local specname,outdir = ...
@@ -81,11 +80,12 @@ local basetypes = {
 }
 function callit(ty, na, opt)
 	local sna = na and ' '..na or ''
-	local asna = (opt and opt.inarr and not opt.ret and '' or '*')..sna
+	local asna = (opt and opt.inarr and '' or '*')..sna
 	if type(ty) == 'string' then return basetypes[ty]..sna
 	elseif ty.__raw and (not opt or not opt.noraw) then
 		assert(ty.__raw.C, "No C field for "..tostring(ty.__raw))
-		if ty.__raw.dereference then return ty.__raw.C..asna
+		if ty.__raw.dereference then
+			return ty.__raw.C..((opt and (opt.ret or opt.inarr)) and '' or '*')..sna
 		else return ty.__raw.C..sna end
 	elseif ty.__name then return 'Vv'..ty.__name..asna
 	elseif ty.__call then
@@ -105,8 +105,8 @@ function callit(ty, na, opt)
 		end
 		local ret
 		for _,r in ipairs(rets) do
-			if r.mainret then assert(not ret, 'Multiple mainrets!'); ret = r
-		end end
+			if r.mainret then assert(not ret, 'Multiple mainrets!'); ret = r end
+		end
 		if not ret then	-- If there are no mainret's, then try one that can't be nil
 			local nrets = {}
 			for _,r in ipairs(rets) do if not r.canbenil then table.insert(nrets, r) end end
@@ -116,11 +116,12 @@ function callit(ty, na, opt)
 				ret = nil	-- Arrays aren't returned that way
 			end
 		end
+		if ty.__call.nomainret then ret = nil end
 		for _,r in ipairs(rets) do if r ~= ret then
 			local inarr = r.type.__index and r.type.__index[1].name == '__sequence'
 			if inarr then
 				as[#as+1] = callit(r.lentype or {__raw={C='size_t'}},
-					'*'..(r.name and r.name..'_cnt' or ''))
+					'*'..(r.name and r.name..'_cnt' or ''), {ret=true})
 			end
 			as[#as+1] = callit(r.type, (inarr and '' or '*')..(r.name or ''), {ret=true})
 		end end

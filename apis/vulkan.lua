@@ -153,6 +153,7 @@ for c,rmc in rpairs(vk.Vk.__index) do
 
 		-- Figure out where all the commands should go, and move them there
 		local sargs = {human.self(c.type.__call, c.name)}
+		local rets = {human.rets(c.type.__call, c.name)}
 		local rawself = table.remove(sargs, 1)
 		if rawself then
 			if not wrappers[rawself] then	-- Make the wrapper if it doesn't exist yet
@@ -175,6 +176,19 @@ for c,rmc in rpairs(vk.Vk.__index) do
 			end
 		end
 
+		-- Some fields are actually return values: mark them for later.
+		for _,r in ipairs(rets) do
+			local foundit = false
+			for _,e in ipairs(c.type.__call) do
+				if e.name == r then
+					e.ret = true
+					foundit = true
+					break
+				end
+			end
+			hassert(foundit, "No argument to mark for returning called "..tostring(r))
+		end
+
 		for _,e in ipairs(c.type.__call) do
 			-- Some fields merely indicate the length of others. Mark them as such.
 			if e._len then
@@ -190,7 +204,7 @@ for c,rmc in rpairs(vk.Vk.__index) do
 			end
 
 			-- If there's an argument that's been wrapped, replace it.
-			if wrappers[e.type] and raws[e.name].value then
+			if wrappers[e.type] and raws[e.name].value and not e.ret then
 				raws[e.name].value, e.type = e.name..'.real', wrappers[e.type]
 			end
 		end
