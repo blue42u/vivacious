@@ -47,9 +47,6 @@ local function exptoC(ex, env, opt, raw)
 				isptr.self = callit(opt.self, 'self'):find '%*'
 				m.self = opt.self
 			end
-			for _,e in ipairs(raw or {}) do
-				if e.name then isptr[e.name] = isptr[e.name] or e.extraptr end
-			end
 
 			local new = {}
 			for p in (ref..'.'):gmatch '([^.]+)%.' do
@@ -60,9 +57,6 @@ local function exptoC(ex, env, opt, raw)
 				for _,e in ipairs(ty.__index or {}) do if not e.aliasof then
 					isptr[e.name],m[e.name] = callit(e.type, ''):find '%*', e.type
 				end end
-				for _,e in ipairs(ty.__raw and ty.__raw.index or {}) do
-					if e.name then isptr[e.name] = isptr[e.name] or e.extraptr end
-				end
 			end
 			table.remove(new)
 			return table.concat(new)
@@ -90,19 +84,38 @@ function callit(ty, na, opt)
 	elseif ty.__name then return 'Vv'..ty.__name..asna
 	elseif ty.__call then
 		local as = {}
+
+		-- Add in the nessesary self or udata argument
 		if not opt or not opt.noself then
 			if ty.__call.method then table.insert(as, callit(opt.self, 'self'))
 			else table.insert(as, callit('lightuserdata', 'udata')) end
 		end
+
+		-- Handy markings
+		local raws = {}
+		for _,re in ipairs(ty.__raw and ty.__raw.call or {}) do
+			if re.value then raws[re.value] = re else
+				for _,x in ipairs(re.values) do raws[x] = re end
+			end
+		end
+
+		-- Gather up the real arguments
 		local rets = {}
 		for _,a in ipairs(ty.__call) do
 			if a.ret then rets[#rets+1] = a else
-				if a.type.__index and a.type.__index[1].name == '__sequence' then
-					as[#as+1] = callit(a.lentype or {__raw={C='size_t'}}, a.name..'_cnt')
+				-- If we have an array (or need the length), we need to include its length
+				local lname = '#'..a.name
+				if a.type.__index and a.type.__index[1].name == '__sequence' or raws[lname] then
+					local lentype = {__raw={C='size_t'}}
+					if raws[lname] and raws[lname].type then lentype = raws[lname].type end
+					as[#as+1] = callit(lentype, a.name..'_cnt')
 				end
+				-- Add in the argument
 				as[#as+1] = callit(a.type, a.name)
 			end
 		end
+
+		-- Decide what should be the return for C
 		local ret
 		for _,r in ipairs(rets) do
 			if r.mainret then assert(not ret, 'Multiple mainrets!'); ret = r end
@@ -117,14 +130,20 @@ function callit(ty, na, opt)
 			end
 		end
 		if ty.__call.nomainret then ret = nil end
+
+		-- Add the leftover returns as arguments
 		for _,r in ipairs(rets) do if r ~= ret then
 			local inarr = r.type.__index and r.type.__index[1].name == '__sequence'
-			if inarr then
-				as[#as+1] = callit(r.lentype or {__raw={C='size_t'}},
-					'*'..(r.name and r.name..'_cnt' or ''), {ret=true})
+			local lname = '#'..r.name
+			if inarr or raws[lname] then
+				local lentype = {__raw={C='size_t'}}
+				if raws[lname] and raws[lname].type then lentype = raws[lname].type end
+				as[#as+1] = callit(lentype, '*'..(r.name and r.name..'_cnt' or ''), {ret=true})
 			end
 			as[#as+1] = callit(r.type, (inarr and '' or '*')..(r.name or ''), {ret=true})
 		end end
+
+		-- The final result
 		ret = ret and ret.type or {__raw={C='void'}}
 		if opt and opt.proto then
 			return callit(ret, (na or '')..'('..table.concat(as,', ')..')')

@@ -100,45 +100,6 @@ for _,v in pairs(vk) do if v.__enum and not v.__mask and not handled[v.__enum] t
 	end
 end end
 
--- Process the _lens and _values of accessable structures.
-for _,v in pairs(vk) do if (v.__index or v.__call) and not handled[v] then
-	handled[v] = true
-
-	local names,raws,eptr = {},{},{}
-	for _,re in ipairs(v.__raw and (v.__raw.index or v.__raw.call) or {}) do
-		raws[re.name] = re
-	end
-	for _,e in ipairs(v.__index or v.__call) do
-		names[e.name] = e
-		if e._len then
-			local r,x = human.length(e, v, '#'..e.name, v.__index or v.__call)
-			if r then
-				local n = names[r]
-				n.canbenil = true
-				raws[r].value = nil
-				raws[r].values = raws[r].values or {}
-				table.insert(raws[r].values, x)
-			end
-		end
-		if e._value then
-			assert(enumnames[e._value], 'Unknown value: '..e._value)
-			raws[e.name].C = enumnames[e._value]
-			e._value = nil
-		end
-		if e._extraptr then eptr[e.name],e._extraptr = true,nil end
-	end
-	for _,re in ipairs(v.__raw and (v.__raw.index or v.__raw.call) or {}) do
-		if eptr[re.name] then re.extraptr = true end
-	end
-end end
-
--- Vulkan structures that have an sType field are always dereferenced. Make it so.
-for _,v in pairs(vk) do
-	if v.__index and v.__raw and v.__index then
-		v.__raw.dereference = true
-	end
-end
-
 -- Process the commands. There's a lot to do.
 local wrappers,wrapped,moveto = {},{},{}
 for c,rmc in rpairs(vk.Vk.__index) do
@@ -163,6 +124,7 @@ for c,rmc in rpairs(vk.Vk.__index) do
 				}
 				vk[rawself.__name:gsub('^Vk', '')] = wrappers[rawself]
 				wrapped[wrappers[rawself]] = rawself
+				handled[wrappers[rawself]] = true
 			end
 			-- Move the command to its rightful owner or "self"
 			moveto[c.name] = wrappers[rawself]
@@ -193,14 +155,14 @@ for c,rmc in rpairs(vk.Vk.__index) do
 			-- Some fields merely indicate the length of others. Mark them as such.
 			if e._len then
 				local r,x = human.length(e, c.type, '#'..e.name, c.type.__call)
-				if r and raws[r] then
+				if r and raws[r] and (not e.ret or names[r]._extraptr) then
 					raws[r].value = nil	-- It'll just be r at this point
 					raws[r].values = raws[r].values or {}
 					table.insert(raws[r].values, x)
-					e.lentype = names[r].type
-					local re = names[r]
-					re._islen = true
+					raws[r].type = names[r].type
+					names[r]._islen = true
 				end
+				e._len = nil
 			end
 
 			-- If there's an argument that's been wrapped, replace it.
@@ -211,10 +173,8 @@ for c,rmc in rpairs(vk.Vk.__index) do
 
 		-- Some fields are marked as lengths. Now we merge them for Lua.
 		for e,rme in rpairs(c.type.__call) do
-			if e._islen then
-				e._islen = nil
-				rme()
-			end
+			e._islen = e._islen and rme()
+			e._extraptr = nil
 		end
 	end
 end
@@ -234,6 +194,56 @@ for rs,w in pairs(wrappers) do
 	w.__index[2].type = assert(vk[par or 'Vk'], 'No wrapper for '..(par or 'nil'))
 	rs._parent = nil
 	rs.__name = 'opaque handle/'..rs.__name
+end
+
+-- Process the _lens and _values of accessable structures.
+for _,v in pairs(vk) do if (v.__index or v.__call) and not handled[v] then
+	handled[v] = true
+	local es,rs = v.__index or v.__call,
+		v.__raw and (v.__raw.index or v.__raw.call) or {}
+
+	-- Gather some reference links
+	local names, raws = {}, {}
+	for _,e in ipairs(es) do names[e.name] = e end
+	for _,re in ipairs(rs) do raws[re.name] = re end
+
+	for _,e in ipairs(es) do
+		-- Connect the length fields, for merging
+		if e._len then
+			local r,x = human.length(e, v, '#'..e.name, v.__index or v.__call)
+			if r then
+				raws[r].value = nil	-- By here, it'll just be r
+				raws[r].values = raws[r].values or {}
+				table.insert(raws[r].values, x)
+				raws[r].type = names[r].type
+				names[r]._islen = true
+			end
+			e._len = nil
+		end
+
+		-- Handle fields that have a defined value
+		if e._value then
+			assert(enumnames[e._value], 'Unknown value: '..e._value)
+			raws[e.name].C = enumnames[e._value]
+			e._value = nil
+		end
+
+		-- Replace fields that have already been wrapped
+		if wrappers[e.type] then
+			raws[e.name], e.type = e.name..'.real', wrappers[e.type]
+		end
+		e._extraptr = nil
+	end
+
+	-- Merge the length fields for Lua
+	for e,rme in rpairs(es) do e._islen = e._islen and rme() end
+end end
+
+-- Almost all Vulkan structures are dereferenced to allow for expandability.
+for _,v in pairs(vk) do
+	if v.__index and v.__raw and v.__index then
+		v.__raw.dereference = true
+	end
 end
 
 -- All set, let's do this!
