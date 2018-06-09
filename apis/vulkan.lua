@@ -19,6 +19,12 @@ local vk = require 'vulkan-raw'
 local human = require 'vulkan-human'
 
 vk.version = {__raw={C='uint32_t'}, __name="'M.m.p'"}
+vk.__index = {
+	callable{'createVk', version='0.1.0',
+		{'vulkan', vk.Vk, canbenil=true, ret=true},
+		{'error', 'string', canbenil=true, ret=true}
+	}
+}
 
 -- Helper for for-loop accumulations, since I'm tired of typing it again
 local function acc(...)
@@ -193,6 +199,10 @@ for rs,w in pairs(wrappers) do
 	if par then assert(wrapped[vk[par]], "vk."..par.." isn't a wrapper!") end
 	w.__index[2].type = assert(vk[par or 'Vk'], 'No wrapper for '..(par or 'nil'))
 	rs._parent = nil
+	table.insert(vk[par or 'Vk'].__index, method{'wrap'..rs.__name, version='0.1.0',
+		{'internal', rs},
+		{'wrapped', w, ret=true}
+	})
 	rs.__name = 'opaque handle/'..rs.__name
 end
 

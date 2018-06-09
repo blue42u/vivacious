@@ -55,7 +55,7 @@ local function exptoC(ex, env, opt, raw)
 				local ty = m[p]
 				isptr,m = {},{}
 				for _,e in ipairs(ty.__index or {}) do if not e.aliasof then
-					isptr[e.name],m[e.name] = callit(e.type, ''):find '%*', e.type
+					isptr[e.name],m[e.name] = callit(e.type, '', {noself=true}):find '%*', e.type
 				end end
 			end
 			table.remove(new)
@@ -87,7 +87,9 @@ function callit(ty, na, opt)
 
 		-- Add in the nessesary self or udata argument
 		if not opt or not opt.noself then
-			if ty.__call.method then table.insert(as, callit(opt.self, 'self'))
+			if ty.__call.method then
+				assert(opt and opt.self, "No available self for method!")
+				table.insert(as, callit(opt.self, 'self'))
 			else table.insert(as, callit('lightuserdata', 'udata')) end
 		end
 
@@ -120,11 +122,8 @@ function callit(ty, na, opt)
 		for _,r in ipairs(rets) do
 			if r.mainret then assert(not ret, 'Multiple mainrets!'); ret = r end
 		end
-		if not ret then	-- If there are no mainret's, then try one that can't be nil
-			local nrets = {}
-			for _,r in ipairs(rets) do if not r.canbenil then table.insert(nrets, r) end end
-			if #nrets > 0 then ret = nrets[1]
-			else ret = rets[1] end	-- Just take the first one
+		if not ret then	-- If there are no mainret's, then just use the first one
+			ret = rets[1]
 			if ret and ret.type.__index and ret.type.__index[1].name == '__sequence' then
 				ret = nil	-- Arrays aren't returned that way
 			end
@@ -269,7 +268,7 @@ gen.traversal.df(spec, function(ty)
 		f:write '\n'
 		if ty.__index then
 			for _,e in ipairs(ty.__index) do
-				f:write(callit(e.type, 'vV'..e.name, {proto=true})..';\n')
+				f:write(callit(e.type, 'vV'..e.name, {proto=true, noself=true})..';\n')
 			end
 		end
 	end
