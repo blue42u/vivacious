@@ -126,7 +126,9 @@ for c,rmc in rpairs(vk.Vk.__index) do
 			if not wrappers[rawself] then	-- Make the wrapper if it doesn't exist yet
 				wrappers[rawself] = {
 					__name = rawself.__name,
-					__index = {{name='real', type=rawself}, {name='parent'}},
+					__index = {{name='real', type=rawself}, {name='parent'},
+						method{'destroy', version='0.1.0'}
+					},
 				}
 				vk[rawself.__name:gsub('^Vk', '')] = wrappers[rawself]
 				wrapped[wrappers[rawself]] = rawself
