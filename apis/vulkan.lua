@@ -18,14 +18,6 @@
 local vk = require 'vulkan-raw'
 local human = require 'vulkan-human'
 
-vk.version = {__raw={C='uint32_t'}, __name="'M.m.p'"}
-vk.__index = {
-	callable{'createVk', version='0.1.0',
-		{'vulkan', vk.Vk, canbenil=true, ret=true},
-		{'error', 'string', canbenil=true, ret=true}
-	}
-}
-
 -- Helper for for-loop accumulations, since I'm tired of typing it again
 local function acc(...)
  local r = {}
@@ -257,6 +249,16 @@ for _,v in pairs(vk) do
 		v.__raw.dereference = true
 	end
 end
+
+-- Last handy things
+vk.version = {__raw={C='uint32_t'}, __name="'M.m.p'"}
+vk.__index = {
+	callable{'createVk', version='0.1.0',
+		{'vulkan', vk.Vk, canbenil=true, ret=true},
+		{'error', 'string', canbenil=true, ret=true}
+	}
+}
+table.insert(vk.Vk.__index, method{'destroy', version='0.1.0'})
 
 -- All set, let's do this!
 if humanerror then error 'VkHuman error detected!' end

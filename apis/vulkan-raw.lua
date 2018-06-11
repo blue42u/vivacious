@@ -130,6 +130,9 @@ end
 vkraw.ANativeWindow = {__name='ANativeWindow', __raw={C='struct ANativeWindow'}}
 vkraw.AHardwareBuffer = {__name='AHardwareBuffer', __raw={C='struct AHardwareBuffer'}}
 
+vkraw.Display.__raw.dereference = true
+vkraw.xcb_connection_t.__raw.dereference = true
+
 -- A handful of types should only appear as pointers, so the *'s are integrated.
 for k,v in pairs{
 	void='lightuserdata', char='string',

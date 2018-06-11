@@ -194,7 +194,7 @@ gen.traversal.df(spec, function(ty)
 				local ifdef,ifndef
 				if e.type.__ifdef then
 					local ss = {}
-					for _,s in ipairs(e.type.__ifdef) do ss[#ss+1] = 'defined('..s..')' end
+					for i,s in ipairs(e.type.__ifdef) do ss[i] = 'defined('..s..')' end
 					ifdef = table.concat(ss, ' && ')
 					ifndef = assert(e.type.__ifndef, "Type with __ifdef but not __ifndef")
 				end
@@ -257,7 +257,8 @@ gen.traversal.df(spec, function(ty)
 				end
 
 				if ifdef then f:write('#if '..ifdef..'\n') end
-				f:write('static inline '..callit(e.type, e.name, {self=ty, proto=true, noraw=true})..' {\n')
+				f:write('static inline '..callit(e.type, 'vV'..e.name,
+					{self=ty, proto=true, noraw=true})..' {\n')
 				f:write('\treturn self->_M->'..e.name..'('..table.concat(args, ', ')..');\n')
 				f:write '}\n'
 				if ifdef then f:write '#endif\n' end

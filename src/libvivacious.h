@@ -17,15 +17,16 @@
 #ifndef H_libvivacious
 #define H_libvivacious
 
-#include <vivacious/vivacious.h>
+//#include <vivacious/vivacious.h>
+#include <vivacious/vulkan.h>
 #include "internal.h"
 
 #ifdef Vv_ENABLE_X
-VvAPI VvWindowManager libVv_createWindowManager_X();
+//VvAPI VvWindowManager libVv_createWindowManager_X();
 #endif
 
-VvAPI VvVk libVv_createVk_libdl();
+VvAPI VvVk* libVv_createVk_libdl(const char** err);
 
-VvAPI libVv_createVkInstanceCreator_test();
+//VvAPI libVv_createVkInstanceCreator_test();
 
 #endif // H_libvivacious

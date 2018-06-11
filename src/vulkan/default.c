@@ -16,13 +16,13 @@
 
 #ifdef Vv_ENABLE_VULKAN
 
-#include <vivacious/vivacious.h>
+#include <vivacious/vulkan.h>
 #include "internal.h"
 
-VvVk libVv_createVk_libdl();
+VvVk* libVv_createVk_libdl(const char** err);
 
-VvAPI VvVk vVcreateVk() {
-	return libVv_createVk_libdl();
+VvAPI VvVk* vVcreateVk(const char** err) {
+	return libVv_createVk_libdl(err);
 }
 
 #endif

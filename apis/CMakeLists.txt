@@ -1,15 +1,9 @@
-gen(USE linter OUTDIR ${CMAKE_CURRENT_BINARY_DIR} SUFFIX .lint
-	SPECS vulkan vkinitializer
-	TARGET lint)
+gen(USE core/linter SUFFIX .lint SPECS vulkan vkinitializer TARGET lint ALL)
 
-gen(USE headerc OUTDIR ${CMAKE_BINARY_DIR}/include/vivacious SUFFIX .h
+gen(USE core/headerc OUTDIR ${CMAKE_BINARY_DIR}/include/vivacious SUFFIX .h
 	SPECS vulkan vkinitializer
-	TARGET include)
+	TARGET include ALL)
 
-gen(USE docsmd OUTDIR ${CMAKE_BINARY_DIR}/docs SUFFIX .md
+gen(USE core/docsmd OUTDIR ${CMAKE_BINARY_DIR}/docs SUFFIX .md
 	SPECS vulkan vkinitializer
-	TARGET docs)
-
-include_directories(${CMAKE_BINARY_DIR}/include)
-add_definitions("-ferror-limit=1000")
-add_executable(inctest test.c)
+	TARGET docs ALL)
