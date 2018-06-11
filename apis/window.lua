@@ -14,94 +14,71 @@
    limitations under the License.
 --]========================================================================]
 
-local std = require 'standard'
-local wi = {api=std.precompound{
-	shortname = 'Wi',
-	longname = 'Window System',
-	doc = "A common interface to the OS's windowing system.",
-}}
+vk = require 'vulkan'
+vki = require 'vkinitializer'
 
-wi.EventMask = std.bitmask{
-	doc="A bitmask for event types",
-	v0_1_1 = {
-		'MOUSE_PRESS', 'MOUSE_RELEASE', 'MOUSE_MOVED',
-		'KEY_PRESS', 'KEY_RELEASE',
-	},
+WindowManager = {doc = [[
+	A connection to the system's window manager, which provides a place to render
+	things onto the screen. In particular, creates Surfaces.
+]]}
+
+WindowManager.type.Events = flags{
+	doc = "A selection of Events that the user can input to a Window",
+	{'mouse_press', 'm'},
+	{'mouse_release', 'M'},
+	{'mouse_moved', 'X'},
+	{'key_press', 'k'},
+	{'key_release', 'K'},
 }
 
-wi.Connection = std.handle{doc='A connection to the window manager'}
+WindowManager.Window = {doc = [[
+	A Window managed by this WindowManager. Can recieve events, and contains a
+	single Surface.
+]]}
 
-wi.api.v0_1_1.connect = std.func{
-	doc = "Connect to the system's window manager",
-	returns = wi.Connection,
+WindowManager.v0_1_1.newWindow = {
+	doc = "Create a new window. May not be visible until `show` is called.",
+	returns = {WindowManager.Window},
+	{'extent', vk.Vk.Extent2D},
+	{'allowedEvents', WindowManager.Events},
 }
 
-wi.api.v0_1_1.disconnect = std.method{
-	doc = "Disconnect from the window manager",
-	wi.Connection,
+WindowManager.Window.v0_1_1.show = {
+	doc = "Ensure this Window is actually rendering on the screen.",
 }
 
-wi.Window = std.handle{doc='A single window on the screen... maybe.'}
-
-wi.api.v0_1_1.createWindow = std.method{
-	doc = "Create a new window for the screen, may not be visible.",
-	returns = wi.Window,
-	wi.Connection,
-	{std.integer, 'width'}, {std.integer, 'height'},
-	{wi.EventMask, 'events'},
+WindowManager.Window.v0_1_1.setTitle = {
+	doc = "Set the Window's title, which usually appears up top somewhere.",
+	{'title', string},
 }
 
-wi.api.v0_1_1.destroyWindow = std.method{
-	doc = "Destroy a window, removing it from the screen",
-	wi.Window
+WindowManager.Window.v0_1_1.setFullscreen = {
+	doc = "Enable (or disable) a Window's fullscreen state.",
+	{'enabled', boolean},
 }
 
-wi.api.v0_1_1.showWindow = std.method{
-	doc = "Make a window visible on the screen, if it wasn't visible already",
-	wi.Window,
+WindowManager.Window.v0_1_1.setSize = {
+	doc = "Set the size (in pixels) of a Window.",
+	{'extent', vk.Vk.Extent2D},
 }
 
-wi.api.v0_1_1.setTitle = std.method{
-	doc = "Set a window's reported title for the window manager",
-	wi.Window,
-	{std.string, 'title'},
+WindowManager.Window.v0_1_1.getSize = {
+	doc = "Get the size of this Window (in pixels).",
+	returns = {vk.Vk.Extent2D},
 }
 
-wi.api.v0_1_1.setFullscreen = std.method{
-	doc = "Enable (or disable) a window's fullscreen properties",
-	wi.Window, {std.boolean, 'enabled'},
+WindowManager.v0_1_1.getSize = {
+	doc = "Get the size of the entire screen. Useful for real estate guesstimations.",
+	returns = {vk.Vk.Extent2D},
 }
 
-wi.api.v0_1_1.setWindowSize = std.method{
-	doc = "Set the pixel size of a window",
-	wi.Window, std.array{std.integer, size=2},
+WindowManager.Window.v0_1_1.createVkSurface = {
+	doc = "Create a Surface that can access this Window, or fail trying.",
+	returns = {vk.Instance.SurfaceKHR, vk.Vk.Result},
+	{'instance', vk.Instance},
 }
 
-wi.api.v0_1_1.getWindowSize = std.method{
-	doc = "Obtain the current size of a window",
-	returns = std.array{std.integer, size=2},
-	wi.Window,
+WindowManager.v0_1_2.getInstanceInfo = {
+	doc = "Obtain the VkInstanceCreatorInfo that needs to be applied to use this Manager.",
+	returns = {vki.VkInstanceCreator.Info},
 }
-
-wi.api.v0_1_1.getScreenSize = std.method{
-	doc = "Obtain the current size of the screen",
-	returns = std.array{std.integer, size=2},
-	wi.Connection,
-}
-
-wi.api.v0_1_1.createVkSurface = std.method{
-	doc = "Create a VkSurface based on a window. Returns a VkResult.",
-	returns = std.integer,
-	wi.Window,
-	{std.udata, 'inst'},
-	{std.udata, 'pSurf'},
-}
-
-wi.api.v0_1_2.getVkExtension = std.method{
-	doc = "Get the Instance extension needed to use a certain Connection.",
-	returns = std.string,
-	wi.Connection,
-}
-
-wi.api = std.compound(wi.api)
-return wi

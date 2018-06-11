@@ -14,15 +14,157 @@
    limitations under the License.
 ***************************************************************************/
 
-#ifdef Vv_ENABLE_VULKAN
-
-#define Vv_CHOICE *V
-#define Vv_IMP_vkb
-
-#include <vivacious/vkbplate.h>
+#include <vivacious/vkinitializer.h>
 #include "internal.h"
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
+
+struct VvVkInstanceCreator {
+	struct VvVkInstanceCreator_P _P;
+	VkInstanceCreateInfo ici;
+	VkApplicationInfo ai;
+	char** lays;
+	char** exts;
+	char* name;
+};
+
+static const struct VvVkInstanceCreator_M VvVkInstanceCreator_IMPM;
+
+static const char* enginename = "Vivacious";
+static VvVkInstanceCreator libVv_createVkInstanceCreator_test(VvVk vk) {
+	VvVkInstanceCreator_R self_R = malloc(sizeof(struct VvVkInstanceCreator));
+	self_R->_P._M = &VvVkInstanceCreator_IMPM;
+	self_R->_P.vk = vk;
+
+	self_R->ici = VkInstanceCreateInfo_V(
+		.pApplicationInfo = &self_R->ai,
+	);
+	self_R->ai = VkApplicationInfo_V(
+		.pEngineName = enginename,
+		.engineVersion = VK_MAKE_VERSION(Vv_VERSION_MAJOR, Vv_VERSION_MINOR, Vv_VERSION_PATCH),
+		.apiVersion = VK_MAKE_VERSION(1,0,0),
+	);
+
+	return (VvVkInstanceCreator)self_R;
+}
+
+static VvVkInstanceCreator_destroy_IMP
+	vVreset(self);
+	free(self_R);
+}
+
+static VvVkInstanceCreator_reset_IMP
+	// Free the strdup'd memory and string arrays
+	for(int i=0; i<self_R->ici.enabledLayerCount; i++) free(self_R->lays[i]);
+	free(self_R->lays);
+	self_R->lays = NULL;
+
+	for(int i=0; i<self_R->ici.enabledExtensionCount; i++) free(self_R->exts[i]);
+	free(self_R->exts);
+	self_R->exts = NULL;
+
+	free(name);
+	self_R->name = NULL;
+
+	// Clear all the values in the creator at the mo
+	self_R->ici.enabledLayerCount = 0;
+	self_R->ici.ppEnabledLayerNames = NULL;
+	self_R->ici.enabledExtensionCount = 0;
+	self_R->ici.ppEnabledExtensionNames = NULL;
+	self_R->ai.pApplicationName = NULL;
+	self_R->ai.applicationVersion = 0;
+}
+
+static VvVkInstanceCreator_append_IMP
+	VkResult r;
+
+	// Get the list of layers
+	uint32_t cnt;
+	r = vVvkEnumerateInstanceLayerProperties(self_R->_P.vk, &cnt, NULL);
+	if(r < 0) return r;
+	VkLayerProperties* lps = malloc(cnt*sizeof(VkLayerProperties));
+	r = vVvkEnumerateInstanceLayerProperties(self_R->_P.vk, &cnt, lps);
+	if(r < 0) return r;
+
+	// Check that each of the requested layers actually exists
+	for(int i=0; i<info.layersCnt; i++) {
+		bool found = false;
+		for(int j=0; j<cnt; j++)
+			if(strcmp(info.layers[i], lps[j].layerName) == 0) {
+				found = true;
+				break;
+			}
+		if(!found) {
+			free(lps);
+			return VK_ERROR_LAYER_NOT_PRESENT;
+		}
+	}
+	free(lps);
+
+	// We need to check the extensions too, but they are more distributed.
+	bool accessable[info.extensionsCnt];
+	for(int i=0; i<info.extensionsCnt; i++) accessable[i] = false;
+
+	// First check off the ones from core Vulkan
+	r = vVvkEnumerateInstanceExtensionProperties(self_R->_P.vk, NULL, &cnt, NULL);
+	if(r < 0) return r;
+	VkExtensionProperties* eps = malloc(cnt*sizeof(VkExtensionProperties));
+	r = vVvkEnumerateInstanceExtensionProperties(self_R->_P.vk, NULL, &cnt, eps);
+	if(r < 0) return r;
+	for(int i=0; i<cnt; i++)
+		for(int j=0; j<info.extensionsCnt; j++)
+			if(strcmp(info.extensions[j], eps[i].extensionName) == 0)
+				accessable[j] = true;
+	free(eps);
+
+	// Then check off the ones from each of the requested layers
+	for(int l=0; l<info.layersCnt; l++) {
+		r = vVvkEnumerateInstanceExtensionProperties(self_R->_P.vk, info.layers[l], &cnt, NULL);
+		if(r < 0) return r;
+		eps = malloc(cnt*sizeof(VkExtensionProperties));
+		r = vVvkEnumerateInstanceExtensionProperties(self_R->_P.vk, info.layers[l], &cnt, eps);
+		if(r < 0) return r;
+		for(int i=0; i<cnt; i++)
+			for(int j=0; j<info.extensionsCnt; j++)
+				if(strcmp(info.extensions[j], eps[i].extensionName) == 0)
+					accessable[j] = true;
+		free(eps);
+	}
+
+	// Check for them
+	for(int i=0; i<info.extensionsCnt; i++)
+		if(!accessable[i]) return VK_ERROR_EXTENSION_NOT_PRESENT;
+
+	// All good, copy the data in.
+	if(info.name) self_R->ai.pApplicationName = self_R->name = strdup(info.name);
+	if(info.version) self_R->ai.applicationVersion = info.version;
+	if(info.vkversion > self_R->ai.apiVersion) self_R->ai.apiVersion = info.vkversion;
+
+	self_R->lays = realloc(self_R->lays,
+		(info.layersCnt+self_R->ici.enabledLayerCount)*sizeof(char*));
+	self_R->ici.ppEnabledLayerNames = (const char* const*)self_R->lays;
+	for(int i=0; i<info.layersCnt; i++)
+		self_R->lays[self_R->ici.enabledLayerCount+i] = strdup(info.layers[i]);
+	self_R->ici.enabledLayerCount += info.layersCnt;
+
+	self_R->exts = realloc(self_R->exts,
+		(info.extensionsCnt+self_R->ici.enabledExtensionCount)*sizeof(char*));
+	self_R->ici.ppEnabledExtensionNames = (const char* const*)self_R->exts;
+	for(int i=0; i<info.extensionsCnt; i++)
+		self_R->exts[self_R->ici.enabledExtensionCount+i] = strdup(info.extensions[i]);
+	self_R->ici.enabledExtensionCount += info.extensionsCnt;
+
+	return VK_SUCCESS;
+}
+
+static VvVkInstanceCreator_create_IMP
+	VkInstance inst;
+	VkResult r = vVvkCreateInstance(self_R->_P.vk, &self_R->ici, NULL, &inst);
+	if(ret1) *ret1 = r;
+	if(r < 0) return NULL;
+	return 
+}
 
 static VkResult createInst(const Vv* V, VvVkB_InstInfo* ii,
 	VkInstance* inst) {
@@ -292,5 +434,3 @@ const VvVkB libVv_vkb_test = {
 	.createDevice = createDev,
 	.createSwapchain = createSc,
 };
-
-#endif // Vv_ENABLE_VULKAN

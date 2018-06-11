@@ -14,39 +14,18 @@
    limitations under the License.
 --]========================================================================]
 
-local vulk = dofile'../external/vulkan.lua'
+require 'apis.core.generation'
 
-io.output(arg[1])
-local function out(s, ...) io.write(s:format(...)..'\n') end
-local function rout(s) io.write(s..'\n') end
+-- Nab the arguments
+local specname,outdir = ...
+assert(specname == 'vulkan', "This generator only works for Vulkan!")
+local f = assert(io.open(outdir..package.config:match'^(.-)\n'..'vulkan.c', 'w'))
+local vk = require 'apis.vulkan'
+vk.__spec = 'vulkan'
 
-local function setcmds(lvl, patt)
-	local test
-	if lvl >= 0 then function test(t) return t == lvl end
-	else function test(t) return -lvl < t end end
-	for n,v in pairs(vulk.cmdsets) do
-		local id = n:match'%d+%.%d+' and 'core' or n:match'VK_(.+)'
-		local con = n:match'%d+%.%d+'
-			and ('VK_VERSION_%d_%d'):format(n:match'(%d+)%.(%d+)')
-			or n
-		local anyhere = false
-		for _,c in ipairs(v) do if test(vulk.cmdlevels[c]) then
-			if not anyhere then
-				anyhere = true
-				out('#ifdef %s', con)
-			end
-			out('\t\tf = '..patt:gsub('`', c)..';')
-			out('\t\tcmdsets.%s->%s = f ? (PFN_vk%s)f : cmdsets.%s->%s;',
-				id, c, c, id, c)
-		end end
-		if anyhere then out('#endif') end
-	end
-end
-
-out[[
-// WARNING: Generated file. Do not edit manually.
-
-#ifdef Vv_ENABLE_VULKAN
+-- Write out the main header
+f:write[[
+// Generated file, do not edit directly, edit src/vulkan/libdl.lua
 
 #ifdef Vv_ENABLE_X
 #define VK_USE_PLATFORM_XLIB_KHR
@@ -68,86 +47,180 @@ out[[
 #include "cpdl.h"
 #include <stdlib.h>
 
-struct Internal {
-	void* libvk;
-	VvVk_Core core;]]
-for n in pairs(vulk.cmdsets) do if not n:match'%d+%.%d+' then
-	n = n:match'VK_(.+)'
-	out([[
-#ifdef VK_%s
-	VvVk_%s %s;
-#endif]], n,n,n)
+]]
+
+-- A simple unordered for loop
+local function foreach(from, func)
+	local todo = {}
+	from(todo)
+	while next(todo) ~= nil do
+		local didit = false
+		for k,v in pairs(todo) do
+			if func(k,v) then
+				didit = true
+				todo[k] = nil
+			end
+		end
+		if not didit then
+			for k,v in pairs(todo) do print('>', k, v) end
+			error "Cannot complete this foreach!"
+		end
+	end
+end
+
+-- Figure out which wrapper goes where using the parent links
+local level = {[vk.Vk]='init', [vk.Instance]='instance', [vk.Device]='device'}
+local parents = {}
+foreach(function(t)
+	for _,v in pairs(vk) do
+		if v.__index and not v.__raw and not level[v] then t[v] = true end
+	end
+end, function(t)
+	assert(t.__index[2] and t.__index[2].name == 'parent', "No parent for "..tostring(t.__name))
+	parents[t] = t.__index[2].type
+	if level[parents[t]] then
+		level[t] = level[parents[t]]
+		return true
+	end
+end)
+
+-- Write out the PFN structures
+for _,ll in ipairs{'init', 'instance', 'device'} do
+	f:write('struct '..ll..'_M {\n')
+	for t,l in pairs(level) do if l == ll then
+		f:write('\tstruct Vv'..t.__name..'_M '..t.__name:lower()..';\n')
+	end end
+	f:write '};\n'
+end
+f:write '\n'
+
+-- Map out the commands in terms of owner and aliases
+local cmds,allcmds = {},{}
+for t in pairs(level) do
+	foreach(function(todo)
+		for _,e in ipairs(t.__index) do
+			if e.aliasof then todo[e] = true elseif e.type.__call then
+				cmds[e.name] = {owner=t, ifdef = e.type.__ifdef}
+				allcmds[e.name] = cmds[e.name]
+				if not e.type.__raw then
+					cmds[e.name].here = e.name..(e.name == 'destroy' and t.__name or '')
+				end
+			end
+		end
+	end, function(e)
+		if allcmds[e.aliasof] then
+			table.insert(allcmds[e.aliasof], e.name)
+			allcmds[e.name] = allcmds[e.aliasof]
+			return true
+		end
+	end)
+end
+cmds.destroy = nil
+
+-- Forward declare all the functions we will have here
+for t in pairs(level) do
+	f:write('static void destroy'..t.__name..'(Vv'..t.__name..'*);\n')
+	local p = t.__index[2] and t.__index[2].name == 'parent' and t.__index[2].type.__name
+	if p then
+		f:write('static Vv'..t.__name..'* wrap'..t.__name..'(Vv'..p..'*, '..t.__name..');\n')
+	end
+end
+f:write '\n'
+
+-- Write out the _I structs and destructors for the three: Vk, Instance and Device
+for _,t in ipairs{vk.Vk, vk.Instance, vk.Device} do
+	local l,n = level[t], t.__name
+	f:write('struct '..l..'_I { Vv'..n..' ext; struct '..l..'_M pfn; ')
+	if t == vk.Vk then
+		f:write('PFN_vkGetInstanceProcAddr gipa; void* libvk; ')
+	end
+	f:write('};\n')
+	f:write('static void destroy'..n..'(Vv'..n..'* ext) {\n')
+	if t == vk.Vk then
+		f:write('\t_vVclosedl(((struct init_I*)ext)->libvk);\n')
+	end
+	f:write('\tfree(ext);\n')
+	f:write '}\n\n'
+end
+
+-- Write out the destructors and wrappers for the others
+for t,l in pairs(level) do if parents[t] then
+	local n = t.__name
+	local pcnt = 0
+	do
+		local x = t
+		while parents[x] do pcnt, x = pcnt + 1, parents[x] end
+	end
+	f:write('static void destroy'..n..'(Vv'..n..'* self) {\n')
+	f:write '\tfree(self);\n}\n'
+	f:write('static Vv'..n..'* wrap'..n..'(Vv'..parents[t].__name..'* par, '..n..' real) {\n')
+	f:write('\tVv'..n..'* self = malloc(sizeof(Vv'..n..'));\n')
+	f:write('\tself->real = real, self->parent = par;\n')
+	f:write('\tstruct '..l..'_I* l = (struct '..l..'_I*)self'..('->parent'):rep(pcnt)..';\n')
+	f:write('\tself->_M = &l->pfn.'..n:lower()..';\n')
+	f:write '\treturn self;\n}\n\n'
 end end
-out[[
-};
 
-static VvVk_CmdSets cmdsets;
+-- Common code...
+local function dopfn(thislevel, exp)
+	for t,l in pairs(level) do if l == thislevel then
+		f:write('self->pfn.'..t.__name:lower()..'.destroy = destroy'..t.__name..';\n')
+	end end
+	for cn,c in pairs(cmds) do if level[c.owner] == thislevel then
+		local ref = 'self->pfn.'..c.owner.__name:lower()..'.'..cn
+		if c.here then f:write('\t'..ref..' = '..c.here..';\n') else
+			if c.ifdef then
+				local parts = {}
+				for i,s in ipairs(c.ifdef) do parts[i] = '!defined('..s..')' end
+				f:write('#if '..table.concat(parts, ' || ')..'\n')
+				f:write('#define PFN_'..cn..' PFN_vkVoidFunction\n')
+				for _,n in ipairs(c) do f:write('#define PFN_'..n..' PFN_vkVoidFunction\n') end
+				f:write('#endif\n')
+			end
+			f:write('\t'..ref..' = (PFN_'..cn..')'..exp:gsub('`', cn)..';\n')
+			for _,n in ipairs(c) do
+				f:write('\tif(!'..ref..')\n')
+				f:write('\t\t'..ref..' = (PFN_'..n..')'..exp:gsub('`', n)..';\n')
+			end
+		end
+	end end
+end
 
-static void load(const Vv* V) {
-	struct Internal* I = malloc(sizeof(struct Internal));
-	I->libvk = _vVopendl("libvulkan.so","libvulkan.dynlib","vulkan-1.dll");
-	if(!I->libvk) {
-		free(I);
-		return;
-	}
-
-	I->core.GetInstanceProcAddr = _vVsymdl(I->libvk,
-		"vkGetInstanceProcAddr");
-	if(!I->core.GetInstanceProcAddr) {
-		_vVclosedl(I->libvk);
-		free(I);
-		return;
-	}
-
-	cmdsets = VvVk_CmdSets(
-		.core = &I->core, .internal = I,]]
-for n in pairs(vulk.cmdsets) do if not n:match'%d+%.%d+' then
-	n = n:match'VK_(.+)'
-	out([[
-#ifdef VK_%s
-	.%s = &I->%s,
-#else
-	.%s = NULL,
-#endif]], n, n, n, n)
-end end
-rout[[
-	);
-
-	PFN_vkVoidFunction f;
+-- Write out the wrappers and create for the three, starting with Device
+f:write [[
+static VvVkDevice* wrapVkDevice(VvVkPhysicalDevice* par, VkDevice real) {
+	struct device_I* self = malloc(sizeof(struct device_I));
+	self->ext.real = real, self->ext.parent = par, self->ext._M = &self->pfn.vkdevice;
+	self->pfn.vkdevice.vkGetDeviceProcAddr = (PFN_vkGetDeviceProcAddr)
+		vVvkGetInstanceProcAddr(par->parent, "vkGetDeviceProcAddr");
 ]]
-setcmds(0, 'I->core.GetInstanceProcAddr(NULL, "vk`")')
-out[[
+dopfn('device', 'vVvkGetDeviceProcAddr(&self->ext, "`")')
+f:write [[
+	return &self->ext;
 }
 
-static void loadInst(const Vv* V, VkInstance inst, int all) {
-	PFN_vkVoidFunction f;
+static VvVkInstance* wrapVkInstance(VvVk* par, VkInstance real) {
+	struct instance_I* self = malloc(sizeof(struct instance_I));
+	self->ext.real = real, self->ext.parent = par, self->ext._M = &self->pfn.vkinstance;
+	self->pfn.vkinstance.vkGetInstanceProcAddr = ((struct init_I*)par)->gipa;
 ]]
-setcmds(1, 'cmdsets.core->GetInstanceProcAddr(inst, "vk`")')
-out'\n\tif(!all) return;\n'
-setcmds(-1, 'cmdsets.core->GetInstanceProcAddr(inst, "vk`")')
-out[[
+dopfn('instance', 'vVvkGetInstanceProcAddr(&self->ext, "`")')
+f:write [[
+	return &self->ext;
 }
 
-static void loadDev(const Vv* V, VkDevice dev, int all) {
-	PFN_vkVoidFunction f;
+static const char* ERR_OPEN = "Could not open vulkan loader!";
+static const char* ERR_GIPA = "Loader library does not have vkGetInstanceProcAddr!";
+VvAPI VvVk* libVv_createVk_libdl(const char** err) {
+	struct init_I* self = malloc(sizeof(struct init_I));
+	self->libvk = _vVopendl("vulkan.so", "vulkan.dynlib", "vulkan-1.dll");
+	if(!self->libvk) { *err = ERR_OPEN; return NULL; }
+	self->gipa = _vVsymdl(self->libvk, "vkGetInstanceProcAddr");
+	self->ext._M = &self->pfn.vk;
 ]]
-setcmds(2, 'cmdsets.core->GetDeviceProcAddr(dev, "vk`")')
-out'\n\tif(!all) return;\n'
-setcmds(-2, 'cmdsets.core->GetDeviceProcAddr(dev, "vk`")')
-rout[[
+dopfn('init', 'self->gipa(NULL, "`")')
+f:write [[
+	return &self->ext;
 }
+]]
 
-static void unload(const Vv* V) {
-	struct Internal* I = cmdsets.internal;
-	_vVclosedl(I->libvk);
-	free(I);
-	cmdsets = VvVk_CmdSets();
-}
-
-const VvVk libVv_vk_libdl = {
-	.cmds = &cmdsets,
-	.load = load, .loadDev = loadDev, .loadInst = loadInst,
-	.unload = unload,
-};
-
-#endif // Vv_ENABLE_VULKAN]]

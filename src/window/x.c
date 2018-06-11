@@ -16,194 +16,178 @@
 
 #ifdef Vv_ENABLE_X
 
-#define Vv_CHOICE *V
-#define Vv_IMP_wi
-
+#define VK_USE_PLATFORM_XCB_KHR
 #include <vivacious/window.h>
 #include "internal.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 
-#ifdef Vv_ENABLE_VULKAN
-#define VK_USE_PLATFORM_XCB_KHR
-#define VK_USE_PLATFORM_XLIB_KHR
-#include <vivacious/vulkan.h>
-#endif
-
 #include "xcb.h"
 
-#ifndef Vv_vk_ENABLED
-#error Vv_IMP
-#endif
-
-struct VvWi_Connection {		// For us, VvStates have our data!
+struct VvWindowManager {
+	struct VvWindowManager_P _P;
 	xcb_connection_t* conn;		// Connection to the X server
 	xcb_screen_t* screen;		// Preferred Screen
 	xcb_ewmh_connection_t ewmh;	// Extended Window Manager Hints
 	Xcb xcb;			// libxcb data, with commands
-	// NOTE: When GL support is added, this needs to become hybrid Xlib/XCB
 };
+static const struct VvWindowManager_M VvWindowManager_IMPM;
 
-struct VvWi_Window {
-	VvWi_Connection* c;
+struct VvWindowManagerWindow {
+	struct VvWindowManagerWindow_P _P;
 	xcb_window_t id;	// The window's id
 };
+static const struct VvWindowManagerWindow_M VvWindowManagerWindow_IMPM;
 
-static VvWi_Connection* Connect(const Vv* V) {
-	VvWi_Connection* wc = malloc(sizeof(VvWi_Connection));
+VvWindowManager libVv_createWindowManager_X() {
+	VvWindowManager_R self = malloc(sizeof(struct VvWindowManager));
+	self->_P._M = &VvWindowManager_IMPM;
 
-	if(_vVlibxcb(&wc->xcb)) {
-		free(wc);
+	if(_vVlibxcb(&self->xcb)) {
+		free(self);
 		return NULL;
 	}
 
 	int screen;
-	wc->conn = wc->xcb.connect(NULL, &screen);
-	if(!wc->conn) {
-		free(wc);
+	self->conn = self->xcb.connect(NULL, &screen);
+	if(!self->conn) {
+		free(self);
 		return NULL;
 	}
 
-	xcb_screen_iterator_t sit = wc->xcb.setup_roots_iterator(
-		wc->xcb.get_setup(wc->conn));
-	for(int i=0; i<screen; i++) wc->xcb.screen_next(&sit);
-	wc->screen = sit.data;
-	// This one always works.
+	xcb_screen_iterator_t sit = self->xcb.setup_roots_iterator(
+		self->xcb.get_setup(self->conn));
+	for(int i=0; i<screen; i++) self->xcb.screen_next(&sit);
+	self->screen = sit.data;
 
-	if(wc->xcb.ewmh_init_atoms) {	// If we have EWMH support
+	if(self->xcb.ewmh_init_atoms) { // If we have EWMH support
 		xcb_intern_atom_cookie_t* cookie
-			= wc->xcb.ewmh_init_atoms(wc->conn, &wc->ewmh);
-		if(!wc->xcb.ewmh_init_atoms_replies(&wc->ewmh, cookie, NULL)) {
-			wc->xcb.disconnect(wc->conn);
-			free(wc);
+			= self->xcb.ewmh_init_atoms(self->conn, &self->ewmh);
+		if(!self->xcb.ewmh_init_atoms_replies(&self->ewmh, cookie, NULL)) {
+			self->xcb.disconnect(self->conn);
+			free(self);
 			return NULL;
 		}
 	}
 
-	return wc;
+	return (VvWindowManager)self;
 }
 
-static void Disconnect(const Vv* V, VvWi_Connection* wc) {
-	if(wc->xcb.ewmh_init_atoms) {	// If we have EWMH support
-		xcb_ewmh_connection_wipe(&wc->ewmh);
+static VvWindowManager_destroy_IMP
+	if(self_R->xcb.ewmh_init_atoms) {
+		xcb_ewmh_connection_wipe(&self_R->ewmh);
 	}
-	wc->xcb.disconnect(wc->conn);
-	_vVfreexcb(&wc->xcb);
-	free(wc);
+	self_R->xcb.disconnect(self_R->conn);
+	_vVfreexcb(&self_R->xcb);
+	free(self_R);
 }
 
-static VvWi_Window* CreateWindow(const Vv* V, VvWi_Connection* wc, int width, int height,
-	VvWi_EventMask mask) {
-	VvWi_Window* r = malloc(sizeof(VvWi_Window));
-	r->c = wc;
-	r->id = wc->xcb.generate_id(wc->conn);
-	wc->xcb.create_window(wc->conn, XCB_COPY_FROM_PARENT, r->id,
-		wc->screen->root, XCB_NONE, XCB_NONE,
-		width, height,
+static VvWindowManager_getSize_IMP
+	xcb_get_geometry_cookie_t cookie = self_R->xcb.get_geometry(
+		self_R->conn, self_R->screen->root);
+	xcb_get_geometry_reply_t* geom = self_R->xcb.get_geometry_reply(
+		self_R->conn, cookie, NULL);
+	VkExtent2D out = {0,0};
+	if(geom) {
+		out.width = geom->width;
+		out.height = geom->height;
+		free(geom);
+	}
+	return out;
+}
+
+static VvWindowManager_getInstanceInfo_IMP
+	return VvVkInstanceCreatorInfo_V(
+		Vv_ARRAY(extensions, (const char*[]){"VK_KHR_xcb_surface"}),
+	);;
+}
+
+static VvWindowManager_newWindow_IMP
+	VvWindowManagerWindow_R w = malloc(sizeof(struct VvWindowManagerWindow));
+	w->_P._M = &VvWindowManagerWindow_IMPM;
+	w->_P.windowmanager = self;
+
+	w->id = self_R->xcb.generate_id(self_R->conn);
+	self_R->xcb.create_window(self_R->conn, XCB_COPY_FROM_PARENT, w->id,
+		self_R->screen->root, XCB_NONE, XCB_NONE,
+		extent.width, extent.height,
 		10, XCB_WINDOW_CLASS_INPUT_OUTPUT,
-		wc->screen->root_visual,
+		self_R->screen->root_visual,
 		0, NULL);
-	wc->xcb.flush(wc->conn);
-	return r;
+	self_R->xcb.flush(self_R->conn);
+	return (VvWindowManagerWindow)w;
 }
 
-static void DestroyWindow(const Vv* V, VvWi_Window* w) {
-	w->c->xcb.destroy_window(w->c->conn, w->id);
-	w->c->xcb.flush(w->c->conn);
-	free(w);
+#define WM ((VvWindowManager_R)self->windowmanager)
+static VvWindowManagerWindow_destroy_IMP
+	WM->xcb.destroy_window(WM->conn, self_R->id);
+	WM->xcb.flush(WM->conn);
+	free(self_R);
 }
 
-static void ShowWindow(const Vv* V, VvWi_Window* w) {
-	w->c->xcb.map_window(w->c->conn, w->id);
-	w->c->xcb.flush(w->c->conn);
+static VvWindowManagerWindow_show_IMP
+	WM->xcb.map_window(WM->conn, self_R->id);
+	WM->xcb.flush(WM->conn);
 }
 
-static void SetTitle(const Vv* V, VvWi_Window* w, const char* name) {
-	w->c->xcb.change_property(w->c->conn, XCB_PROP_MODE_REPLACE, w->id,
+static VvWindowManagerWindow_setTitle_IMP
+	WM->xcb.change_property(WM->conn,
+		XCB_PROP_MODE_REPLACE, self_R->id,
 		XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8,
-		strlen(name), name);
-	w->c->xcb.flush(w->c->conn);
+		strlen(title), title);
+	WM->xcb.flush(WM->conn);
 }
 
-#if defined(Vv_ENABLE_VULKAN) && defined(VK_KHR_xcb_surface)
-static int CreateVkSurface(const Vv* V, VvWi_Window* w, void* inst,
-	void* psurf) {
-
-	if(!V->vk->cmds->KHR_xcb_surface) return VK_ERROR_EXTENSION_NOT_PRESENT;
-	VkXcbSurfaceCreateInfoKHR xsci = {
-		VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR, NULL,
-		0, w->c->conn, w->id,
-	};
-	return vVvk_CreateXcbSurfaceKHR(inst, &xsci, NULL, psurf);
-}
-static const char* ext = "VK_KHR_xcb_surface";
-static const char* GetVkExtension(const Vv* V, VvWi_Connection* c) {
-	return ext;
-}
-#else
-static int CreateVkSurface(const Vv* V, VvWi_Window* w, void* inst,
-	void* psurf) {
-
-	return -7;	// VK_ERROR_EXTENSION_NOT_PRESENT
-}
-static const char* GetVkExtension(const Vv* V, VvWi_Connection* c) {
-	return NULL;
-}
-#endif
-
-static void SetFullscreen(const Vv* V, VvWi_Window* w, int en) {
-	if(w->c->xcb.ewmh_init_atoms && w->c->ewmh._NET_WM_STATE_FULLSCREEN) {
+static VvWindowManagerWindow_setFullscreen_IMP
+	if(WM->xcb.ewmh_init_atoms && WM->ewmh._NET_WM_STATE_FULLSCREEN) {
 		xcb_atom_t at = 0;
-		if(en) at |= w->c->ewmh._NET_WM_STATE_FULLSCREEN;
-		w->c->xcb.change_property(
-			w->c->conn, XCB_PROP_MODE_REPLACE, w->id,
-			w->c->ewmh._NET_WM_STATE, XCB_ATOM_ATOM, 32,
+		if(enabled) at |= WM->ewmh._NET_WM_STATE_FULLSCREEN;
+		WM->xcb.change_property(
+			WM->conn, XCB_PROP_MODE_REPLACE, self_R->id,
+			WM->ewmh._NET_WM_STATE, XCB_ATOM_ATOM, 32,
 			1, &at);
-		w->c->xcb.flush(w->c->conn);
+		WM->xcb.flush(WM->conn);
 	} else fprintf(stderr, "Attempted fullscreen without EWMH!\n");
 }
 
-static void SetWindowSize(const Vv* V, VvWi_Window* w, int ext[2]) {
-	uint32_t values[] = { ext[0], ext[1] };
-	w->c->xcb.configure_window(w->c->conn, w->id,
+static VvWindowManagerWindow_setSize_IMP
+	uint32_t values[] = { extent.width, extent.height };
+	WM->xcb.configure_window(WM->conn, self_R->id,
 		XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT,
 		values);
-	w->c->xcb.flush(w->c->conn);
+	WM->xcb.flush(WM->conn);
 }
 
-static void GetWindowSize(const Vv* V, VvWi_Window* w, int ext[2]) {
-	xcb_get_geometry_cookie_t cookie = w->c->xcb.get_geometry(
-		w->c->conn, w->id);
-	xcb_get_geometry_reply_t* geom = w->c->xcb.get_geometry_reply(
-		w->c->conn, cookie, NULL);
+static VvWindowManagerWindow_getSize_IMP
+	xcb_get_geometry_cookie_t cookie = WM->xcb.get_geometry(WM->conn, self_R->id);
+	xcb_get_geometry_reply_t* geom =
+		WM->xcb.get_geometry_reply(WM->conn, cookie, NULL);
+	VkExtent2D ext = {0,0};
 	if(geom) {
-		ext[0] = geom->width;
-		ext[1] = geom->height;
+		ext.width = geom->width;
+		ext.height = geom->height;
 		free(geom);
 	}
+	return ext;
 }
 
-static void GetScreenSize(const Vv* V, VvWi_Connection* wc, int ext[2]) {
-	xcb_get_geometry_cookie_t cookie = wc->xcb.get_geometry(
-		wc->conn, wc->screen->root);
-	xcb_get_geometry_reply_t* geom = wc->xcb.get_geometry_reply(
-		wc->conn, cookie, NULL);
-	if(geom) {
-		ext[0] = geom->width;
-		ext[1] = geom->height;
-		free(geom);
+static VvWindowManagerWindow_createVkSurface_IMP
+	VkResult dres;
+	if(!ret1) ret1 = &dres;
+	if(!instance->_M->vkCreateXcbSurfaceKHR) {
+		*ret1 = VK_ERROR_EXTENSION_NOT_PRESENT;
+		return NULL;
 	}
+	VkSurfaceKHR surf;
+	*ret1 = vVvkCreateXcbSurfaceKHR(instance, (&VkXcbSurfaceCreateInfoKHR_V(
+		.connection = WM->conn, .window = self_R->id,
+	)), NULL, &surf);
+	if(*ret1 < 0) return NULL;
+	else return vVwrapVkSurfaceKHR(surf, instance);
 }
 
-const VvWi libVv_wi_x = {
-	.connect=Connect, .disconnect=Disconnect,
-	.createWindow=CreateWindow, .destroyWindow=DestroyWindow,
-	.showWindow=ShowWindow, .setTitle=SetTitle,
-	.createVkSurface=CreateVkSurface, .getVkExtension=GetVkExtension,
-	.setFullscreen=SetFullscreen,
-	.setWindowSize=SetWindowSize, .getWindowSize=GetWindowSize,
-	.getScreenSize=GetScreenSize,
-};
+static const VvWindowManager_IMP;
+static const VvWindowManagerWindow_IMP;
 
 #endif // Vv_ENABLE_X

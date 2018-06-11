@@ -14,19 +14,17 @@
    limitations under the License.
 ***************************************************************************/
 
-#ifdef Vv_ENABLE_VULKAN
-
-#include <libvivacious.h>
+#include <vivacious/vkinitializer.h>
 #include "internal.h"
 
-extern const VvVkB libVv_vkb_test;
+VvVkInstanceCreator libVv_createVkInstanceCreator_test(VvVk);
 
-VvAPI const struct libVvVkB libVv_vkb = {
-	.test = &libVv_vkb_test,
-};
-
-VvAPI const VvVkB* vVvkb(const Vv* V) {
-	return &libVv_vkb_test;
+VvAPI VvVkInstanceCreator vVcreateInstanceCreator(VvVk vk) {
+	return libVv_createVkInstanceCreator_test(vk);
 }
 
-#endif
+VvVkInstanceCreator libVv_createVkDeviceCreator_test(VvVk);
+
+VvAPI VvVkInstanceCreator vVcreateDeviceCreator(VvVk vk) {
+	return libVv_createVkDeviceCreator_test(vk);
+}

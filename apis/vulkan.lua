@@ -1,5 +1,5 @@
 --[========================================================================[
-   Copyright 2016-2017 Jonathon Anderson
+   Copyright 2016-2018 Jonathon Anderson
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -14,254 +14,252 @@
    limitations under the License.
 --]========================================================================]
 
--- Load up the Vulkan registry data
-local vk = dofile 'external/vulkan.lua'
+-- luacheck: globals array method callable versioned
+local vk = require 'vulkan-raw'
+local human = require 'vulkan-human'
 
-local parent_overrides = {
-	VkInstance = 'Vk',
-	VkDisplayKHR = 'VkPhysicalDevice',
-	VkDisplayModeKHR = 'VkDisplayKHR',
-}
+-- Helper for for-loop accumulations, since I'm tired of typing it again
+local function acc(...)
+ local r = {}
+ for x in ... do r[#r+1] = x end
+ return r
+end
 
-Vk = {doc = [[
-	Main Vulkan Behavior, which grants access to the Vulkan API.
-]], directives = {'define VK_NO_PROTOTYPES', 'include <vulkan.h>'}}
-local vktypes = {Vk=Vk}
-local vkbs,vkbps = {},{}
-do
-	local handles = {}
-	for n,t in pairs(vk.types) do
-		if t.category == 'handle' then
-			-- We don't do multi-parenting
-			if t.parent and t.parent:find',' then t.parent = nil end
-			t.parent = parent_overrides[n] or t.parent
-			if t.parent == nil then error(n..' has no parent!') end
-			handles[n] = t
+-- Helpers for Human errors.
+local humanerror = false
+local function herror(s, v)
+ if v then v = v.__name..(v.__raw and ' :{'..v.__raw.C..'}' or '') end
+ io.stderr:write(tostring(s):gsub('{#}', v or '{#}')..'\n')
+ humanerror = true
+end
+local function hassert(t, ...) if not t then herror(...) end end
+human.herror, human.hassert = herror, hassert	-- Let the Human have access
+
+-- A version of ipairs that allows the current entry to be removed
+-- Loop vars are value, removal function.
+local function rpairs(tab)
+	local addone = true
+	local i = 0
+	return function(t)
+		if addone then i = i + 1 end
+		addone = true
+		if t[i] ~= nil then
+			return t[i], function()
+				if addone then table.remove(t, i) end
+				addone = false
+			end
+		end
+	end, tab
+end
+
+-- Build the translations of the raw C names for enums, changing Lua's name.
+local enumnames = {}
+local handled = {}
+for _,v in pairs(vk) do if v.__enum and not v.__mask and not handled[v.__enum] then
+	handled[v.__enum] = true
+
+	-- Try to get the common prefix for this enum.
+	local pre
+	if #v.__enum < 2 then
+		pre = human.enumprefixes[v.__raw.C]
+		if #v.__enum == 0 then
+			hassert(pre == 0, 'Unhandled empty enum {#}', v)
+		elseif #v.__enum == 1 then
+			hassert(type(pre) == 'string',
+				'Unhandled only entry '..v.__raw.enum[v.__enum[1].name].C..' of enum {#}', v)
+		end
+	else
+		hassert(human.enumprefixes[v.__raw.C] == nil, 'Handled multi-entried enum {#}', v)
+		local _,nv = next(v.__raw.enum)
+		local full = acc((nv.C..'_'):gmatch '([^_]*)_')
+		for j=1,#full do
+			local tpre = table.concat(full, '_', 1, j)
+			for _,e in ipairs(v.__enum) do
+				if v.__raw.enum[e.name].C:sub(1,#tpre) ~= tpre then tpre = nil; break end
+			end
+			if not tpre then break end
+			pre = tpre
 		end
 	end
 
-	repeat
-		local stuck = true
-		for n,t in pairs(handles) do
-			if vktypes[t.parent] then
-				if t.type == 'VK_DEFINE_NON_DISPATCHABLE_HANDLE' then
-					vktypes[t.parent][n:match'Vk(.*)'] = {wrapperfor = n,
-						doc = [[Wrapper for ]]..n}
-					vktypes[n] = vktypes[t.parent][n:match'Vk(.*)']
-					vkbps[n] = t.parent
-				elseif t.type == 'VK_DEFINE_HANDLE' then
-					_ENV['Vk.'..n:match'Vk(.*)'] = {vktypes[t.parent],
-						wrapperfor = n, doc = [[Wrapper for ]]..n}
-					vktypes[n] = _ENV['Vk.'..n:match'Vk(.*)']
-				else error() end
-				vkbs[n] = vktypes[n]
-				handles[n] = nil
-				stuck = false
-			end
+	-- Remove the common prefix
+	if pre then
+		for _,e in ipairs(v.__enum) do
+			local old = e.name
+			e.name = e.name:gsub('^'..pre..'_', '')
+			e.name = ('_'..e.name):lower():gsub('_(.)', string.upper)
+			v.__raw.enum[e.name], v.__raw.enum[old] = v.__raw.enum[old], nil
 		end
-		if stuck then
-			for n,t in pairs(handles) do print('>>', n, t.parent) end
-			error()
-		end
-	until not next(handles)
-end
+	end
 
-for n,t in pairs(vk.types) do
-	if t.category == 'enum' or t.category == 'bitmask' then
-		local vals = {realname=n}
-		for rn in pairs(t.values) do table.insert(vals, rn) end
-		if t.category == 'enum' then
-			if #vals > 0 then
-				vals.default = next(t.values)
-				Vk.type[n:match'Vk(.*)'] = options(vals)
-				vktypes[n] = Vk[n:match'Vk(.*)']
+	-- Record the resulting links
+	for _,e in ipairs(v.__enum) do
+		enumnames[v.__raw.enum[e.name].C] = e.name
+	end
+end end
+
+-- Process the commands. There's a lot to do.
+local wrappers,wrapped,moveto = {},{},{}
+for c,rmc in rpairs(vk.Vk.__index) do
+	if not c.aliasof then
+		c.type.__call.method = true	-- All commands are methods in vV
+
+		-- For later reference, some useful markings
+		local names,raws = {},{}
+		for i,e in ipairs(c.type.__call) do if e.name then
+			names[e.name], raws[e.name] = e, c.type.__raw.call[i]
+		end end
+
+		-- Figure out where all the commands should go, and move them there
+		local sargs = {human.self(c.type.__call, c.name)}
+		local rets = {human.rets(c.type.__call, c.name)}
+		local rawself = table.remove(sargs, 1)
+		if rawself then
+			if not wrappers[rawself] then	-- Make the wrapper if it doesn't exist yet
+				wrappers[rawself] = {
+					__name = rawself.__name,
+					__index = {{name='real', type=rawself}, {name='parent'},
+						method{'destroy', version='0.1.0'}
+					},
+				}
+				vk[rawself.__name:gsub('^Vk', '')] = wrappers[rawself]
+				wrapped[wrappers[rawself]] = rawself
+				handled[wrappers[rawself]] = true
 			end
-		else
-			Vk.type[n:match'Vk(.*)'] = flags(vals)
-			vktypes[n] = Vk[n:match'Vk(.*)']
-			if t.requires and #vals > 0 then
-				vals.default = next(t.values)
-				Vk.type[t.requires:match'Vk(.*)'] = options(vals)
-				vktypes[t.requires] = Vk[t.requires:match'Vk(.*)']
+			-- Move the command to its rightful owner or "self"
+			moveto[c.name] = wrappers[rawself]
+			table.insert(wrappers[rawself].__index, c)
+			rmc()
+
+			-- The first few fields are often provided by the self. Mark them as such.
+			for i,s in ipairs(sargs) do
+				c.type.__raw.call[i].value = s
+				table.remove(c.type.__call, 1)
 			end
+		end
+
+		-- Some fields are actually return values: mark them for later.
+		for _,r in ipairs(rets) do
+			local foundit = false
+			for _,e in ipairs(c.type.__call) do
+				if e.name == r then
+					e.ret = true
+					foundit = true
+					break
+				end
+			end
+			hassert(foundit, "No argument to mark for returning called "..tostring(r))
+		end
+
+		for _,e in ipairs(c.type.__call) do
+			-- Some fields merely indicate the length of others. Mark them as such.
+			if e._len then
+				local r,x = human.length(e, c.type, '#'..e.name, c.type.__call)
+				if r and raws[r] and (not e.ret or names[r]._extraptr) then
+					raws[r].value = nil	-- It'll just be r at this point
+					raws[r].values = raws[r].values or {}
+					table.insert(raws[r].values, x)
+					raws[r].type = names[r].type
+					names[r]._islen = true
+				end
+				e._len = nil
+			end
+
+			-- If there's an argument that's been wrapped, replace it.
+			if wrappers[e.type] and raws[e.name].value and not e.ret then
+				raws[e.name].value, e.type = e.name..'.real', wrappers[e.type]
+			end
+		end
+
+		-- Some fields are marked as lengths. Now we merge them for Lua.
+		for e,rme in rpairs(c.type.__call) do
+			e._islen = e._islen and rme()
+			e._extraptr = nil
 		end
 	end
 end
 
-vktypes.void = generic
-vktypes.VkBool32 = boolean
+-- Some of the leftover commands are aliases. Now we get to move them.
+for c,rmc in rpairs(vk.Vk.__index) do
+	if moveto[c.aliasof] then
+		table.insert(moveto[c.aliasof].__index, c)
+		rmc()
+	end
+end
 
-vktypes.uint64_t = unsigned
-vktypes.uint32_t = unsigned
-vktypes.uint8_t = unsigned
-vktypes.int = integer
-vktypes.int32_t = integer
-vktypes.float = number
-vktypes.size_t = raw{realname='size_t', conversion='%u'}
-vktypes.VkDeviceSize = raw{realname='VkDeviceSize', conversion='%u'}
+-- Connect up the parent fields of the wrappers, so they actually make sense
+for rs,w in pairs(wrappers) do
+	local par = human.parent(rs._parent, rs.__name)
+	if par then assert(wrapped[vk[par]], "vk."..par.." isn't a wrapper!") end
+	w.__index[2].type = assert(vk[par or 'Vk'], 'No wrapper for '..(par or 'nil'))
+	rs._parent = nil
+	table.insert(vk[par or 'Vk'].__index, method{'wrap'..rs.__name, version='0.1.0',
+		{'internal', rs},
+		{'wrapped', w, ret=true}
+	})
+	rs.__name = 'opaque handle/'..rs.__name
+end
 
-vktypes.string = string
+-- Process the _lens and _values of accessable structures.
+for _,v in pairs(vk) do if (v.__index or v.__call) and not handled[v] then
+	handled[v] = true
+	local es,rs = v.__index or v.__call,
+		v.__raw and (v.__raw.index or v.__raw.call) or {}
 
-vktypes.vksamplemask = flexmask{
-	raw{realname='VkSampleMask'},
-	bits=32, lenvar='fish',
-}
+	-- Gather some reference links
+	local names, raws = {}, {}
+	for _,e in ipairs(es) do names[e.name] = e end
+	for _,re in ipairs(rs) do raws[re.name] = re end
 
-vktypes.PFN_vkInternalAllocationNotification = callable{
-	realname = 'PFN_vkInternalAllocationNotification',
-	{'udata', generic}, {'size', integer},
-	{'type', Vk.InternalAllocationType}, {'scope', Vk.SystemAllocationScope},
-}
-vktypes.PFN_vkInternalFreeNotification = callable{
-	realname = 'PFN_vkInternalFreeNotification',
-	{'udata', generic}, {'size', integer},
-	{'type', Vk.InternalAllocationType}, {'scope', Vk.SystemAllocationScope},
-}
-vktypes.PFN_vkReallocationFunction = callable{
-	realname = 'PFN_vkReallocationFunction',
-	{'udata', generic}, {'original', memory}, {'size', integer},
-	{'alignment', integer},
-	{'scope', Vk.SystemAllocationScope},
-	returns = {memory},
-}
-vktypes.PFN_vkAllocationFunction = callable{
-	realname = 'PFN_vkAllocationFunction',
-	{'udata', generic}, {'size', integer}, {'alignment', integer},
-	{'scope', Vk.SystemAllocationScope},
-	returns = {memory},
-}
-vktypes.PFN_vkFreeFunction = callable{
-	realname = 'PFN_vkFreeFunction',
-	{'udata', generic}, {'mem', memory},
-}
+	for _,e in ipairs(es) do
+		-- Connect the length fields, for merging
+		if e._len then
+			local r,x = human.length(e, v, '#'..e.name, v.__index or v.__call)
+			if r then
+				raws[r].value = nil	-- By here, it'll just be r
+				raws[r].values = raws[r].values or {}
+				table.insert(raws[r].values, x)
+				raws[r].type = names[r].type
+				names[r]._islen = true
+			end
+			e._len = nil
+		end
 
-vktypes.PFN_vkDebugReportCallbackEXT = callable{
-	realname = 'PFN_vkDebugReportCallbackEXT',
-	{'flags', Vk.DebugReportFlagsEXT}, {'objectType', Vk.DebugReportObjectTypeEXT},
-	{'object', index}, {'location', index}, {'mCode', integer},
-	{'layerPrefix', string}, {'message', string},
-	{'udata', generic},
-	returns = {boolean},
-}
+		-- Handle fields that have a defined value
+		if e._value then
+			assert(enumnames[e._value], 'Unknown value: '..e._value)
+			raws[e.name].C = enumnames[e._value]
+			e._value = nil
+		end
 
-for n in pairs{
-	Display=true, VisualID=true, Window=true,	-- Xlib.h
-	RROutput=true,	-- Xrandr.h
-	ANativeWindow=true,	--android/native_window.h
-	MirConnection=true, MirSurface=true,	-- mir_toolkit/client_types.h
-	wl_display=true, wl_surface=true,	-- wayland-client.h
-	HANDLE=true, LPCWSTR=true, DWORD=true, SECURITY_ATTRIBUTES=true,
-	HINSTANCE=true, HWND=true, -- windows.h
-	xcb_connection_t=true, xcb_visualid_t=true, xcb_window_t=true,	-- xcb.h
-} do vktypes[n] = raw{realname=n} end
+		-- Replace fields that have already been wrapped
+		if wrappers[e.type] then
+			raws[e.name], e.type = e.name..'.real', wrappers[e.type]
+		end
+		e._extraptr = nil
+	end
 
-do
-	local ex = {
-		VkShaderModuleCreateInfo_pCode = {name='pCode', type='string', len='codeSize'},
-		VkPipelineMultisampleStateCreateInfo_pSampleMask = {name='pSampleMask',
-			type='vksamplemask', len='rasterizationSamples'}
+	-- Merge the length fields for Lua
+	for e,rme in rpairs(es) do e._islen = e._islen and rme() end
+end end
+
+-- Almost all Vulkan structures are dereferenced to allow for expandability.
+for _,v in pairs(vk) do
+	if v.__index and v.__raw and v.__index then
+		v.__raw.dereference = true
+	end
+end
+
+-- Last handy things
+vk.version = {__raw={C='uint32_t'}, __name="'M.m.p'"}
+vk.__index = {
+	callable{'createVk', version='0.1.0',
+		{'vulkan', vk.Vk, canbenil=true, ret=true},
+		{'error', 'string', canbenil=true, ret=true}
 	}
+}
+table.insert(vk.Vk.__index, method{'destroy', version='0.1.0'})
 
-	local structs = {}
-	for n,t in pairs(vk.types) do
-		if t.category == 'struct' or t.category == 'union' then
-			structs[n] = t
-
-			local mems = {}
-			for i,m in ipairs(t.members) do
-				m = ex[n..'_'..m.name] or m
-				t.members[i] = m
-				if m.type == 'char' then
-					m.type = 'string'
-					m.arr = m.arr - 1
-					if m.len then
-						m.len = m.len:gsub(',?null%-terminated$', '')
-						if #m.len == 0 then m.len = nil end
-					end
-				elseif m.type == 'void' then
-					m.arr = m.arr - 1
-				elseif (m.arr or 0) > 0 and not m.len then
-					m.arr = m.arr - 1
-				end
-				if m.values and not m.values:find',' then m.def = m.values
-				elseif m.optional == 'true' then m.def = '' end
-				m.i = i
-				mems[m.name] = m
-			end
-
-			local rmed = {}
-			for _,m in pairs(mems) do
-				if m.len then
-					if mems[m.len] then
-						t.members[mems[m.len].i] = false
-						mems[m.len],rmed[m.len] = nil,true
-					elseif not rmed[m.len] then
-						print('>', n)
-						for mn in pairs(mems) do print('>>', mn) end
-						print('>>>', m.name, m.len, m.type)
-						error('Odd len: '..m.len)
-					end
-				end
-			end
-
-			local i = 1
-			while t.members[i] ~= nil do
-				if not t.members[i] then table.remove(t.members, i)
-				else i = i + 1 end
-			end
-		end
-	end
-
-	repeat
-		local stuck = true
-		local missing = {}
-		for n,t in pairs(structs) do
-			local mems = {realname=n}
-			for _,m in ipairs(t.members) do
-				if not vktypes[m.type] then missing[m.type] = true goto skip end
-			end
-
-			local pn = n:match'Vk(.*)'
-			for _,m in ipairs(t.members) do
-				if (m.arr or 0) > 0 then
-					assert(m.arr == 1)
-					table.insert(mems, {m.name,
-						array{vktypes[m.type], lenvar=m.len}, {}})
-				else
-					table.insert(mems, {m.name, vktypes[m.type],
-						m.def ~= '' and m.def or nil})
-				end
-			end
-
-			vktypes.Vk.type[pn] = compound(mems)
-			vktypes[n] = Vk[pn]
-			structs[n] = nil
-			stuck = false
-			::skip::
-		end
-		if stuck then
-			for n in pairs(structs) do print('>>', n) end
-			for t in pairs(missing) do print('>', t) end
-			error("Got stuck writing the structs")
-		end
-	until not next(structs)
-end
-
-do
-	for v,cs in pairs(vk.cmds) do
-		local M,m = v:match '(%d+)%.(%d+)'
-		if M then v = 'v0_'..M..'_'..m
-		else v = 'v'..v..'_0_0' end
-		for _,ct in ipairs(cs) do
-			local b
-			if ct[2] and not ct[2].optional and
-				ct[1].type == vkbps[ct[2].type] then b = vkbs[ct[2].type] end
-			if not b and ct[1] then b = vkbs[ct[1].type] end
-			if not b then b = Vk end
-
-			local c = {returns = raw{realname=ct.ret}, realname='PFN_'..ct.name}
-			for i,a in ipairs(ct) do c[i] = {a.name, raw{realname=a.type}} end
-			b[v][ct.name] = c
-		end
-	end
-end
+-- All set, let's do this!
+if humanerror then error 'VkHuman error detected!' end
+return vk

@@ -17,30 +17,16 @@
 #ifndef H_libvivacious
 #define H_libvivacious
 
-#include <vivacious/vivacious.h>
+//#include <vivacious/vivacious.h>
+#include <vivacious/vulkan.h>
+#include "internal.h"
 
-extern const struct libVvVk {
-	const VvVk* libdl;
-} libVv_vk;
+#ifdef Vv_ENABLE_X
+//VvAPI VvWindowManager libVv_createWindowManager_X();
+#endif
 
-extern const struct libVvWi {
-	const VvWi* x;
-} libVv_wi;
+VvAPI VvVk* libVv_createVk_libdl(const char** err);
 
-extern const struct libVvVkB {
-	const VvVkB* test;
-} libVv_vkb;
-
-extern const struct libVvVkM {
-	const VvVkM* test;
-} libVv_vkm;
-
-extern const struct libVvVkP {
-	const VvVkP* test;
-} libVv_vkp;
-
-extern const struct libVvVkS {
-	const VvVkS* test;
-} libVv_vks;
+//VvAPI libVv_createVkInstanceCreator_test();
 
 #endif // H_libvivacious

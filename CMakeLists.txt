@@ -61,28 +61,43 @@ add_definitions(-DVv_VERSION_MAJOR=0 -DVv_VERSION_MINOR=1 -DVv_VERSION_PATCH=2)
 # Generation helper function
 function(gen)
 	cmake_parse_arguments(PARSE_ARGV 0 A
-		""
-		"SUFFIXES;GENERATOR;DIRECTORY"
-		"DEPENDS;SPECS;OUTPUTS")
-	if(A_DIRECTORY)
-		file(MAKE_DIRECTORY ${A_DIRECTORY})
-		set(A_DIRECTORY "${A_DIRECTORY}/")
+		"ALL"
+		"USE;OUTDIR;SUFFIX;TARGET"
+		"DEPENDS;SPECS")
+	if(A_OUTDIR)
+		file(MAKE_DIRECTORY ${A_OUTDIR})
+	else()
+		set(A_OUTDIR ${CMAKE_CURRENT_BINARY_DIR})
 	endif()
-	set(SL ${CMAKE_SOURCE_DIR}/apis/generator/stdlib.lua)
+	set(GN ${CMAKE_CURRENT_SOURCE_DIR}/${A_USE}.lua)
+	set(SL ${CMAKE_SOURCE_DIR}/apis/core/generation.lua ${GN})
 	foreach(S ${A_SPECS})
-		set(S_OUTS)
-		foreach(O ${A_OUTPUTS})
-			string(REPLACE ? "${S}" O2 ${O})
-			set(S_OUTS ${S_OUTS} ${A_DIRECTORY}${O2})
-		endforeach()
-		add_custom_command(OUTPUT ${S_OUTS}
-			COMMAND ${LUA_EXECUTABLE} ${SL}
-				${A_GENERATOR} ${CMAKE_SOURCE_DIR}/apis ${S} ${S_OUTS}
+		set(S_OUT ${A_OUTDIR}/${S}${A_SUFFIX})
+		set(S_DEPS ${SL})
+		if(S MATCHES vulkan)
+			set(S_DEPS ${S_DEPS}
+				${CMAKE_SOURCE_DIR}/apis/vulkan-raw.lua
+				${CMAKE_SOURCE_DIR}/apis/vulkan-human.lua
+				${CMAKE_SOURCE_DIR}/external/slaxml/slaxdom.lua
+				${CMAKE_SOURCE_DIR}/external/slaxml/slaxml.lua
+				${CMAKE_SOURCE_DIR}/external/vulkan-docs/xml/vk.xml
+			)
+		endif()
+		add_custom_command(OUTPUT ${S_OUT}
+			COMMAND ${LUA_EXECUTABLE} ${GN} ${S} ${A_OUTDIR}
 			WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-			MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/apis/generator/${A_GENERATOR}.lua
-			DEPENDS ${SL} ${CMAKE_SOURCE_DIR}/apis/${S}.lua ${A_DEPENDS})
-		set(MYOUTS ${MYOUTS} ${S_OUTS})
+			MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/apis/${S}.lua
+			DEPENDS ${A_DEPENDS} ${S_DEPS})
+		set(MYOUTS ${MYOUTS} ${S_OUT})
 	endforeach()
+	if(A_TARGET)
+		if(A_ALL)
+			set(A_ALL ALL)
+		else()
+			set(A_ALL "")
+		endif()
+		add_custom_target(${A_TARGET} ${A_ALL} DEPENDS ${MYOUTS})
+	endif()
 	set(GEN_OUTS ${GEN_OUTS} ${MYOUTS} PARENT_SCOPE)
 	set(GEN_SPECS ${GEN_SPECS} ${A_SPECS} PARENT_SCOPE)
 endfunction(gen)
