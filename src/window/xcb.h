@@ -14,13 +14,12 @@
    limitations under the License.
 ***************************************************************************/
 
-#ifdef Vv_ENABLE_X
-
 #include <xcb/xcb.h>
 #include <xcb/xcb_ewmh.h>
 
 #define XCB_LIST(F) \
 	F(xcb_connection_t*, connect, const char*, int*) \
+	F(int, connection_has_error, xcb_connection_t*) \
 	F(void, disconnect, xcb_connection_t*) \
 	F(void, screen_next, xcb_screen_iterator_t*) \
 	F(xcb_screen_iterator_t, setup_roots_iterator, const xcb_setup_t*) \
@@ -52,5 +51,3 @@ typedef struct {
 
 int _vVlibxcb(Xcb*);
 void _vVfreexcb(Xcb*);
-
-#endif // Vv_ENABLE_X

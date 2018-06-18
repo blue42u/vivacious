@@ -14,71 +14,83 @@
    limitations under the License.
 --]========================================================================]
 
-vk = require 'vulkan'
-vki = require 'vkinitializer'
+-- luacheck: globals array method callable versioned
+require 'core.common'
+local vk = require 'vulkan'
+local vki = require 'vkinitializer'
+local wi = {__directives={'include <vivacious/vulkan.h>', 'include <vivacious/vkinitializer.h>'}}
 
-WindowManager = {doc = [[
-	A connection to the system's window manager, which provides a place to render
-	things onto the screen. In particular, creates Surfaces.
-]]}
+--[[ Removed until headerc is upgraded to support this
+local emask = {__name = 'EventFlags', __enum = {
+	{name='mouse_press', flag='m'},
+	{name='mouse_release', flag='M'},
+	{name='mouse_moved', flag='X'},
+	{name='key_press', flag='k'},
+	{name='key_release', flag='K'},
+}, __mask=true}
+]]
 
-WindowManager.type.Events = flags{
-	doc = "A selection of Events that the user can input to a Window",
-	{'mouse_press', 'm'},
-	{'mouse_release', 'M'},
-	{'mouse_moved', 'X'},
-	{'key_press', 'k'},
-	{'key_release', 'K'},
+wi.Window = {__name = 'Window',
+	__doc = [[
+		A Window managed by this WindowManager. Can recieve events, and contains a
+		single Surface which can be used to render to the screen.
+	]],
+	__index = versioned{
+		'0.1.0',
+		{name='manager', type=wi.WindowManager, doc="The presiding window manager."},
+		{name='instance', type=vk.Instance, doc="The instance used to make this window."},
+		method{'destroy', "Destroy this window"},
+		'0.1.1',
+		method{'show', "Ensure this window is actually rendering on the screen."},
+		method{'setTitle', "Set the window's title, which usually appears up top somewhere.",
+			{'title', 'string'}
+		},
+		method{'setFullscreen', "Enable (or disable) a Window's fullscreen state.",
+			{'enabled', 'boolean'}
+		},
+		method{'setSize', "Set the size (in pixels) of a Window.",
+			{'extent', vk.Extent2D}
+		},
+		method{'getSize', "Get the size of this window (in pixels).",
+			{'extent', vk.Extent2D, ret=true}
+		},
+		{name='surface', type=vk.SurfaceKHR, doc="The Vulkan handle for this window."},
+	},
 }
 
-WindowManager.Window = {doc = [[
-	A Window managed by this WindowManager. Can recieve events, and contains a
-	single Surface.
-]]}
-
-WindowManager.v0_1_1.newWindow = {
-	doc = "Create a new window. May not be visible until `show` is called.",
-	returns = {WindowManager.Window},
-	{'extent', vk.Vk.Extent2D},
-	{'allowedEvents', WindowManager.Events},
+wi.WindowManager = {__name = 'WindowManager',
+	__doc = [[
+		A connection to the system's window manager, which provides a place to
+		comfortably render things onto the screen. In particular, creates Surfaces.
+	]],
+	__index = versioned{
+		'0.1.0',
+		method{'destroy', "Destroy this window"},
+		'0.1.1',
+		method{'getSize', "Get the size of the entire screen. Useful for real estate guesstimations.",
+			{'extent', vk.Extent2D, ret=true}
+		},
+		method{'newWindow', "Create a new window, and return it.",
+			{'instance', vk.Instance, doc="The Vulkan Instance that will contain the Surface."},
+			{'extent', vk.Extent2D},
+			{'allowedEvents', 'string'},
+			{'window', wi.Window, ret=true},
+			{'result', vk.Result, ret=true}
+		},
+		'0.1.2',
+		{name='instinfo', type=vki.InstanceCreator.Info,
+			doc="Required settings for Instances in order to use this WindowManager."}
+	},
 }
 
-WindowManager.Window.v0_1_1.show = {
-	doc = "Ensure this Window is actually rendering on the screen.",
+wi.Window.__index[1].type = wi.WindowManager	-- Post-link
+
+wi.__index = versioned{
+	'0.1.0',
+	callable{'createWindowManager', "Create a default WindowManager",
+		{'wm', wi.WindowManager, canbenil=true, ret=true},
+		{'error', 'string', canbenil=true, ret=true}
+	},
 }
 
-WindowManager.Window.v0_1_1.setTitle = {
-	doc = "Set the Window's title, which usually appears up top somewhere.",
-	{'title', string},
-}
-
-WindowManager.Window.v0_1_1.setFullscreen = {
-	doc = "Enable (or disable) a Window's fullscreen state.",
-	{'enabled', boolean},
-}
-
-WindowManager.Window.v0_1_1.setSize = {
-	doc = "Set the size (in pixels) of a Window.",
-	{'extent', vk.Vk.Extent2D},
-}
-
-WindowManager.Window.v0_1_1.getSize = {
-	doc = "Get the size of this Window (in pixels).",
-	returns = {vk.Vk.Extent2D},
-}
-
-WindowManager.v0_1_1.getSize = {
-	doc = "Get the size of the entire screen. Useful for real estate guesstimations.",
-	returns = {vk.Vk.Extent2D},
-}
-
-WindowManager.Window.v0_1_1.createVkSurface = {
-	doc = "Create a Surface that can access this Window, or fail trying.",
-	returns = {vk.Instance.SurfaceKHR, vk.Vk.Result},
-	{'instance', vk.Instance},
-}
-
-WindowManager.v0_1_2.getInstanceInfo = {
-	doc = "Obtain the VkInstanceCreatorInfo that needs to be applied to use this Manager.",
-	returns = {vki.VkInstanceCreator.Info},
-}
+return wi

@@ -14,40 +14,54 @@
    limitations under the License.
 ***************************************************************************/
 
-#define Vv_CHOICE V
 #include <vivacious/vivacious.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-Vv V;
-
 int main() {
-	V = vV();
+	const char* err;
+	VvWindowManager* wm = vVcreateWindowManager(&err);
+	if(!wm) { fprintf(stderr, "Error creating WindowManager: %s\n", err); return 1; }
 
-	VvWi_Connection* con = vVwi_connect();
+	VkExtent2D size = vVgetSize(wm);
+	printf("Screen dimensions: %dx%d\n", size.width, size.height);
 
-	int size[2];
-	vVwi_getScreenSize(con, size);
-	printf("Screen dimensions: %dx%d\n", size[0], size[1]);
+	VvVk* vk = vVcreateVk(&err);
+	if(!vk) { fprintf(stderr, "Error creating Vk: %s\n", err); return 1; }
 
-	VvWi_Window* win = vVwi_createWindow(con, size[0] / 2, size[1] / 2, 0);
-	vVwi_showWindow(win);
-	vVwi_setTitle(win, "Test Window");
+	VkInstance inst_I;
+	VkResult r = vVvkCreateInstance(vk, &(VkInstanceCreateInfo){
+		.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
+		.enabledExtensionCount = wm->instinfo->extensions_cnt,
+		.ppEnabledExtensionNames = wm->instinfo->extensions,
+	}, NULL, &inst_I);
+	if(r < 0) { fprintf(stderr, "Error creating Instance: %d\n", r); return 1; }
+	VvVkInstance* inst = vVwrapVkInstance(vk, inst_I);
 
-	vVwi_getWindowSize(win, size);
-	printf("Window dimensions: %dx%d\n", size[0], size[1]);
-	size[0] = 100;
-	size[1] = 100;
-	vVwi_setWindowSize(win, size);
-	vVwi_getWindowSize(win, size);
-	printf("New window dimensions: %dx%d\n", size[0], size[1]);
+	size.width /= 2, size.height /= 2;
+	VvWindow* win = vVnewWindow(wm, inst, size, "none", &r);
+	if(!win) { fprintf(stderr, "Error creating Window: %d\n", r); return 1; }
+	vVshow(win);
+	vVsetTitle(win, "Test Window");
 
-	vVwi_setFullscreen(win, 1);
-	vVwi_getWindowSize(win, size);
-	printf("Fullscreen window dimensions: %dx%d\n", size[0], size[1]);
+	size = vVgetSize(win);
+	printf("Window dimensions: %dx%d\n", size.width, size.height);
+	vVsetSize(win, (VkExtent2D){ 100, 100 });
+	size = vVgetSize(win);
+	printf("New window dimensions: %dx%d\n", size.width, size.height);
 
-	vVwi_destroyWindow(win);
-	vVwi_disconnect(con);
+	vVsetFullscreen(win, true);
+	size = vVgetSize(win);
+	printf("Fullscreen window dimensions: %dx%d\n", size.width, size.height);
+
+	vVdestroy(win);
+	vVdestroy(wm);
+
+	printf("Windows have been cleaned up!\n");
+
+	vVvkDestroyInstance(inst, NULL);
+	vVdestroy(inst);
+	vVdestroy(vk);
 
 	return 0;
 }

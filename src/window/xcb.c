@@ -14,12 +14,11 @@
    limitations under the License.
 ***************************************************************************/
 
-#ifdef Vv_ENABLE_X
-
 #include "xcb.h"
 #include "cpdl.h"
 
 void _vVfreexcb(Xcb* xcb) {
+	_vVclosedl(xcb->libewmh);
 	_vVclosedl(xcb->libxcb);
 }
 
@@ -36,5 +35,3 @@ int _vVlibxcb(Xcb* xcb) {
 
 	return 0;
 }
-
-#endif // Vv_ENABLE_X
