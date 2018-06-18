@@ -245,10 +245,14 @@ end end
 
 -- Almost all Vulkan structures are dereferenced to allow for expandability.
 for _,v in pairs(vk) do
-	if v.__index and v.__raw and v.__index then
+	if v.__index and v.__raw and v.__index and v.__index[1].name == 'sType' then
 		v.__raw.dereference = true
 	end
 end
+vk.ClearColorValue.__raw.dereference = true
+vk.ClearDepthStencilValue.__raw.dereference = true
+vk.AllocationCallbacks.__raw.dereference = true
+vk.ImageSubresource.__raw.dereference = true
 
 -- Last handy things
 vk.version = {__raw={C='uint32_t'}, __name="'M.m.p'"}
