@@ -213,9 +213,19 @@ static const char* ERR_OPEN = "Could not open vulkan loader!";
 static const char* ERR_GIPA = "Loader library does not have vkGetInstanceProcAddr!";
 VvAPI VvVk* libVv_createVk_libdl(const char** err) {
 	struct init_I* self = malloc(sizeof(struct init_I));
-	self->libvk = _vVopendl("vulkan.so", "vulkan.dynlib", "vulkan-1.dll");
-	if(!self->libvk) { *err = ERR_OPEN; return NULL; }
+	self->libvk = _vVopendl("libvulkan.so", "libvulkan.dynlib", "vulkan-1.dll");
+	if(!self->libvk) {
+		free(self);
+		*err = "Could not open Vulkan loader!";
+		return NULL;
+	}
 	self->gipa = _vVsymdl(self->libvk, "vkGetInstanceProcAddr");
+	if(!self->gipa) {
+		_vVclosedl(self->libvk);
+		*err = "Loader library does not have vkGetInstanceProcAddr!";
+		free(self);
+		return NULL;
+	}
 	self->ext._M = &self->pfn.vk;
 ]]
 dopfn('init', 'self->gipa(NULL, "`")')
