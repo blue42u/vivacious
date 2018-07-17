@@ -14,7 +14,7 @@
    limitations under the License.
 --]========================================================================]
 
--- luacheck: globals array method callable versioned openfile
+-- luacheck: globals array constarray method callable versioned openfile
 require 'core.common'
 local vk = {}
 
@@ -135,9 +135,9 @@ vkraw.xcb_connection_t.__raw.dereference = true
 
 -- A handful of types should only appear as pointers, so the *'s are integrated.
 for k,v in pairs{
-	void='lightuserdata', char='string',
+	void='userdata', char='string',
 	ANativeWindow=vkraw.ANativeWindow, AHardwareBuffer=vkraw.AHardwareBuffer,
-} do array[vkraw[k]] = v end
+} do array[vkraw[k]],constarray[vkraw[k]] = v,v end
 
 -- Mark the handles with a bit of useful info
 for t in xtrav(xml.root, {_name='types'}, {_name='type', category='handle'}) do
@@ -185,7 +185,7 @@ end end
 
 -- Common code for functions, structures and unions.
 -- Made possible by the fact that <member> and <param> tags are nearly identical
--- and __call and __index fields are also nearly identical
+-- and __call and __newindex fields are also nearly identical
 local function transform(res, t)
 	local tx
 
@@ -232,7 +232,7 @@ local function transform(res, t)
 		if arr == 1 and not res._len and res.type ~= vkraw.void then
 			res._extraptr = true
 		elseif arr > 0 then
-			assert(not array[res.type].__index or res._len, 'Arrays need lengths! '..res.name)
+			assert(not array[res.type].__newindex or res._len, 'Arrays need lengths! '..res.name)
 			if res.type == vkraw.char then
 				res._len = res._len:gsub(',?null%-terminated$', '')
 				if res._len == '' then res._len = nil end
@@ -249,11 +249,11 @@ for t in xtrav(xml.root,
 	{_name='types'}, {_name='type', category={'struct', 'union'}}) do
 	if not t.attr.alias then
 		local self = vkraw[t.attr.name]
-		self.__index, self.__raw.index = {}, {}
+		self.__newindex, self.__raw.newindex = {}, {}
 		for mt in xtrav(t, {_name='member'}) do
 			local r = transform({}, mt)
-			table.insert(self.__index, r)
-			table.insert(self.__raw.index, {name=r.name, value=r.name})
+			table.insert(self.__newindex, r)
+			table.insert(self.__raw.newindex, {name=r.name, value=r.name})
 		end
 	end
 end

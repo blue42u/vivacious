@@ -928,10 +928,10 @@ local cmdinfo = {
 -- The "len" attribute of <member> and <param> tags are, generally speaking,
 -- a big pain. They are something like a bit of C++ code, but for math its
 -- close enough to Lua that we use metatables to read in the expression.
--- `elem` is the __index or __call field to get a length equation for.
+-- `elem` is the __newindex or __call field to get a length equation for.
 -- `partype` is the type that contains `elem`.
 -- `lenvar` is an expression that represents the length of the field.
--- `parent` is the the __index or __call sequence from which names may come.
+-- `parent` is the the __newindex or __call sequence from which names may come.
 -- Returns the variable reference and value to assign the length.
 function human.length(elem, partype, lenvar, parent)
 	local meta = {}
@@ -954,7 +954,7 @@ function human.length(elem, partype, lenvar, parent)
 	function meta:__index(k)
 		if k:match '^_' then return
 		elseif self._base[k] then
-			local out = self._base[k].type.__index and new(self._base[k].type.__index) or {}
+			local out = self._base[k].type.__newindex and new(self._base[k].type.__newindex) or {}
 			out._setto = lenvar
 			out._setvar = (self._setvar and self._setvar..'.' or '')..k
 			return setmetatable(out, meta)
@@ -1033,7 +1033,7 @@ end
 -- When there is no info on a particular command, we try and guess its properties.
 -- These functions here do the guessing. They are designed to handle about 90%.
 local function ishandle(t)	-- Guess whether the type is a handle or not.
-	return not t.__index and not t.__enum and t.__raw and t.__raw.C:match '^Vk'
+	return not t.__index and not t.__newindex and not t.__enum and t.__raw and t.__raw.C:match '^Vk'
 end
 local guessed = {}
 local function guess(entries, name)
