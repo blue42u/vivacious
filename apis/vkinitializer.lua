@@ -23,7 +23,7 @@ local iInfo = {__name = 'VkInstanceInfo',
 	__doc = [[
 		A set of restrictions that can be appended to an InstanceCreator.
 	]],
-	__index = versioned{
+	__newindex = versioned{
 		'0.1.1',
 		{name='name', type='string',
 			doc="Name of the application, overwrites any previous value."},
@@ -66,7 +66,7 @@ local dTask = {__name = 'VkDeviceTask',
 	__doc = [[
 		The specification of a task, which will be assigned a Queue on Device creation.
 	]],
-	__index = versioned{
+	__newindex = versioned{
 		'0.1.1',
 		{name='family', type='index', ifnil=0,
 			doc="Tasks with the same <family> will share Queue families."},
@@ -83,7 +83,7 @@ local dTask = {__name = 'VkDeviceTask',
 }
 
 local dInfo = {__name = 'VkDeviceInfo',
-	__index = versioned{
+	__newindex = versioned{
 		'0.1.1',
 		{name='tasks', type=array[dTask], canbenil=true,
 			doc="Tasks that will be assigned Queues."},
