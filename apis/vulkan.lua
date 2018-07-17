@@ -14,7 +14,7 @@
    limitations under the License.
 --]========================================================================]
 
--- luacheck: globals array method callable versioned
+-- luacheck: globals array method callable versioned constarray
 local vk = require 'vulkan-raw'
 local human = require 'vulkan-human'
 
@@ -201,10 +201,10 @@ for rs,w in pairs(wrappers) do
 end
 
 -- Process the _lens and _values of accessable structures.
-for _,v in pairs(vk) do if (v.__index or v.__call) and not handled[v] then
+for _,v in pairs(vk) do if (v.__newindex or v.__call) and not handled[v] then
 	handled[v] = true
-	local es,rs = v.__index or v.__call,
-		v.__raw and (v.__raw.index or v.__raw.call) or {}
+	local es,rs = v.__newindex or v.__call,
+		v.__raw and (v.__raw.newindex or v.__raw.call) or {}
 
 	-- Gather some reference links
 	local names, raws = {}, {}
@@ -214,7 +214,7 @@ for _,v in pairs(vk) do if (v.__index or v.__call) and not handled[v] then
 	for _,e in ipairs(es) do
 		-- Connect the length fields, for merging
 		if e._len then
-			local r,x = human.length(e, v, '#'..e.name, v.__index or v.__call)
+			local r,x = human.length(e, v, '#'..e.name, v.__newindex or v.__call)
 			if r then
 				raws[r].value = nil	-- By here, it'll just be r
 				raws[r].values = raws[r].values or {}
@@ -245,7 +245,7 @@ end end
 
 -- Almost all Vulkan structures are dereferenced to allow for expandability.
 for _,v in pairs(vk) do
-	if v.__index and v.__raw and v.__index and v.__index[1].name == 'sType' then
+	if v.__newindex and v.__raw and v.__newindex[1].name == 'sType' then
 		v.__raw.dereference = true
 	end
 end
