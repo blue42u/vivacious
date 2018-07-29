@@ -13,18 +13,19 @@
    See the License for the specific language governing permissions and
    limitations under the License.
 --]========================================================================]
+-- luacheck: new globals gen
 
-require 'apis.core.generation'
+-- Sometimes, we defer back to the normal C way of doing things.
+local headerc = require 'apis.core.headerc'
 
--- Nab the arguments
-local specname,outdir = ...
-assert(specname == 'vulkan', "This generator only works for Vulkan!")
-local f = assert(io.open(outdir..package.config:match'^(.-)\n'..'vulkan.c', 'w'))
-local vk = require 'apis.vulkan'
-vk.__spec = 'vulkan'
+-- Certain wrappers are more special than others. This marks them by name.
+local special = {Vk='init', VkInstance='instance', VkDevice='device'}
 
--- Write out the main header
-f:write[[
+return function(self, out)
+	-- The spec is very different, and as such handles things... differently.
+	if self.specname then
+		-- We handle the header
+		out:header [[
 // Generated file, do not edit directly, edit src/vulkan/libdl.lua
 
 #ifdef Vv_ENABLE_X
@@ -46,54 +47,153 @@ f:write[[
 #include "internal.h"
 #include "cpdl.h"
 #include <stdlib.h>
-
 ]]
 
--- A simple unordered for loop
-local function foreach(from, func)
-	local todo = {}
-	from(todo)
-	while next(todo) ~= nil do
-		local didit = false
-		for k,v in pairs(todo) do
-			if func(k,v) then
-				didit = true
-				todo[k] = nil
+		-- As the spec, we manage the overall structure of the file.
+		-- First up, write out the master *_M tables for each level.
+		-- for _,l in ipairs{'init', 'instance', 'device'} do
+		--	 out('struct ',l,'_M {')
+		--	 for _,ty in pairs(self) do
+		--		 if ty.o.level == l then
+		--			 out('\tstruct Vv',ty.__name,'_M ',ty.__name:lower(),';')
+		--		 end
+		--	 end
+		--	 out '};'
+		-- end
+		-- out:write '\n'
+
+		-- Return before anything else happens
+		return
+	end
+
+	-- Otherwise, nab the outputs that headerc uses.
+	out:disable()
+	headerc(self, out)
+	out:enable()
+
+	-- Wrappers have an __index aspect but no __raw aspect
+	if self.__index and not self.__raw and self.ismain then
+		self.o.parent = self.__index.e.parent and self.__index.e.parent.type or false
+		self.o.level = special[self.__name] or self.__index.e.parent.type.o.level
+
+		-- Setup our *_I structure
+		out('struct Vv',self.__name,'_I {')
+		out('\tVv',self.__name,' pub;')
+		out:write '};'
+
+		-- Get ready to write out all the functions for the _M
+		local mout = out:push()
+
+		-- Make sure we have a destructor suitable for our needs
+		mout('\t.destroy = ',self.__name,'_destroy,')
+		out('static void ',self.__name,'_destroy(',self.o.ref:gsub('`', 'self'),') {')
+		for n in pairs(self.__index) do
+			if n == 'vkDestroy'..self.__name or n == 'vkFree'..self.__name then
+				out('\tvV',n,'(self, NULL);')
 			end
 		end
-		if not didit then
-			for k,v in pairs(todo) do print('>', k, v) end
-			error "Cannot complete this foreach!"
+		out '\tfree(self);\n}'
+
+		out:write ''	-- Leave a blank line for output cleanliness.
+
+		-- Construct all the methods (other than destroy, we got that)
+		for n,e in pairs(self.__index) do
+			if e.type and e.type.__call and not e.type.__raw and n ~= 'destroy' then
+				mout('\t.',n,' = ',n,',')
+				out('static ',e.type.o.pmref:gsub('`', n):gsub('#', self.o.ref:gsub('`', 'self')),' {')
+
+				-- Figure out the return type
+				local rt
+				for _,ee in ipairs(e.type.__call) do
+					if ee.ret then rt = ee.type; break end
+				end
+				out('\t',rt.o.ref:gsub('`', 'obj'),';')
+				out('\tobj = malloc(sizeof *obj);')
+
+				-- Figure out how many parent steps it takes to get to a ProcAddr
+				local pa
+				do
+					local p = self
+					pa = 'self'
+					while not special[p.__name] do
+						p,pa = p.__index.e.parent.type, pa..'->parent'
+					end
+					if special[p.__name] == 'device' then
+						pa = 'vVvkGetDeviceProcAddr('..pa..', %q)'
+					elseif special[p.__name] == 'init' then
+						pa = 'vVvkGetDeviceProcAddr('..pa..', %q)'
+					end
+				end
+
+				-- Fill in the parts of the object
+				out('\tobj->_M = ',rt.o.methout,';')
+				for nn,ee in pairs(rt.__index) do
+					local r
+					if nn == 'real' then r = 'internal'
+					elseif nn == 'parent' then r = 'self'
+					elseif ee.type and ee.type.__call and ee.type.__raw then
+						r = '('..ee.type.o.ref:gsub('`','')..')'..pa:format(nn)
+					end
+					out('\tobj->',nn,' = ',r,';')
+				end
+
+				-- Return it, we're done here.
+				out '\treturn obj;'
+				out:write '}\n'
+			end
 		end
+
+		-- Write out the full *_M structure we will use.
+		out('static const struct ',self.__name,'_M m_',self.__name,' = {')
+		out:pop(mout)
+		out '};'
+		self.o.methout = 'm_'..self.__name
+
+		-- If we're special, we have to write out the master _M structure.
+		-- if special[self.__name] then
+		--	 out('struct ',special[self.__name],'_M {')
+		--	 out('\tstruct ',self.__name,'_M our_M;')
+		--	 for n,t in pairs(self) do if not special[t.__name] then
+		--		 out('\tstruct ',t.__name,'_M ',n,'_M;')
+		--	 end end
+		--	 out:write '};\n'
+		-- end
+
+		-- We need to write out our _I structure.
+		-- out('struct ',self.__name,'_I {')
+		-- out('\tVv',self.__name,' public;')
+		-- if special[self.__name] then
+		--	 out('\tstruct ',special[self.__name],'_M pfn;')
+		--	 if special[self.__name] == 'init' then
+		--		 out '\tPFN_vkGetInstanceProcAddr gipa;'
+		--		 out '\tvoid* libvk;'
+		--	 end
+		-- end
+		-- out '};\n'
+		-- self.o.the_I = 'struct '..self.__name..'_I `'
+
+		-- -- As a wrapper, we're in charge of making sure our functions are provided.
+		-- for n,e in pairs(self.__index) do
+		--	 if e.type and e.type.__call and not e.type.__raw then
+		--		 out('static ',e.type.o.pmref:gsub('`', self.__name..'_'..n)
+		--			 :gsub('#', self.o.ref:gsub('`', 'self')),';')
+		--	 end
+		-- end
+		-- out:write ''
+
+		-- -- In addition, write out the *_I structure and destructor function.
+		-- if not special[self.__name] then
+		--	 out('static void ',self.__name,'_destroy(Vv',self.__name,'* self) {')
+		--	 out '\tfree(self);'
+		--	 out '}'
+		-- else
+		--	 out('// Here would go the special _I and destructor for '..special[self.__name])
+		-- end
+		-- out:write ''
 	end
 end
 
--- Figure out which wrapper goes where using the parent links
-local level = {[vk.Vk]='init', [vk.Instance]='instance', [vk.Device]='device'}
-local parents = {}
-foreach(function(t)
-	for _,v in pairs(vk) do
-		if v.__index and not v.__raw and not level[v] then t[v] = true end
-	end
-end, function(t)
-	assert(t.__index[2] and t.__index[2].name == 'parent', "No parent for "..tostring(t.__name))
-	parents[t] = t.__index[2].type
-	if level[parents[t]] then
-		level[t] = level[parents[t]]
-		return true
-	end
-end)
-
--- Write out the PFN structures
-for _,ll in ipairs{'init', 'instance', 'device'} do
-	f:write('struct '..ll..'_M {\n')
-	for t,l in pairs(level) do if l == ll then
-		f:write('\tstruct Vv'..t.__name..'_M '..t.__name:lower()..';\n')
-	end end
-	f:write '};\n'
-end
-f:write '\n'
-
+--[=[
 -- Map out the commands in terms of owner and aliases
 local cmds,allcmds = {},{}
 for t in pairs(level) do
@@ -126,22 +226,6 @@ for t in pairs(level) do
 	end
 end
 f:write '\n'
-
--- Write out the _I structs and destructors for the three: Vk, Instance and Device
-for _,t in ipairs{vk.Vk, vk.Instance, vk.Device} do
-	local l,n = level[t], t.__name
-	f:write('struct '..l..'_I { Vv'..n..' ext; struct '..l..'_M pfn; ')
-	if t == vk.Vk then
-		f:write('PFN_vkGetInstanceProcAddr gipa; void* libvk; ')
-	end
-	f:write('};\n')
-	f:write('static void destroy'..n..'(Vv'..n..'* ext) {\n')
-	if t == vk.Vk then
-		f:write('\t_vVclosedl(((struct init_I*)ext)->libvk);\n')
-	end
-	f:write('\tfree(ext);\n')
-	f:write '}\n\n'
-end
 
 -- Write out the destructors and wrappers for the others
 for t,l in pairs(level) do if parents[t] then
@@ -233,4 +317,4 @@ f:write [[
 	return &self->ext;
 }
 ]]
-
+]=]

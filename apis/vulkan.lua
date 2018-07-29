@@ -264,6 +264,30 @@ vk.__index = {
 }
 table.insert(vk.Vk.__index, method{'destroy', version='0.1.0'})
 
+-- Final key: we do the level-determinations here. Since the arrangement of the
+-- Type-tree is not particularly important, we move Types that belong in certain
+-- levels into those levels of the Type-tree. That is:
+-- vk.Vk -> etc. + VkInstance -> etc. + VkDevice -> etc.
+local special = {[vk.Vk] = false, [vk.Instance] = vk.Vk, [vk.Device] = vk.Instance}
+local names = {[vk.Instance] = 'Instance', [vk.Device] = 'Device'}
+local parents = {}
+for c in pairs(special) do parents[c] = c end
+local todo = {}
+for n,w in pairs(vk) do if w.__index and not parents[w] then todo[w] = n end end
+while next(todo) do
+	for w,n in pairs(todo) do
+		assert(w.__index[2].name == 'parent')
+		local p = w.__index[2].type
+		if parents[p] ~= nil then
+			parents[w] = parents[p]
+			names[w] = n
+			todo[w] = nil
+		end
+	end
+end
+for c,p in pairs(special) do parents[c] = p end
+for c,p in pairs(parents) do if p then p[names[c]] = c end end
+
 -- All set, let's do this!
 if humanerror then error 'VkHuman error detected!' end
 return vk
