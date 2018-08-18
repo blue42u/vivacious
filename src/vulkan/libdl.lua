@@ -15,17 +15,14 @@
 --]========================================================================]
 -- luacheck: new globals gen
 
--- Sometimes, we defer back to the normal C way of doing things.
-local headerc = require 'apis.core.headerc'
-
 -- Certain wrappers are more special than others. This marks them by name.
 local special = {Vk='init', VkInstance='instance', VkDevice='device'}
 
-return function(self, out)
-	-- The spec is very different, and as such handles things... differently.
+local g = gen.rules(require 'apis.core.headerc')
+
+function g:header()
 	if self.specname then
-		-- We handle the header
-		out:header [[
+		return [[
 // Generated file, do not edit directly, edit src/vulkan/libdl.lua
 
 #ifdef Vv_ENABLE_X
@@ -48,83 +45,109 @@ return function(self, out)
 #include "cpdl.h"
 #include <stdlib.h>
 ]]
-
-		-- As the spec, we manage the overall structure of the file.
-		-- First up, write out the master *_M tables for each level.
-		-- for _,l in ipairs{'init', 'instance', 'device'} do
-		--	 out('struct ',l,'_M {')
-		--	 for _,ty in pairs(self) do
-		--		 if ty.o.level == l then
-		--			 out('\tstruct Vv',ty.__name,'_M ',ty.__name:lower(),';')
-		--		 end
-		--	 end
-		--	 out '};'
-		-- end
-		-- out:write '\n'
-
-		-- Return before anything else happens
-		return
 	end
+end
 
-	-- Otherwise, nab the outputs that headerc uses.
-	out:disable()
-	headerc(self, out)
-	out:enable()
+function g:main()
+	if self.specname then return end
+	if self.iswrapper then
+		local out = gen.collector()
+		out(self.I)
+		out(self.preM)
+		return out
+	end
+end
 
-	-- Wrappers have an __index aspect but no __raw aspect
-	if self.__index and not self.__raw and self.ismain then
-		self.o.parent = self.__index.e.parent and self.__index.e.parent.type or false
-		self.o.level = special[self.__name] or self.__index.e.parent.type.o.level
+function g:footer()
+	if self.specname then return end
+	if self.iswrapper then
+		local out = gen.collector()
+		out(self.methods)
+		out(self.theM)
+		return out
+	end
+end
 
-		-- Setup our *_I structure
-		out('struct Vv',self.__name,'_I {')
-		out('\tVv',self.__name,' pub;')
-		out:write '};'
+function g:iswrapper() return self.__index and not self.__raw end
+function g:parent() return self.__index.e.parent and self.__index.e.parent.type or false end
+function g:level() return special[self.__name] or self.parent.level end
 
-		-- Get ready to write out all the functions for the _M
-		local mout = out:push()
+function g:I()
+	local out = gen.collector()
+	out('struct Vv',self.__name,'_I {')
+	out('\tVv',self.__name,' pub;')
+	out('\tstruct ',self.level,'_M* M;')
+	out '};'
+	return out
+end
 
-		-- Make sure we have a destructor suitable for our needs
-		mout('\t.destroy = ',self.__name,'_destroy,')
-		out('static void ',self.__name,'_destroy(',self.o.ref:gsub('`', 'self'),') {')
-		for n in pairs(self.__index) do
-			if n == 'vkDestroy'..self.__name or n == 'vkFree'..self.__name then
-				out('\tvV',n,'(self, NULL);')
+function g:preM()
+	return 'static struct '..self.__name..'_M m_'..self.__name..';'
+end
+
+g:addrule('methods', 'theM', function(self)
+	local out,mout = gen.collector(), gen.collector()
+	mout('static struct ',self.__name,'_M m_',self.__name,' = {')
+
+	-- The destroy method is a little different, we handle it specially
+	mout('\t.destroy = ',self.__name,'_destroy,')
+	out('static void ',self.__name,'_destroy(',self.ref:gsub('`', 'self'),') {')
+	local sn = self.__name:gsub('^Vk', '')
+	if self.__index.e['vkFree'..sn] then out('\tvVvkFree',sn,'(self, NULL);')
+	elseif self.__index.e['vkDestroy'..sn] then out('\tvVvkDestroy',sn,'(self, NULL);')
+	end
+	out '\tfree(self);'
+	out '};'
+
+	-- Now we get all the other methods ready.
+	for mn,me in pairs(self.__index) do
+		if me.type and me.type.__call and not me.type.__raw and mn ~= 'destroy' then
+			-- All of these are wrap* methods, so we handle things accordingly.
+			mout('\t.',mn,' = ',mn,',')
+			out('static ',me.type.pmref:gsub('[`#]', {
+				['`']=mn, ['#']=self.ref:gsub('`', 'self')
+			}),' {')
+			local rt = me.type.__call.e.wrapped.type
+			out('\t',rt.ref:gsub('`', 'obj'),';')
+			out '\tobj = malloc(sizeof *obj);'
+
+			-- Figure out how many parents it takes to get a ProcAddr
+			local pa = 'self'
+			do
+				local p = self
+				while not special[p.__name] do p,pa = p.parent,pa..'->parent' end
+				if p.level == 'device' then
+					pa = 'vVvkGetDeviceProcAddr('..pa..', %q)'
+				elseif p.level == 'instance' then
+					pa = 'vVvkGetInstanceProcAddr('..pa..', %q)'
+				elseif p.level == 'init' then
+					pa = '_vVsymdl('..pa..', %q)'
+				end
 			end
+
+			-- Use the ProcAddr to fill the object with its Vulkan methods
+			out('\tobj->_M = &m_',rt.__name,';')
+			for n,e in pairs(rt.__index) do
+				local r
+				if n == 'real' then r = 'internal'
+				elseif n == 'parent' then r = 'self'
+				elseif e.type and e.type.__call and e.type.__raw then
+					r = '('..e.type.ref:gsub('`', '')..')'..pa:format(n)
+				end
+				if r then out('\tobj->',n,' = ',r,';') end
+			end
+
+			out '\treturn obj;'
+			out '}'
 		end
-		out '\tfree(self);\n}'
+	end
+	mout '};'
+	return out, mout
+end)
 
-		out:write ''	-- Leave a blank line for output cleanliness.
+return g
 
-		-- Construct all the methods (other than destroy, we got that)
-		for n,e in pairs(self.__index) do
-			if e.type and e.type.__call and not e.type.__raw and n ~= 'destroy' then
-				mout('\t.',n,' = ',n,',')
-				out('static ',e.type.o.pmref:gsub('`', n):gsub('#', self.o.ref:gsub('`', 'self')),' {')
-
-				-- Figure out the return type
-				local rt
-				for _,ee in ipairs(e.type.__call) do
-					if ee.ret then rt = ee.type; break end
-				end
-				out('\t',rt.o.ref:gsub('`', 'obj'),';')
-				out('\tobj = malloc(sizeof *obj);')
-
-				-- Figure out how many parent steps it takes to get to a ProcAddr
-				local pa
-				do
-					local p = self
-					pa = 'self'
-					while not special[p.__name] do
-						p,pa = p.__index.e.parent.type, pa..'->parent'
-					end
-					if special[p.__name] == 'device' then
-						pa = 'vVvkGetDeviceProcAddr('..pa..', %q)'
-					elseif special[p.__name] == 'init' then
-						pa = 'vVvkGetDeviceProcAddr('..pa..', %q)'
-					end
-				end
-
+--[=[
 				-- Fill in the parts of the object
 				out('\tobj->_M = ',rt.o.methout,';')
 				for nn,ee in pairs(rt.__index) do
@@ -193,7 +216,6 @@ return function(self, out)
 	end
 end
 
---[=[
 -- Map out the commands in terms of owner and aliases
 local cmds,allcmds = {},{}
 for t in pairs(level) do
