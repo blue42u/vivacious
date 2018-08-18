@@ -337,7 +337,7 @@ g:addrule('newindex', 'newindexm', 'newindexa', function(self)
 end)
 
 -- The final form is that of a pure callable. This handles that case.
-g:addrule('call', '-ref', '-mref', '-pref', '-header', function(self)
+g:addrule('call', '-ref', '-mref', '-pref', '-pmref', '-header', function(self)
 	if not self.__call then return end
 
 	local mref = self.callret and self.callret.type.ref or 'void `'
@@ -346,12 +346,14 @@ g:addrule('call', '-ref', '-mref', '-pref', '-header', function(self)
 			'Vv'..self.__name..' `',	-- Version for structure elements
 			'Vv'..self.__name..' `',	-- Version for structure method elements
 			mref:gsub('`', '`('..self.callargs..')'),	-- Form for prototypes
+			mref:gsub('`', '`('..self.callmargs..')'),	-- Form for prototypical methods
 			'typedef '..mref:gsub('`', '(*Vv'..self.__name..')('..self.callargs..')')..';'
 	else
 		return nil,
 			mref:gsub('`', '(*`)('..self.callargs..')'),	-- For structure elements
 			mref:gsub('`', '(*`)('..self.callmargs..')'),	-- For structure methods
-			mref:gsub('`', '`('..self.callargs..')')	-- For prototypes
+			mref:gsub('`', '`('..self.callargs..')'),	-- For prototypes
+			mref:gsub('`', '`('..self.callmargs..')')	-- For prototypical methods
 	end
 end)
 
