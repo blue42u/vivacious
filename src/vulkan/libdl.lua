@@ -82,12 +82,12 @@ function g:I()
 end
 
 function g:preM()
-	return 'static struct '..self.__name..'_M m_'..self.__name..';'
+	return 'static struct Vv'..self.__name..'_M m_'..self.__name..';'
 end
 
 g:addrule('methods', 'theM', function(self)
 	local out,mout = gen.collector(), gen.collector()
-	mout('static struct ',self.__name,'_M m_',self.__name,' = {')
+	mout('static struct Vv',self.__name,'_M m_',self.__name,' = {')
 
 	-- The destroy method is a little different, we handle it specially
 	mout('\t.destroy = ',self.__name,'_destroy,')
