@@ -70,7 +70,10 @@ function(gen)
 		set(A_OUTDIR ${CMAKE_CURRENT_BINARY_DIR})
 	endif()
 	set(GN ${CMAKE_CURRENT_SOURCE_DIR}/${A_USE}.lua)
-	set(SL ${CMAKE_SOURCE_DIR}/apis/core/generation.lua ${GN})
+	set(SL
+		${CMAKE_SOURCE_DIR}/apis/core/generation.lua
+		${CMAKE_SOURCE_DIR}/apis/core/lintwrapper.lua
+		${GN})
 	foreach(S ${A_SPECS})
 		set(S_OUT ${A_OUTDIR}/${S}${A_SUFFIX})
 		set(S_DEPS ${SL})
@@ -85,7 +88,7 @@ function(gen)
 		endif()
 		add_custom_command(OUTPUT ${S_OUT}
 			COMMAND ${LUA_EXECUTABLE} -E -e "package.path = \\\"${CMAKE_SOURCE_DIR}/?.lua\\\""
-				${GN} ${S_OUT} ${S}
+				${CMAKE_SOURCE_DIR}/apis/core/generation.lua ${GN} ${S_OUT} ${S}
 			WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 			MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/apis/${S}.lua
 			DEPENDS ${A_DEPENDS} ${S_DEPS})
