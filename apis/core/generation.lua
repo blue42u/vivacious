@@ -81,6 +81,6 @@ end
 
 -- The other thing this `require` does is add a new entry into package.path,
 -- that allows the beginning 'apis.' to be left off.
-package.path = package.path .. ';./apis/?.lua'
+package.path = package.path .. ';' .. package.path:gsub('%?%.lua', 'apis/?.lua')
 
 return gen

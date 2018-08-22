@@ -72,3 +72,13 @@ function versioned(ind)
 	end
 	return ind
 end
+
+-- Sometimes an extra file needs to be accessed, which can be referenced by the
+-- usual file paths. This function will search for and open a file with the
+-- given extension on Lua's require paths, using '/' as the directory separator.
+-- luacheck: new globals openfile
+
+function openfile(path)
+	local fn = assert(package.searchpath(path, package.path:gsub('%.lua', ''), '/'))
+	return assert(io.open(fn, 'r'))
+end

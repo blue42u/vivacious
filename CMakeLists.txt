@@ -84,7 +84,8 @@ function(gen)
 			)
 		endif()
 		add_custom_command(OUTPUT ${S_OUT}
-			COMMAND ${LUA_EXECUTABLE} ${GN} ${S} ${A_OUTDIR}
+			COMMAND ${LUA_EXECUTABLE} -E -e "package.path = \\\"${CMAKE_SOURCE_DIR}/?.lua\\\""
+				${GN} ${S_OUT} ${S}
 			WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 			MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/apis/${S}.lua
 			DEPENDS ${A_DEPENDS} ${S_DEPS})
