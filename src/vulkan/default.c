@@ -17,8 +17,8 @@
 #include <vivacious/vulkan.h>
 #include "internal.h"
 
-VvVk* libVv_createVk_libdl(const char** err);
+VvVk* libVv_createVk_libdl(size_t* len, const char** err);
 
-VvAPI VvVk* vVcreateVk(const char** err) {
-	return libVv_createVk_libdl(err);
+VvAPI VvVk* vVcreateVk(size_t* len, const char** err) {
+	return libVv_createVk_libdl(len, err);
 }
