@@ -13,267 +13,346 @@
    See the License for the specific language governing permissions and
    limitations under the License.
 --]========================================================================]
+-- luacheck: std lua53, new globals gen
 
-local gen = require 'apis.core.generation'
-
--- Nab the arguments, and get ready for the storm.
-local specname,outdir = ...
-local f = assert(io.open(outdir..package.config:match'^(.-)\n'..specname..'.h', 'w'))
-local spec = require(specname)
-
--- Whitespace management helper
-local function indent(s, pre)
-	pre = pre or '\t'
-	local lines = {}
-	for l in s:gmatch '[^\n]+' do table.insert(lines, pre..l) end
-	return table.concat(lines, '\n')
-end
-
--- Check if an expression (from __raw.*.value[s]) will work as C code, and
--- perform any nessesary transformations to make it valid C.
--- Returns the C expression and the base variables it references
-local callit
-local function exptoC(ex, env, opt, raw)
-	if type(ex) ~= 'string' then ex = ex[1] end
-	return ex:gsub('[%w.]+', function(ref)
-		if not ref:find '%.' then return ref else
-			local isptr,m = {},{}
-			for _,e in ipairs(env or {}) do
-				if e.name then
-					isptr[e.name],m[e.name] = callit(e.type, ''):find '%*', e.type
-				end
-			end
-			if opt and opt.self then
-				isptr.self = callit(opt.self, 'self'):find '%*'
-				m.self = opt.self
-			end
-
-			local new = {}
-			for p in (ref..'.'):gmatch '([^.]+)%.' do
-				new[#new+1] = p
-				new[#new+1] = isptr[p] and '->' or '.'
-				local ty = m[p]
-				isptr,m = {},{}
-				for _,e in ipairs(ty.__index or {}) do if not e.aliasof then
-					isptr[e.name],m[e.name] = callit(e.type, '', {noself=true}):find '%*', e.type
-				end end
-			end
-			table.remove(new)
-			return table.concat(new)
-		end
-	end):gsub('#([%w.>-]+)', '%1_cnt')
-end
-
--- Get a string representing a typed name.
+-- Some types are basic.
 local basetypes = {
-	integer = 'long', number = 'float',
-	index = 'int',
-	string = 'const char*',
-	lightuserdata = 'void*',
+	integer = 'long', number = 'float', index = 'int',
+	string = 'const char*', userdata = 'void*',
 	boolean = 'bool',
 }
-function callit(ty, na, opt)
-	local sna = na and ' '..na or ''
-	local asna = (opt and opt.inarr and '' or '*')..sna
-	if type(ty) == 'string' then return basetypes[ty]..sna
-	elseif ty.__raw and (not opt or not opt.noraw) then
-		assert(ty.__raw.C, "No C field for "..tostring(ty.__raw))
-		if ty.__raw.dereference then
-			return ty.__raw.C..((opt and (opt.ret or opt.inarr)) and '' or '*')..sna
-		else return ty.__raw.C..sna end
-	elseif ty.__name then return 'Vv'..ty.__name..asna
-	elseif ty.__call then
-		local as = {}
 
-		-- Add in the nessesary self or udata argument
-		if not opt or not opt.noself then
-			if ty.__call.method then
-				assert(opt and opt.self, "No available self for method!")
-				table.insert(as, callit(opt.self, 'self'))
-			else table.insert(as, callit('lightuserdata', 'udata')) end
-		end
+local g = gen.rules()
 
-		-- Handy markings
-		local raws = {}
-		for _,re in ipairs(ty.__raw and ty.__raw.call or {}) do
-			if re.value then raws[re.value] = re else
-				for _,x in ipairs(re.values) do raws[x] = re end
-			end
-		end
-
-		-- Gather up the real arguments
-		local rets = {}
-		for _,a in ipairs(ty.__call) do
-			if a.ret then rets[#rets+1] = a else
-				-- If we have an array (or need the length), we need to include its length
-				local lname = '#'..a.name
-				if a.type.__index and a.type.__index[1].name == '__sequence' or raws[lname] then
-					local lentype = {__raw={C='size_t'}}
-					if raws[lname] and raws[lname].type then lentype = raws[lname].type end
-					as[#as+1] = callit(lentype, a.name..'_cnt')
-				end
-				-- Add in the argument
-				as[#as+1] = callit(a.type, a.name)
-			end
-		end
-
-		-- Decide what should be the return for C
-		local ret
-		for _,r in ipairs(rets) do
-			if r.mainret then assert(not ret, 'Multiple mainrets!'); ret = r end
-		end
-		if not ret then	-- If there are no mainret's, then just use the first one
-			ret = rets[1]
-			if ret and ret.type.__index and ret.type.__index[1].name == '__sequence' then
-				ret = nil	-- Arrays aren't returned that way
-			end
-		end
-		if ty.__call.nomainret then ret = nil end
-
-		-- Add the leftover returns as arguments
-		for _,r in ipairs(rets) do if r ~= ret then
-			local inarr = r.type.__index and r.type.__index[1].name == '__sequence'
-			local lname = '#'..r.name
-			if inarr or raws[lname] then
-				local lentype = {__raw={C='size_t'}}
-				if raws[lname] and raws[lname].type then lentype = raws[lname].type end
-				as[#as+1] = callit(lentype, '*'..(r.name and r.name..'_cnt' or ''), {ret=true})
-			end
-			as[#as+1] = callit(r.type, (inarr and '' or '*')..(r.name or ''), {ret=true})
-		end end
-
-		-- The final result
-		ret = ret and ret.type or {__raw={C='void'}}
-		if opt and opt.proto then
-			return callit(ret, (na or '')..'('..table.concat(as,', ')..')')
-		else
-			return callit(ret, '(*'..(na or '')..')('..table.concat(as,', ')..')')
-		end
-	elseif ty.__index then
-		local out = {}
-		local udatad = false
-		for _,e in ipairs(ty.__index or {}) do
-			if e.name == '__sequence' then
-				assert(#ty.__index == 1, '__sequence __index fields must be alone')
-				return callit(e.type,
-					(opt and opt.ret and '' or 'const')..' *'..(na or ''), {inarr=true})
-			else
-				if not udatad and e.type.__call then
-					table.insert(out, callit('lightuserdata', 'udata'))
-					udatad = true
-				end
-				if e.type.__index and e.type.__index[1].name == '__sequence' then
-					table.insert(out, 'size_t '..e.name..'_cnt')
-				end
-				table.insert(out, callit(e.type, e.name))
-			end
-		end
-		for i,s in ipairs(out) do out[i] = indent(s)..';\n' end
-		na = na or ''
-		return 'struct {\n'..table.concat(out)..'} '..na
-	else
-		for k,v in pairs(ty) do print('>', k, v) end
-		print('>>', ty, na)
-		error 'Unable to handle type properly, probably should be named!'
+function g:postfooter()
+	if self.specname then
+		return '\n#undef IMP_CONST\n#endif // H_Vv_'..self.specname
 	end
 end
 
--- The main traversal
-gen.traversal.df(spec, function(ty)
-	if ty.__name then if not ty.__raw then
-		if ty.__directives then
-			for _,d in ipairs(ty.__directives) do f:write('#'..d..'\n') end
-		end
-
-		if ty.__index then
-			f:write('typedef struct Vv'..ty.__name..' Vv'..ty.__name..';\n')
-			coroutine.yield 'post'
-			f:write('struct Vv'..ty.__name..' {\n')
-			local foundone,rawcall = false, {}
-			for _,e in ipairs(ty.__index) do if not e.aliasof then
-				local ifdef,ifndef
-				if e.type.__ifdef then
-					local ss = {}
-					for i,s in ipairs(e.type.__ifdef) do ss[i] = 'defined('..s..')' end
-					ifdef = table.concat(ss, ' && ')
-					ifndef = assert(e.type.__ifndef, "Type with __ifdef but not __ifndef")
+function g:main()
+	local out = gen.collector()
+	if self.specname then
+		out ''
+		-- Specs are just plain different. As such, we handle them differently
+		assert(not self.__enum, "Specs shouldn't have enums!")
+		assert(not self.__newindex, "Specs need to be fully read-only!")
+		assert(not self.__call, "A __call-able spec... NYI.")
+		if self.__index then
+			for n,e in pairs(self.__index) do
+				if e.type then
+					out((e.type.pref or e.type.ref or 'ERR `'):gsub('`', 'vV'..e.name),';')
+				else
+					out('// ',n,' = ',e.aliasof)
 				end
-
-				if e.type.__call and e.type.__call.method then
-					if not foundone then
-						f:write('\tconst struct Vv'..ty.__name..'_M {\n')
-						foundone = true
-					end
-					if ifdef then f:write('#if '..ifdef..'\n') end
-					f:write(indent(callit(e.type, e.name, {self=ty}), '\t\t')..';\n')
-					if ifdef then
-						f:write '#else\n'
-						f:write(indent(callit(ifndef, e.name, {self=ty}), '\t\t')..';\n')
-						f:write '#endif\n'
-					end
-					if e.type.__raw then	-- Raw callables are special...
-						rawcall[e] = ifdef or false
-					else
-						f:write('#ifdef __GNUC__\n#define vV'..e.name
-							..'(_S, ...) ( __typeof__(_S) _s = (_S),  _s->_M->'..e.name
-							..'(_s, ##__VA_ARGS__ ) )\n#endif\n')
-					end
-				end
-			end end
-			if foundone then f:write('\t} *_M;\n') end
-			local udatad = false
-			for _,e in ipairs(ty.__index) do if not e.aliasof then
-				if not udatad and e.type.__call and not e.type.__call.method then
-					f:write('\tvoid* udata;\n')
-					udatad = true
-				end
-				if e.type.__index and e.type.__index[1]
-					and e.type.__index[1].name == '__sequence' then
-						f:write('\tsize_t '..e.name..'_cnt;\n')
-				end
-				if not e.type.__call or not e.type.__call.method then
-					if e.type.__ifdef then
-						local ss = {}
-						for _,s in ipairs(e.type.__ifdef) do ss[#ss+1] = 'defined('..s..')' end
-						f:write('#if '..table.concat(ss, ' && ')..'\n')
-					end
-					f:write(indent(callit(e.type, e.name, {self=ty}))..';\n')
-					if e.type.__ifdef then
-						f:write '#else\n'
-						assert(e.type.__ifndef, 'Type with __ifdef but not __ifndef!')
-					f:write(indent(callit(e.type.__ifndef, e.name, {self=ty}))..';\n')
-						f:write '#endif\n'
-					end
-				end
-			end end
-			f:write('};\n\n')
-			coroutine.yield 'post'
-			for e,ifdef in pairs(rawcall) do
-				local args = {}
-				for _,re in ipairs(e.type.__raw.call) do
-					local ex = exptoC(re.value or re.values, e.type.__call,
-						{self=ty}, e.type.__raw.call)
-					args[#args+1] = ex
-				end
-
-				if ifdef then f:write('#if '..ifdef..'\n') end
-				f:write('static inline '..callit(e.type, 'vV'..e.name,
-					{self=ty, proto=true, noraw=true})..' {\n')
-				f:write('\treturn self->_M->'..e.name..'('..table.concat(args, ', ')..');\n')
-				f:write '}\n'
-				if ifdef then f:write '#endif\n' end
 			end
 		end
-	end elseif ty == spec then
-		coroutine.yield 'sub'	-- Wait for sub-things
-		f:write '\n'
-		if ty.__index then
-			for _,e in ipairs(ty.__index) do
-				f:write(callit(e.type, 'vV'..e.name, {proto=true, noself=true})..';\n')
+		return out
+	end
+
+	-- Otherwise, divert to the three possible forms for this Type
+	if not self.israw then
+		if self.enum then out(self.enum)
+		elseif self.struct then out(self.struct)
+		else out(self.call) end
+		out ''
+	end
+
+	if self.ismain then return out end
+end
+
+-- Method to propagate directives upwards to the spec
+function g:directives()
+	local dir = {}
+	if self.__directives then
+		for _,d in ipairs(self.__directives) do dir[d],dir[#dir+1] = #dir+1,d end
+	end
+	for _,sub in pairs(self) do
+		for _,d in ipairs(sub.directives) do
+			if dir[d] then dir[dir[d]] = false end
+			dir[d],dir[#dir+1] = #dir+1,d
+		end
+	end
+	return dir
+end
+
+-- Method to figure out the arguments list for __call-able Types
+g:addrule('callret', 'callargs', 'callmargs', function(self)
+	if not self.__call then return end
+	-- First collect the arguments and decide on a return value
+	local as,rs = {},{}
+	local function addarg(e, ret)
+		if e.type.isarray then
+			assert(e.name, "Unnamed array!")
+			table.insert(as, 'unsigned int '..(ret and '*' or '')..e.name..'_cnt')
+			table.insert(as, (e.type.ref:gsub('`', e.name or '')))
+		else
+			if e.type.basic == 'string' and ret then
+				assert(e.name, "Unnamed returning string!")
+				table.insert(as, 'size_t *'..e.name..'_len')
+			elseif e.type.basic == 'userdata' then
+				assert(e.name, "Unnamed returning userdata!")
+				table.insert(as, 'size_t '..(ret and '*' or '')..e.name..'_size')
+			end
+			table.insert(as, (e.type.ref:gsub('`', (ret and not e.type.needsderef and '*' or '')..(e.name or ''))))
+		end
+	end
+
+	local mainret
+	for _,e in ipairs(self.__call) do
+		if e.ret then
+			if e.mainret then
+				assert(not mainret, "More than one mainret!")
+				mainret = e
+			end
+			table.insert(rs, e)
+		else addarg(e) end
+	end
+	if not mainret then mainret = rs[1] end	-- If nothing was marked mainret, use the first one
+	if mainret and mainret.type.isarray then mainret = nil end -- Arrays aren't returned
+	if self.__call.nomainret then mainret = nil end
+
+	-- Collect the remaining returns as arguments
+	for _,e in ipairs(rs) do if e ~= mainret then addarg(e, true) end end
+
+	as = table.concat(as, ', ')
+	return mainret, as, #as == 0 and '#' or '#, '..as
+end)
+
+-- Some Types don't have (much) output. This provides the ref in those cases.
+g:addrule('israw', 'ref', 'header', 'wrap', function(self)
+	if self.specname then
+		local out = gen.collector()
+		out [[
+// Automatically generated file, do not edit directly
+
+#include <stdlib.h>
+#include <stdbool.h>]]
+		for _,d in ipairs(self.directives) do out('#'..d) end
+		out('\n#ifndef H_Vv_',self.specname,'\n#define H_Vv_',self.specname)
+		out('\n#ifdef Vv_IMP_',self.specname,'\n#define IMP_CONST')
+		out('#else\n#define IMP_CONST const\n#endif\n')
+		return false, nil, out
+	end
+
+	if self.basic then
+		local b = basetypes[self.basic]
+		assert(b, "No basetype for "..self.basic)
+		if self.__name then
+			return 'Vv'..self.__name..' `', 'typedef '..b..' Vv'..self.__name..';'
+		else return true, b..' `' end
+	elseif self.__raw then
+		assert(self.__raw.C, "No __raw C field for "..self.name)
+		local r = self.__raw.C..(self.__raw.dereference and '*' or '')..' `'
+		local wrap
+		if self.__call and self.__raw.call then
+			wrap = function(selfty)
+				local as = {}
+				for _,re in ipairs(self.__raw.call) do
+					as[#as+1] = gen.express(re.values or re.value, {
+						len = function(n) return n..'_cnt' end,
+						udlen = function(n) return n..'_size' end,
+						ref = function(...)
+							local ns = {...}
+							local t = ns[1] == 'self' and selfty or self.__call.e[ns[1]].type
+							local o = ns[1]
+							for i=2,#ns do
+								o = o..(t.needsderef and '->' or '.')..ns[i]
+								t = t.__index and t.__index.e[ns[i]].type or t.__newindex and t.__newindex.e[ns[i]].type
+							end
+							return o
+						end
+					}, self.__call.e, selfty)
+				end
+				return '`('..table.concat(as, ', ')..')'
 			end
 		end
+		return true, r, '', wrap
 	end
 end)
 
--- Close up, to be nice to the OS
-f:close()
+function g:needsderef()
+	if self.basic then return false end
+	return not not self.ref:find('%*%s*`')
+end
+
+-- Arrays are fairly well-defined, and easy to handle when they pop up.
+g:addrule('isarray', '-ref', function(self)
+	local ty,rep
+	if self.__index and self.__index[1] and self.__index[1].name == '__sequence' then
+		assert(not self.__newindex, "C can't handle arrays with more stuff!")
+		assert(#self.__index == 1, "C can't handle arrays with other items!")
+		ty,rep = self.__index[1].type, 'IMP_CONST`'
+	elseif self.__newindex and self.__newindex[1] and self.__newindex[1].name == '__sequence' then
+		assert(not self.__index, "C can't handle arrays with more stuff!")
+		assert(#self.__newindex == 1, "C can't handle arrays with other items!")
+		ty,rep = self.__newindex[1].type, '`'
+	end
+	if ty then
+		if not (ty.__raw and ty.__raw.dereference) then rep = rep:gsub('`', '* `') end
+		return true, ty.ref:gsub('`', rep)
+	else return false end
+end)
+
+-- Enums are probably the simplest Types to handle
+g:addrule('enum', '-ref', '-header', function(self)
+	if not self.__enum or self.__raw then return end
+
+	local out = gen.collector()
+	out('enum ',self.__name and 'Vv'..self.__name,' {')
+	for _,e in ipairs(self.__enum) do out('\t',e.name,',') end
+	out '};'
+
+	if self.__name then
+		return out, 'Vv'..self.__name..' `', 'typedef enum Vv'..self.__name..' Vv'..self.__name..';'
+	else return out end
+end)
+
+-- When a Type needs to be written out as a struct, this handles the pieces
+-- Split into parts to handle recursion.
+function g:isstruct()
+	if not self.__index and not self.__newindex or self.isarray then return end
+	return true
+end
+g:addrule('-ref', '-header', function(self)
+	if not self.isstruct then return end
+	if self.__name then
+		return 	'Vv'..self.__name..'* `',
+			'typedef struct Vv'..self.__name..' Vv'..self.__name..';'
+	else return self.structref end
+end)
+g:addrule('struct', 'structref', '-footer', function(self)
+	if not self.isstruct then return end
+
+	local out,sref = gen.collector(), gen.collector()
+	if self.__name then out('struct Vv'..self.__name..' {')
+	else out 'struct {' end
+	if self.__index then out('\tconst struct Vv',self.__name,'_M {') end
+	out(self.scallm)
+	out(self.indexm)
+	out(self.newindexm)
+	if self.__index then out('\t} *_M;') end
+	out(self.scall)
+	out(self.index)
+	out(self.newindex)
+	sref(out)
+	sref '} `'
+	out('};')
+	local fout = gen.collector()
+	fout(self.scalla)
+	fout(self.indexa)
+	fout(self.newindexa)
+	return out, sref, fout
+end)
+
+-- Structified component for __call
+g:addrule('scall', 'scallm', 'scalla', function(self)
+	if not self.__call then return end
+	-- TODO: Figure out the C way to put callables in
+	local mout,aout = gen.collector(), gen.collector()
+	mout('\t',
+		(self.callret and self.callret.type.ref or 'void `'):gsub('`','(*_activate)('..self.callargs..')'),
+	';')
+	aout '#ifdef __GNUC__'
+	aout('#define vV(_S, ...) ({ __auto_type _s = (_S); _s->_M->_activate(_s, ##__VA_ARGS__ ); })')
+	aout '#endif'
+	return nil, mout, aout
+end)
+
+g:addrule('ifdefpre', 'ifdefelse', 'ifdefpost', function(self)
+	if not self.__ifdef then return end
+	local consts = {}
+	for i,c in ipairs(self.__ifdef) do consts[i] = 'defined('..c..')' end
+
+	local els = gen.collector()
+	if self.__ifndef then
+		els '#else'
+		els '\t`'
+	end
+
+	return '#if '..table.concat(consts, ' && '), els, '#endif'
+end)
+
+-- Structified component for __index
+g:addrule('index', 'indexm', 'indexa', function(self)
+	if not self.__index or self.isarray then return end
+
+	local mout,out,aout = gen.collector(),gen.collector(),gen.collector()
+	local sref
+	if self.__name then
+		sref = 'Vv'..self.__name..'* self'	-- Result from structification
+	end
+	for n,e in pairs(self.__index) do
+		if e.type then
+			if e.type.isarray then
+				out('\tIMP_CONST unsigned int ',n,'_cnt;')
+			end
+			if not e.type.wrap and e.type.mref and sref then
+				mout(e.type.ifdefpre)
+				local rep = {['`']=n, ['#']=sref}
+				mout('\t',e.type.mref:gsub('[`#]',rep),';')
+				mout(e.type.ifdefelse and tostring(e.type.ifdefelse)
+					:gsub('`', (e.type.__ifndef.mref or e.type.__ifndef.ref):gsub('[`#]', rep)..';'))
+				mout(e.type.ifdefpost)
+
+				aout '#ifdef __GNUC__'
+				aout('#define vV',n,'(_S, ...) ({ __auto_type _s = (_S); ',
+					'_s->_M->',n,'(_s, ##__VA_ARGS__ ); })')
+				aout '#endif'
+			else
+				out(e.type.ifdefpre)
+				out('\t',e.type.ref:gsub('`', 'IMP_CONST '..n),';')
+				out(e.type.ifdefelse and tostring(e.type.ifdefelse)
+					:gsub('`', e.type.__ifndef.ref:gsub('`', 'IMP_CONST '..n)..';'))
+				out(e.type.ifdefpost)
+				if e.type.wrap then	-- It's a __raw __call-able
+					assert(sref, "Raw __callables can only be part of named things!")
+					aout(e.type.ifdefpre)
+					aout('static inline ',
+						e.type.pmref:gsub('[`#]', {['`']='vV'..n, ['#']=sref}),' {')
+					aout('\t',e.type.callret and 'return ','self->',e.type.wrap(self):gsub('`',n),';')
+					aout '}'
+					aout(e.type.ifdefpost)
+				end
+			end
+		else
+			out('\t// ',e.name,' = ',e.aliasof)
+		end
+	end
+	return out, mout, aout
+end)
+
+-- Structified component for __newindex
+g:addrule('newindex', 'newindexm', 'newindexa', function(self)
+	if not self.__newindex or self.isarray then return end
+
+	local out = gen.collector()
+	for n,e in pairs(self.__newindex) do
+		if e.type then
+			if e.type.isarray then out('\tunsigned int ',n,'_cnt;') end
+			out('\t',e.type.ref:gsub('`',n),';')
+		else out('\t// ',n,' = ',e.aliasof) end
+	end
+	return out
+end)
+
+-- The final form is that of a pure callable. This handles that case.
+g:addrule('call', '-ref', '-mref', '-pref', '-header', function(self)
+	if not self.__call then return end
+
+	local mref = self.callret and self.callret.type.ref or 'void `'
+	if self.__name then
+		return nil,
+			'Vv'..self.__name..' `',	-- Version for structure elements
+			'Vv'..self.__name..' `',	-- Version for structure method elements
+			mref:gsub('`', '`('..self.callargs..')'),	-- Form for prototypes
+			'typedef '..mref:gsub('`', '(*Vv'..self.__name..')('..self.callargs..')')..';'
+	else
+		return nil,
+			mref:gsub('`', '(*`)('..self.callargs..')'),	-- For structure elements
+			mref:gsub('`', '(*`)('..self.callmargs..')'),	-- For structure methods
+			mref:gsub('`', '`('..self.callargs..')')	-- For prototypes
+	end
+end)
+
+return g

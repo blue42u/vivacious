@@ -13,16 +13,9 @@
    See the License for the specific language governing permissions and
    limitations under the License.
 --]========================================================================]
+-- luacheck: std lua53, new globals gen
 
-local gen = require 'apis.core.generation'
-
--- Nab the arguments, and get ready for the storm.
-local specname,outdir = ...
-local f = assert(io.open(outdir..package.config:match'^(.-)\n'..specname..'.md', 'w'))
-local spec = require(specname)
-spec.__spec = specname
-
--- Docstring whitespace manager.
+-- Handy docstring whitespace replacement thingy
 local function rewhite(base, pre)
 	local whitepre = base:match '^%s*'
 	local lines = {}
@@ -32,111 +25,111 @@ local function rewhite(base, pre)
 	return table.concat(lines, '\n')
 end
 
--- Find a suffix to indicate a type.
-local function callit(ty, na)
-	if type(ty) == 'string' then return (na and na..' ' or '')..'('..ty..')'
-	elseif ty.__name then return (na and na..' ' or '')..'('..ty.__name..')'
-	elseif ty.__call then
-		local as,rs = {},{}
-		for _,a in ipairs(ty.__call) do
-			local x,y = '',''
-			if a.canbenil then x,y = '[',']' end
-			if not a.setto then
-				if a.ret then table.insert(rs, x..callit(a.type, a.name)..y)
-				else table.insert(as, x..callit(a.type, a.name)..y) end
-			end
-		end
-		as = '('..table.concat(as, ', ')..')'
-		if #rs > 0 then rs = ' -> '..table.concat(rs, ', ') else rs = '' end
-		return (ty.__call.method and ':' or '.')..(na or 'function')..as..rs
-	elseif ty.__index then
-		local out = {}
-		local fin = {}
-		for _,e in ipairs(ty.__index or {}) do
-			if e.name == '__sequence' then
-				table.insert(fin, callit(e.type))
-				table.insert(fin, '...')
-			else table.insert(out, callit(e.type, e.name)) end
-		end
-		for _,v in ipairs(fin) do table.insert(out, v) end
-		return (na and na..' ' or '')..'{'..table.concat(out, ', ')..'}'
-	else
-		for k,v in pairs(ty) do print('>', k, v) end
-		print('>>', ty, na)
-		error 'Unable to handle type properly, probably should be named!'
+local g = gen.rules()
+
+g:addrule('main', function(self)
+	local out = gen.collector()
+	if self.specname then out('# ',self.specname,' Specification')
+	elseif self.__name then
+		out('## ',self.__name,self.__raw and self.__raw.C and ' (`'..self.__raw.C..'`)')
 	end
-end
 
--- The main traversal
-gen.traversal.df(spec, function(ty)
-	if ty.__name then
-		f:write(('## %s%s\n%s\n'):format(ty.__name,
-			ty.__raw and ' :{'..ty.__raw.C..'}' or '',
-			rewhite(ty.__doc or 'No documentation.', '\t')))
-
-		if ty.__call then
-			f:write '### Calling Convention\n'
-			f:write('\t'..callit({__call=ty.__call}, ty.__name)..'\n')
-		end
-
-		if ty.__index then
-			f:write '### Contents\n'
-			for _,e in ipairs(ty.__index) do
-				local ver = ''
-				if e.version then
-					assert(e.version:match '%d+%.%d+%.%d+', 'Invalid version '..e.version)
-					ver = ' *[Added in v'..e.version..']*'
-				end
-				if e.aliasof then
-					f:write(('\t- %s alias of %s%s\n'):format(e.name, e.aliasof, ver))
-				else
-					f:write(('\t- %s%s%s%s\n%s'):format(
-						e.canbenil and '[' or '', callit(e.type, e.name),
-						e.canbenil and ']' or '', ver,
-						e.doc and rewhite(e.doc or 'No documentation.', '\t\t')..'\n' or ''))
-				end
-			end
-		end
-
-		if ty.__enum then
-			f:write '### Possible Values'
-			if ty.__mask then f:write ' (also works as a mask)' end
-			f:write '\n'
-			for _,e in ipairs(ty.__enum) do
-				local raw = e.__raw and e.__raw.enum[e.name]
-					and " :{"..e.__raw.enum[e.name].C.."}" or ''
-				f:write('\t- '..e.name..raw..'\n')
-			end
-		end
-
-		if ty.__directives then
-			f:write '### Directives\n'
-			for _,d in ipairs(ty.__directives) do f:write('- #'..d..'\n') end
-		end
-
-		f:write '\n'
-	elseif ty == spec then
-		coroutine.yield 'sub'
-		if ty.__index then
-			f:write '## Global Contents\n'
-			for _,e in ipairs(ty.__index) do
-				local ver = ''
-				if e.version then
-					assert(e.version:match '%d+%.%d+%.%d+', 'Invalid version '..e.version)
-					ver = ' *[Added in v'..e.version..']*'
-				end
-				if e.aliasof then
-					f:write(('\t- %s alias of %s%s\n'):format(e.name, e.aliasof, ver))
-				else
-					f:write(('\t- %s%s%s%s\n%s'):format(
-						e.canbenil and '[' or '', callit(e.type, e.name),
-						e.canbenil and ']' or '', ver,
-						e.doc and rewhite(e.doc or 'No documentation.', '\t\t')..'\n' or ''))
-				end
-			end
-		end
+	if self.__doc then out(rewhite(self.__doc, '')) end
+	if self.basic then out('\t',self.basic) else
+		out(self.enum)
+		out(self.newindex)
+		out(self.index)
+		out(self.call)
 	end
+	out ''
+
+	return self.ismain and out or nil
 end)
 
--- Close up, to be nice to the OS
-f:close()
+g:addrule('definition', function(self)
+	if self.__name then return self.__name
+	elseif self.basic then return self.basic end
+end)
+
+g:addrule('enum', '-definition', function(self)
+	if not self.__enum then return end
+
+	local defbits = {}
+	local out = gen.collector()
+	out('### Possible Values', self.__mask and ' (also a mask!)')
+	for _,e in ipairs(self.__enum) do
+		out('-\t',e.name, self.__raw and self.__raw.enum[e.name]
+			and ' (`'..self.__raw.enum[e.name].C..'`)', e.flag and "'"..e.flag.."'")
+		table.insert(defbits, "'"..e.name.."'")
+	end
+	return out, '('..table.concat(defbits, '|')..')'
+end)
+
+g:addrule('newindex', '-definition', function(self)
+	if not self.__newindex then return end
+
+	local defbits = {}
+	local out = gen.collector()
+	out '### Writable Contents'
+	for _,e in ipairs(self.__newindex) do
+		local v = e.version and '*v'..e.version..'* ' or ''
+		if e.name == '__sequence' then
+			out('-\t',v,'Sequence elements: ',e.type.definition)
+			defbits.fin = '('..e.type.definition..'), ...'
+		elseif e.aliasof then
+			out('-\t',v,'`',e.name,'` = alias for `',e.aliasof,'`')
+		else
+			out('-\t',v,'`',e.name,'` = ',e.type.definition)
+			table.insert(defbits, e.name..' = ('..e.type.definition..')')
+		end
+		if e.doc then out(rewhite(e.doc, '\t')) end
+	end
+
+	if defbits.fin then table.insert(defbits, defbits.fin) end
+	return out, '{'..table.concat(defbits, ', ')..'}'
+end)
+
+g:addrule('index', '-definition', function(self)
+	if not self.__index then return end
+
+	local defbits = {}
+	local out = gen.collector()
+	out '### Contents'
+	for _,e in ipairs(self.__index) do
+		local v = e.version and '*v'..e.version..'* ' or ''
+		if e.name == '__sequence' then
+			out('-\t',v,'Sequence elements: ',e.type.definition)
+			defbits.fin = '('..e.type.definition..'), ...'
+		elseif e.aliasof then
+			out('-\t',v,'`',e.name,'` = alias for `',e.aliasof,'`')
+		else
+			out('-\t',v,'`',e.name,'` = ',e.type.definition)
+			table.insert(defbits, e.name..' = ('..e.type.definition..')')
+		end
+		if e.doc then out(rewhite(e.doc, '\t')) end
+	end
+
+	if defbits.fin then table.insert(defbits, defbits.fin) end
+	return out, '{'..table.concat(defbits, ', ')..'}'
+end)
+
+g:addrule('call', '-definition', function(self)
+	if not self.__call then return end
+
+	local args,rets = {},{}
+	local out = gen.collector()
+	out '### Call Semantics'
+	for _,e in ipairs(self.__call) do
+		local x,y = '',''
+		if e.canbenil then x,y = '\\[',']' end
+		table.insert(e.ret and rets or args,
+			x..(e.name and e.name..' ' or '')..'('..e.type.definition..')'..y)
+	end
+	args,rets = table.concat(args, ', '), table.concat(rets, ', ')
+	local full = ('(%s) %s %s'):format(args, self.__call.method and '=>' or '->', rets)
+	out('   ',full)
+
+	return out, full
+end)
+
+return g
