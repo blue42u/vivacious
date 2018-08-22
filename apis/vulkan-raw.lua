@@ -14,7 +14,7 @@
    limitations under the License.
 --]========================================================================]
 
--- luacheck: globals array method callable versioned
+-- luacheck: globals array method callable versioned openfile
 require 'core.common'
 local vk = {}
 
@@ -28,7 +28,7 @@ vk.Vk = {
 }
 
 -- Load in the Vulkan registry
-local xml = assert(io.open('external/vulkan-docs/xml/vk.xml', 'r')):read 'a'
+local xml = openfile'external/vulkan-docs/xml/vk.xml':read 'a'
 package.loaded.slaxml = require 'external.slaxml.slaxml'
 xml = require 'external.slaxml.slaxdom':dom(xml, {stripWhitespace=true})
 

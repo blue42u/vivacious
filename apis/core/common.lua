@@ -26,6 +26,19 @@ array = setmetatable({}, arraymeta)
 function arraymeta:__call(k) return self[k] end
 
 function arraymeta:__index(k)
+	self[k] = {__newindex={{version='0.0.0', name='__sequence', type=k}}}
+	return self[k]
+end
+
+-- This is the second form of array, which marks the resulting sequence type
+-- as read-only, so that entries cannot be created or edited.
+-- luacheck: new globals constarray
+local carraymeta = {}
+constarray = setmetatable({}, carraymeta)
+
+function carraymeta:__call(k) return self[k] end
+
+function carraymeta:__index(k)
 	self[k] = {__index={{version='0.0.0', name='__sequence', type=k}}}
 	return self[k]
 end
@@ -71,4 +84,14 @@ function versioned(ind)
 		end
 	end
 	return ind
+end
+
+-- Sometimes an extra file needs to be accessed, which can be referenced by the
+-- usual file paths. This function will search for and open a file with the
+-- given extension on Lua's require paths, using '/' as the directory separator.
+-- luacheck: new globals openfile
+
+function openfile(path)
+	local fn = assert(package.searchpath(path, package.path:gsub('%.lua', ''), '/'))
+	return assert(io.open(fn, 'r'))
 end
