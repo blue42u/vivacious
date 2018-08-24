@@ -124,7 +124,7 @@ vki.DeviceCreator = {__name = 'VkDeviceCreator',
 		},
 		method{'create', "Attempt to create a Device that satisfies the requirements.",
 			{'device', vk.Device, canbenil=true, ret=true},
-			{'physical', vk.PhysicalDevice, canbenil=true, re=true},
+			{'physical', vk.PhysicalDevice, canbenil=true, ret=true},
 			{'result', vk.Result, ret=true}
 		},
 		method{'reset', "Reset all the requirements appended to this Creator."},
