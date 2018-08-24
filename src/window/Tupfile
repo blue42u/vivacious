@@ -1,0 +1,30 @@
+include_rules
+
+SRC += default.c
+
+ifdef ENABLE_XCB
+	ENABLE_XCB = @(ENABLE_XCB)
+else
+	ifeq (@(TUP_PLATFORM),win32)
+		ENABLE_XCB = n
+	else
+		ENABLE_XCB = y
+	endif
+endif
+
+ifeq ($(ENABLE_XCB),y)
+	SRC += x.c xcb.c
+	CFLAGS += -DVv_ENABLE_X
+	ifdef XCB_CFLAGS
+		CFLAGS += @(XCB_CFLAGS)
+	else
+		CFLAGS += `pkg-config --cflags xcb`
+	endif
+	ifdef XCB_LDLIBS
+		LDLIBS += @(XCB_LDLIBS)
+	else
+		LDLIBS += `pkg-config --libs xcb`
+	endif
+endif
+
+: foreach $(SRC) |> !tcc |> %B.o

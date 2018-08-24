@@ -1,0 +1,17 @@
+include_rules
+
+ifeq (@(ENABLE_DEMOS),y)
+	ifeq (@(RECOMPILE_SHADERS),y)
+		: foreach *.vert *.frag |> glslangValidator -V -o %o %f |> %B.spv
+	elseif
+		: foreach *.spv.in |> cp %f %o |> %B
+	endif
+	: shaders.lua | *.spv &(external)/lua53 |> ^o Generated shaders.h^ \
+		&(external)/lua53 %f %o |> shaders.h
+	: foreach main.c debug.c | shaders.h |> !tcc |> %B.o
+	: *.o &(src)/libvivacious.a |> !tld |> vkhelp-demo
+	ifeq (@(RUN_DEMOS),y)
+		export DISPLAY
+		: vkhelp-demo |> @(RUN_WRAPPER) ./vkhelp-demo |>
+	endif
+endif

@@ -1,0 +1,4 @@
+include_rules
+
+: libdl.lua |> !gen vulkan |> libdl.c
+: foreach *.c |> !tcc |> %B.o

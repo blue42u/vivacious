@@ -1,0 +1,45 @@
+.gitignore
+
+# Include the host configuration
+include host.tup
+include toolchain.lua
+
+# References for easy manouvering. Easier than a bunch of ..'s, I hope.
+&root = .
+&apicore = apis/core
+&external = external
+&src = src
+
+# Macros for running the generator system. The spec name comes after the macro.
+!gen = | &(external)/lua53 |> ^o Generated %o using %b^ \
+	&(external)/lua53 -E -e "package.path = '&(root)/?.lua'" \
+	&(apicore)/generation.lua %f %o |>
+
+# Macros for handling C code come next, the prefixes mean the following:
+# e*: For external host code, so does not include any outputs from Vv.
+# t*: For target code, and includes outputs from Vv. Good for the real outputs.
+# These use the semi-standard GNU make names for the different parts of the
+# command lines. For more information, see:
+# https://www.gnu.org/software/make/manual/html_node/Catalogue-of-Rules.html
+
+# Macros for compiling C code (.c -> .o)
+!ecc = |> ^o Compiled host %b^ $(HOST_CC) \
+$(HOST_CPPFLAGS) $(HOST_CFLAGS) -c -o %o %f |>
+!tcc = | &(root)/include/vivacious/*.h |> ^o Compiled %f^ $(TARG_CC) \
+$(TARG_CPPFLAGS) $(TARG_CFLAGS) -I&(root)/include -I&(root)/include -c -o %o %f |>
+
+# Macros for linking executables (.o -> .exe)
+!eld = |> ^o Linked %o (for host)^ $(HOST_CC) \
+$(HOST_LDFLAGS) -o %o %f $(HOST_LDLIBS) |>
+!tld = |> ^o Linked %o^ $(TARG_CC) \
+$(TARG_LDFLAGS) -o %o %f $(TARG_LDLIBS) |>
+
+# Macros for linking libraries (.o -> .so)
+!eso = |> ^o Linked host %o^ $(HOST_CC) \
+$(HOST_LDFLAGS) -shared -o %o %f $(HOST_LDLIBS) |>
+!tso = |> ^o Linked %o^ $(TARG_LD) \
+$(TARG_LDFLAGS) -shared -o %o %f $(TARG_LDLIBS) |>
+
+# Macros for archiving (.o -> .a)
+!ear = |> ^o Archived %o (for host)^ $(HOST_AR) -rcs %o %f |>
+!tar = |> ^o Archived %o^ $(TARG_AR) -rcs %o %f |>

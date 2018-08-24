@@ -1,0 +1,4 @@
+include_rules
+
+: &(apicore)/docsmd.lua |> !gen vulkan |> vulkan.md
+: &(apicore)/docsmd.lua |> !gen vkinitializer |> vkinitializer.md

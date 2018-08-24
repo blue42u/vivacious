@@ -1,0 +1,23 @@
+# This file contains the contains the host toolchain, which describes how to
+# compile and link code for the host. If these are not specified, the system
+# will attempt to find reasonable (and working!) values. For more info on what
+# all these values mean, and how they are used, see:
+# https://www.gnu.org/software/make/manual/html_node/Catalogue-of-Rules.html
+
+# C compiler. Should also be able to link executables and libraries.
+#HOST_CC =
+
+# Flags for C and C++ compiling. Comes before the files.
+#HOST_CPPFLAGS =
+
+# Flags for C compiling. Comes before the files.
+#HOST_CFLAGS =
+
+# Flags for linking executables or libraries. Comes before the files.
+#HOST_LDFLAGS =
+
+# Extra flags (usually libraries) used when linking. Comes after the files.
+#HOST_LDLIBS =
+
+# Archiver. That is, GNU ar. Because static linking could be useful.
+#HOST_AR =

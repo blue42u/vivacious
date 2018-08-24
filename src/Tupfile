@@ -1,0 +1,6 @@
+include_rules
+
+: foreach cpdl.c |> !tcc |> %B.o
+
+: *.o vulkan/*.o |> !tar |> libvivacious.a
+: *.o vulkan/*.o |> !tso |> libvivacious.so

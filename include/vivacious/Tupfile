@@ -1,0 +1,4 @@
+include_rules
+
+: &(apicore)/headerc.lua |> !gen vulkan |> vulkan.h
+: &(apicore)/headerc.lua |> !gen vkinitializer |> vkinitializer.h
