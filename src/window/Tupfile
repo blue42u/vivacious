@@ -1,6 +1,6 @@
 include_rules
 
-SRC += default.c
+SRC = default.c
 
 ifdef ENABLE_XCB
 	ENABLE_XCB = @(ENABLE_XCB)
@@ -15,16 +15,12 @@ endif
 ifeq ($(ENABLE_XCB),y)
 	SRC += x.c xcb.c
 	CFLAGS += -DVv_ENABLE_X
-	ifdef XCB_CFLAGS
-		CFLAGS += @(XCB_CFLAGS)
-	else
-		CFLAGS += `pkg-config --cflags xcb`
-	endif
-	ifdef XCB_LDLIBS
-		LDLIBS += @(XCB_LDLIBS)
-	else
-		LDLIBS += `pkg-config --libs xcb`
-	endif
+
+	# Reasonably finding libraries is hard, defer to Lua for this part.
+	# Outputs are in XCB_CFLAGS and XCB_LDLIBS
+	include findxcb.lua
+	CFLAGS += $(XCB_CFLAGS)
+	LDLIBS += $(XCB_LDLIBS)
 endif
 
 : foreach $(SRC) |> !tcc |> %B.o

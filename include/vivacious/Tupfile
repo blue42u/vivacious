@@ -1,4 +1,5 @@
 include_rules
 
-: &(apicore)/headerc.lua |> !gen vulkan |> vulkan.h
-: &(apicore)/headerc.lua |> !gen vkinitializer |> vkinitializer.h
+: &(apicore)/headerc.lua |> !gen %O |> vulkan.h
+: &(apicore)/headerc.lua |> !gen %O |> vkinitializer.h
+: &(apicore)/headerc.lua |> !gen %O |> window.h

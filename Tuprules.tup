@@ -4,11 +4,30 @@
 include host.tup
 include toolchain.lua
 
+# There's a minor glitch in Tup at the moment where Lua-set variables can't be
+# overwritten by Tupfiles. Here we copy the HOST_* and TARG_* Lua variables
+# into Tup variables called H_* and *, respectively.
+H_CC = $(HOST_CC)
+H_CPPFLAGS = $(HOST_CPPFLAGS)
+H_CFLAGS = $(HOST_CFLAGS)
+H_LDFLAGS = $(HOST_LDFLAGS)
+H_LDLIBS = $(HOST_LDLIBS)
+H_AR = $(HOST_AR)
+
+CC = $(TARG_CC)
+CPPFLAGS = $(TARG_CPPFLAGS)
+CFLAGS = $(TARG_CFLAGS)
+LDFLAGS = $(TARG_LDFLAGS)
+LDLIBS = $(TARG_LDLIBS)
+AR = $(TARG_AR)
+
 # References for easy manouvering. Easier than a bunch of ..'s, I hope.
 &root = .
 &apicore = apis/core
 &external = external
 &src = src
+&inc = include
+&incvV = include/vivacious
 
 # Macros for running the generator system. The spec name comes after the macro.
 !gen = | &(external)/lua53 |> ^o Generated %o using %b^ \
@@ -23,23 +42,17 @@ include toolchain.lua
 # https://www.gnu.org/software/make/manual/html_node/Catalogue-of-Rules.html
 
 # Macros for compiling C code (.c -> .o)
-!ecc = |> ^o Compiled host %b^ $(HOST_CC) \
-$(HOST_CPPFLAGS) $(HOST_CFLAGS) -c -o %o %f |>
-!tcc = | &(root)/include/vivacious/*.h |> ^o Compiled %f^ $(TARG_CC) \
-$(TARG_CPPFLAGS) $(TARG_CFLAGS) -I&(root)/include -I&(root)/include -c -o %o %f |>
+!ecc = |> ^o Compiled host %b^ $(H_CC) $(H_CPPFLAGS) $(H_CFLAGS) -fPIC -c -o %o %f |>
+!tcc = | &(incvV)/*.h |> $(CC) $(CPPFLAGS) $(CFLAGS) -I&(inc) -fPIC -c -o %o %f |>
 
 # Macros for linking executables (.o -> .exe)
-!eld = |> ^o Linked %o (for host)^ $(HOST_CC) \
-$(HOST_LDFLAGS) -o %o %f $(HOST_LDLIBS) |>
-!tld = |> ^o Linked %o^ $(TARG_CC) \
-$(TARG_LDFLAGS) -o %o %f $(TARG_LDLIBS) |>
+!eld = |> ^o Linked host %o^ $(H_CC) $(H_LDFLAGS) -o %o %f $(H_LDLIBS) |>
+!tld = |> ^o Linked %o^ $(CC) $(LDFLAGS) -o %o %f $(LDLIBS) |>
 
 # Macros for linking libraries (.o -> .so)
-!eso = |> ^o Linked host %o^ $(HOST_CC) \
-$(HOST_LDFLAGS) -shared -o %o %f $(HOST_LDLIBS) |>
-!tso = |> ^o Linked %o^ $(TARG_LD) \
-$(TARG_LDFLAGS) -shared -o %o %f $(TARG_LDLIBS) |>
+!eso = |> ^o Linked host %o^ $(H_CC) $(H_LDFLAGS) -shared -o %o %f $(H_LDLIBS) |>
+!tso = |> ^o Linked %o^ $(CC) $(LDFLAGS) -shared -o %o %f $(LDLIBS) |>
 
 # Macros for archiving (.o -> .a)
-!ear = |> ^o Archived %o (for host)^ $(HOST_AR) -rcs %o %f |>
-!tar = |> ^o Archived %o^ $(TARG_AR) -rcs %o %f |>
+!ear = |> ^o Archived host %o^ $(H_AR) -rcs %o %f |>
+!tar = |> ^o Archived %o^ $(AR) -rcs %o %f |>

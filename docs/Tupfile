@@ -1,4 +1,5 @@
 include_rules
 
-: &(apicore)/docsmd.lua |> !gen vulkan |> vulkan.md
-: &(apicore)/docsmd.lua |> !gen vkinitializer |> vkinitializer.md
+: &(apicore)/docsmd.lua |> !gen %O |> vulkan.md
+: &(apicore)/docsmd.lua |> !gen %O |> vkinitializer.md
+: &(apicore)/docsmd.lua |> !gen %O |> window.md
