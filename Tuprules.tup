@@ -43,7 +43,7 @@ AR = $(TARG_AR)
 
 # Macros for compiling C code (.c -> .o)
 !ecc = |> ^o Compiled host %b^ $(H_CC) $(H_CPPFLAGS) $(H_CFLAGS) -fPIC -c -o %o %f |>
-!tcc = | &(incvV)/*.h |> $(CC) $(CPPFLAGS) $(CFLAGS) -I&(inc) -fPIC -c -o %o %f |>
+!tcc = | &(incvV)/*.h |> ^o Compiled %b^ $(CC) $(CPPFLAGS) $(CFLAGS) -I&(inc) -fPIC -c -o %o %f |>
 
 # Macros for linking executables (.o -> .exe)
 !eld = |> ^o Linked host %o^ $(H_CC) $(H_LDFLAGS) -o %o %f $(H_LDLIBS) |>
