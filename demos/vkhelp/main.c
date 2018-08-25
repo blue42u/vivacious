@@ -230,11 +230,11 @@ int main() {
 			.codeSize = sizeof(SN), \
 			.pCode = SN, \
 		});
-	C(Cload, vert_load);
-	C(Csmall, vert_small);
-	C(Cbase, vert_base);
-	C(Crecolor, vert_recolor);
-	C(Crender, frag_render);
+	C(Cload, spv_load);
+	C(Csmall, spv_small);
+	C(Cbase, spv_base);
+	C(Crecolor, spv_recolor);
+	C(Crender, spv_render);
 
 	// ...and construct the 4 shaders out of those components
 	struct {

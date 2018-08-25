@@ -3,11 +3,11 @@ include_rules
 ifeq (@(ENABLE_DEMOS),y)
 	ifeq (@(RECOMPILE_SHADERS),y)
 		: foreach *.vert *.frag |> glslangValidator -V -o %o %f |> %B.spv
-	elseif
-		: foreach *.spv.in |> cp %f %o |> %B
+	else
+		: foreach *.prespv |> cp %f %o |> %B.spv
 	endif
-	: shaders.lua | *.spv &(external)/lua53 |> ^o Generated shaders.h^ \
-		&(external)/lua53 %f %o |> shaders.h
+	: *.spv | &(external)/lua53 |> ^o Compiled shaders into shaders.h header^ \
+		&(external)/lua53 shaders.lua %o %f |> shaders.h
 	: foreach main.c debug.c | shaders.h |> !tcc |> %B.o
 	: *.o &(lib)/libvivacious.a |> !tld |> vkhelp-demo
 	ifeq (@(RUN_DEMOS),y)

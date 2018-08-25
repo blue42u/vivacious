@@ -14,18 +14,19 @@
    limitations under the License.
 --]========================================================================]
 
-io.output(arg[1])
+io.output(table.remove(arg, 1))
 local function out(s) io.write(s..'\n') end
 
 out([[
 #include <vivacious/vulkan.h>
 ]])
 
-for n,s in pairs({load='vert', small='vert', base='vert', recolor='vert',
-		render='frag'}) do
-	out('static uint32_t '..s..'_'..n..'[] = {')
-	for word in io.lines(n..'.spv', 4) do
+for _,fn in ipairs(arg) do
+	out('static uint32_t spv_'..fn:match '([^/]+)%.spv$'..'[] = {')
+	local f = io.open(fn, 'r')
+	for word in f:lines(4) do
 		out(string.unpack('<I4', word)..',')
 	end
-	out('};')
+	f:close()
+	out '};'
 end
