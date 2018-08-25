@@ -18,14 +18,14 @@
 #include "internal.h"
 
 #ifdef Vv_ENABLE_X
-VvWindowManager* libVv_createWindowManager_X(const char**);
+VvWindowManager* libVv_createWindowManager_X(size_t* len, const char**);
 #endif
 
 static const char* err_none = "No support for window managers compiled in!";
-VvAPI VvWindowManager* vVcreateWindowManager(const char** err) {
+VvAPI VvWindowManager* vVcreateWindowManager(size_t* len, const char** err) {
 #ifdef Vv_ENABLE_X
 	// For now, just use X
-	return libVv_createWindowManager_X(err);
+	return libVv_createWindowManager_X(len, err);
 #else
 	*err = err_none;
 	return NULL;

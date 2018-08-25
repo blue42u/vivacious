@@ -14,6 +14,7 @@
    limitations under the License.
 ***************************************************************************/
 
+#define Vv_IMP_window
 #define VK_USE_PLATFORM_XCB_KHR
 #include <vivacious/window.h>
 #include "internal.h"
@@ -46,7 +47,7 @@ static VvVkInstanceInfo iinfo = {
 	.vkversion = VK_MAKE_VERSION(1,0,0),
 };
 
-VvWindowManager* libVv_createWindowManager_X(const char** err) {
+VvWindowManager* libVv_createWindowManager_X(size_t* len, const char** err) {
 	struct Manager_I* self = malloc(sizeof(struct Manager_I));
 	self->_P = (VvWindowManager){
 		._M = &manager_M, .instinfo = &iinfo,
