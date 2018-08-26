@@ -50,15 +50,14 @@ vki.InstanceCreator = {__name = 'VkInstanceCreator',
 			{'info', iInfo}
 		},
 		method{'create', "Attempt to create an Instance that satisfies all the requirements.",
-			{'instance', vk.Instance, canbenil=true, ret=true},
+			{'instance', vk.Instance, ret=true},
 			{'result', vk.Result, ret=true}
 		},
 		method{'reset', "Resets all the requirements in this Creator."},
 	},
 }
 table.insert(vki.__index, callable{'createVkInstanceCreator', version='0.1.0',
-	{'instcreator', vki.InstanceCreator, canbenil=true, ret=true},
-	{'error', 'string', canbenil=true, ret=true},
+	{'instcreator', vki.InstanceCreator, ret=true},
 	{'vulkan', vk.Vk}
 })
 
@@ -66,18 +65,19 @@ local dTask = {__name = 'VkDeviceTask',
 	__doc = [[
 		The specification of a task, which will be assigned a Queue on Device creation.
 	]],
+	__index = versioned{
+		'0.1.1',
+		{name='index', type='index', default=0,
+			doc="Index of the Queue assigned to this task."},
+	},
 	__newindex = versioned{
 		'0.1.1',
-		{name='family', type='index', ifnil=0,
+		{name='family', type='index', default=0,
 			doc="Tasks with the same <family> will share Queue families."},
-		{name='index', type='index', ifnil=0, readonly=true,
-			doc="Index of the Queue assigned to this task."},
-		{name='flags', type=vk.QueueFlags, ifnil='',
-			doc="Required flags for the assigned Queue."},
-		{name='priority', type='number', ifnil=0.5,
-			doc="Minimal priority of the Queue."},
+		{name='flags', type=vk.QueueFlags, doc="Required flags for the assigned Queue."},
+		{name='priority', type='number', default=0.5, doc="Minimal priority of the Queue."},
 		'0.1.2',
-		{name='presentable', type='boolean', ifnil=false,
+		{name='presentable', type='boolean', default=false,
 			doc="Whether this Queue must be able to present."},
 	},
 }
@@ -85,25 +85,21 @@ local dTask = {__name = 'VkDeviceTask',
 local dInfo = {__name = 'VkDeviceInfo',
 	__newindex = versioned{
 		'0.1.1',
-		{name='tasks', type=array[dTask], canbenil=true,
-			doc="Tasks that will be assigned Queues."},
+		{name='tasks', type=array[dTask], doc="Tasks that will be assigned Queues."},
 		callable{'compare', "Defines a preference-order on PhysicalDevices.",
 			{nil, 'boolean', ret=true},
 			{'a', vk.PhysicalDevice},
-			{'b', vk.PhysicalDevice},
-			canbenil=true
+			{'b', vk.PhysicalDevice}
 		},
 		callable{'valid', "Defines a validator on PhysicalDevices",
 			{nil, 'boolean', ret=true},
-			{'pd', vk.PhysicalDevice},
-			canbenil=true
+			{'pd', vk.PhysicalDevice}
 		},
-		{name='extensions', type=array.string, canbenil=true,
-			doc="Required Device-level extensions"},
+		{name='extensions', type=array.string, doc="Required Device-level extensions"},
 		'0.1.2',
-		{name='surface', type=vk.SurfaceKHR, canbenil=true,
+		{name='surface', type=vk.SurfaceKHR,
 			doc="Surface that Tasks may require presentation capabilites for"},
-		{name='features', type=vk.PhysicalDeviceFeatures, canbenil=true,
+		{name='features', type=vk.PhysicalDeviceFeatures,
 			doc="Features that must be enabled"},
 	},
 }
@@ -123,16 +119,15 @@ vki.DeviceCreator = {__name = 'VkDeviceCreator',
 			{'info', dInfo}
 		},
 		method{'create', "Attempt to create a Device that satisfies the requirements.",
-			{'device', vk.Device, canbenil=true, ret=true},
-			{'physical', vk.PhysicalDevice, canbenil=true, ret=true},
+			{'device', vk.Device, ret=true},
+			{'physical', vk.PhysicalDevice, ret=true},
 			{'result', vk.Result, ret=true}
 		},
 		method{'reset', "Reset all the requirements appended to this Creator."},
 	},
 }
 table.insert(vki.__index, callable{'createVkDeviceCreator', version='0.1.1',
-	{'devcreator', vki.DeviceCreator, canbenil=true, ret=true},
-	{'error', 'string', canbenil=true, ret=true},
+	{'devcreator', vki.DeviceCreator, ret=true},
 	{'instance', vk.Instance}
 })
 
