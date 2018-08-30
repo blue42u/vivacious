@@ -144,10 +144,6 @@ end
 local realtywrap = checkwrap(nil, {
 	__name = function(n) assert(type(n) == 'string', "Names must be strings!") end,
 	__doc = function(n) assert(type(n) == 'string', "Docs must be strings!") end,
-	__ifdef = checkwrap(nil, nil, {
-		sequence = function(v) assert(type(v) == 'string', "Entries must be strings!") end,
-	}),
-	__ifndef = 'Type',
 	__directives = checkwrap(nil, nil, {sequence = function(v)
 		if type(v) ~= 'string' then error("Entries must be strings!") end
 	end}),
@@ -181,7 +177,7 @@ local realtywrap = checkwrap(nil, {
 			type = 'Type',
 			ret = function(v) return not not v end,
 			mainret = function(v) return not not v end,
-			canbenil = function(v) return not not v end,
+			default = function(v) return v end,
 		}),
 		extra={e = function(_, _, self)
 				local o = {}
@@ -207,6 +203,7 @@ local realtywrap = checkwrap(nil, {
 			aliasof = function(n,_,_,p2) assert(p2.e[n], "Entry must be a valid other field!") end,
 			version = function(n) assert(n:match '^%d+%.%d+%.%d+$', "Versions must be in M.m.p form!") end,
 			doc = function(n) assert(type(n) == 'string', "Docs must be strings!") end,
+			default = function(v) return v end,
 		}),
 		extra={e = function(_, _, self)
 				local o = {}
@@ -239,24 +236,7 @@ local realtywrap = checkwrap(nil, {
 	}),
 	__raw = checkwrap(nil, {
 		C = function(s) assert(type(s) == 'string', "Must contain a C version!") end,
-		dereference = function(v) return not not v end,
-		call = checkwrap(function(_,_,p2) assert(p2.__call, "Must have a non-raw form!") end, {
-		}, {
-			sequence = checkwrap(function(s) assert(s.value or s.values) end, {
-				value = function(v) assert(type(v) == 'string', "Must be a string!") end,
-				values = function(v)
-					assert(type(v) == 'table', "Must be a table!")
-					assert(getmetatable(v) == nil, "No metatables allowed!")
-					for _,s in ipairs(v) do assert(type(s) == 'string', "Must only contain strings!") end
-				end,
-			}),
-		}),
-		enum = function(v, _, _, p2)
-			assert(p2.__enum, "Must have a non-raw form!")
-			for n in pairs(v) do
-				assert(p2.__enum.e[n], "raw enum entries must reference normal entries")
-			end
-		end,
+		call = function(v) assert(type(v) == 'string', "Must be a string!") end,
 	})
 }, {
 	extra = {

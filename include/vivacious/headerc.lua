@@ -122,7 +122,7 @@ g:addrule('callret', 'callargs', 'callmargs', function(self)
 end)
 
 -- Some Types don't have (much) output. This provides the ref in those cases.
-g:addrule('israw', 'ref', 'header', 'wrap', function(self)
+g:addrule('israw', 'ref', 'header', 'mref', function(self)
 	if self.specname then
 		local out = gen.collector()
 		out [[
@@ -145,31 +145,8 @@ g:addrule('israw', 'ref', 'header', 'wrap', function(self)
 		else return true, b..' `' end
 	elseif self.__raw then
 		assert(self.__raw.C, "No __raw C field for "..self.name)
-		local r = self.__raw.C..(self.__raw.dereference and '*' or '')..' `'
-		local wrap
-		if self.__call and self.__raw.call then
-			wrap = function(selfty)
-				local as = {}
-				for _,re in ipairs(self.__raw.call) do
-					as[#as+1] = gen.express(re.values or re.value, {
-						len = function(n) return n..'_cnt' end,
-						udlen = function(n) return n..'_size' end,
-						ref = function(...)
-							local ns = {...}
-							local t = ns[1] == 'self' and selfty or self.__call.e[ns[1]].type
-							local o = ns[1]
-							for i=2,#ns do
-								o = o..(t.needsderef and '->' or '.')..ns[i]
-								t = t.__index and t.__index.e[ns[i]].type or t.__newindex and t.__newindex.e[ns[i]].type
-							end
-							return o
-						end
-					}, self.__call.e, selfty)
-				end
-				return '`('..table.concat(as, ', ')..')'
-			end
-		end
-		return true, r, '', wrap
+		if self.__call then assert(self.__raw.call, "No conversion macro for "..self.name) end
+		return true, self.__raw.C..' `', '', false
 	end
 end)
 
@@ -191,7 +168,7 @@ g:addrule('isarray', '-ref', function(self)
 		ty,rep = self.__newindex[1].type, '`'
 	end
 	if ty then
-		if not (ty.__raw and ty.__raw.dereference) then rep = rep:gsub('`', '* `') end
+		rep = rep:gsub('`', '* `')
 		return true, ty.ref:gsub('`', rep)
 	else return false end
 end)
@@ -261,20 +238,6 @@ g:addrule('scall', 'scallm', 'scalla', function(self)
 	return nil, mout, aout
 end)
 
-g:addrule('ifdefpre', 'ifdefelse', 'ifdefpost', function(self)
-	if not self.__ifdef then return end
-	local consts = {}
-	for i,c in ipairs(self.__ifdef) do consts[i] = 'defined('..c..')' end
-
-	local els = gen.collector()
-	if self.__ifndef then
-		els '#else'
-		els '\t`'
-	end
-
-	return '#if '..table.concat(consts, ' && '), els, '#endif'
-end)
-
 -- Structified component for __index
 g:addrule('index', 'indexm', 'indexa', function(self)
 	if not self.__index or self.isarray then return end
@@ -284,43 +247,46 @@ g:addrule('index', 'indexm', 'indexa', function(self)
 	if self.__name then
 		sref = 'Vv'..self.__name..'* self'	-- Result from structification
 	end
+	-- First collect together the aliases, so we can union them together.
+	local groups = {}
 	for n,e in pairs(self.__index) do
-		if e.type then
-			if e.type.isarray then
-				out('\tIMP_CONST unsigned int ',n,'_cnt;')
-			end
-			if not e.type.wrap and e.type.mref and sref then
-				mout(e.type.ifdefpre)
-				local rep = {['`']=n, ['#']=sref}
-				mout('\t',e.type.mref:gsub('[`#]',rep),';')
-				mout(e.type.ifdefelse and tostring(e.type.ifdefelse)
-					:gsub('`', (e.type.__ifndef.mref or e.type.__ifndef.ref):gsub('[`#]', rep)..';'))
-				mout(e.type.ifdefpost)
-
-				aout '#ifdef __GNUC__'
-				aout('#define vV',n,'(_S, ...) ({ __auto_type _s = (_S); ',
-					'_s->_M->',n,'(_s, ##__VA_ARGS__ ); })')
-				aout '#endif'
-			else
-				out(e.type.ifdefpre)
-				out('\t',e.type.ref:gsub('`', 'IMP_CONST '..n),';')
-				out(e.type.ifdefelse and tostring(e.type.ifdefelse)
-					:gsub('`', e.type.__ifndef.ref:gsub('`', 'IMP_CONST '..n)..';'))
-				out(e.type.ifdefpost)
-				if e.type.wrap then	-- It's a __raw __call-able
-					assert(sref, "Raw __callables can only be part of named things!")
-					aout(e.type.ifdefpre)
-					aout('static inline ',
-						e.type.pmref:gsub('[`#]', {['`']='vV'..n, ['#']=sref}),' {')
-					aout('\t',e.type.callret and 'return ','self->',e.type.wrap(self):gsub('`',n),';')
-					aout '}'
-					aout(e.type.ifdefpost)
-				end
-			end
-		else
-			out('\t// ',e.name,' = ',e.aliasof)
+		if e.type then groups[e] = {n} else
+			local ae = self.__index.e[e.aliasof]
+			if not groups[ae] then groups[ae] = {} end
+			table.insert(groups[ae], n)
 		end
 	end
+	for n,e in pairs(self.__index) do if e.type then
+		if e.type.isarray then
+			out('\tIMP_CONST unsigned int ',n,'_cnt;')
+		end
+		if sref and e.type.mref and not e.type.israw then
+			if #groups[e] > 1 then mout '\tunion {' end
+			for _,an in ipairs(groups[e]) do
+				mout('\t',e.type.mref:gsub('[`#]',{['#']=sref, ['`']=an}),';')
+			end
+			if #groups[e] > 1 then mout '\t};' end
+		else
+			if #groups[e] > 1 then out '\tunion {' end
+			for _,an in ipairs(groups[e]) do
+				out('\t',e.type.ref:gsub('`', 'IMP_CONST '..an),';')
+			end
+			if #groups[e] > 1 then out '\t};' end
+		end
+		if e.type.__call then
+			aout '#ifdef __GNUC__'
+			for _,an in ipairs(groups[e]) do
+				if e.type.israw then
+					aout('#define vV',an,'(_S, ...) ({ __auto_type _s = (_S); ',
+						e.type.__raw.call,'(_s->',an,', _s, ##__VA_ARGS__); })')
+				else
+					aout('#define vV',an,'(_S, ...) ({ __auto_type _s = (_S); ',
+						'_s->_M->',an,'(_s, ##__VA_ARGS__); })')
+				end
+			end
+			aout '#endif'
+		end
+	end end
 	return out, mout, aout
 end)
 

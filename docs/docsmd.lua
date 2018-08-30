@@ -48,7 +48,8 @@ end)
 
 g:addrule('definition', function(self)
 	if self.__name then return self.__name
-	elseif self.basic then return self.basic end
+	elseif self.basic then return self.basic
+	elseif self.__raw then return '`'..self.__raw.C..'`' end
 end)
 
 g:addrule('enum', '-definition', function(self)
@@ -120,10 +121,9 @@ g:addrule('call', '-definition', function(self)
 	local out = gen.collector()
 	out '### Call Semantics'
 	for _,e in ipairs(self.__call) do
-		local x,y = '',''
-		if e.canbenil then x,y = '\\[',']' end
 		table.insert(e.ret and rets or args,
-			x..(e.name and e.name..' ' or '')..'('..e.type.definition..')'..y)
+			(e.name and e.name..' ' or '')..'('..e.type.definition..')'
+			..(e.default ~= nil and ' \\['..tostring(e.default)..']' or ''))
 	end
 	args,rets = table.concat(args, ', '), table.concat(rets, ', ')
 	local full = ('(%s) %s %s'):format(args, self.__call.method and '=>' or '->', rets)
