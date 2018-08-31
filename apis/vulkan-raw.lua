@@ -285,6 +285,9 @@ for t in xtrav(xml.root, {_name='commands'}, {_name='command'}) do
 		out.type.__raw.call = 'Vv_VK_'..out.name
 		pro.name, pro.ret, pro.mainret = nil, true, true
 
+		vk.__customheader = (vk.__customheader or '')
+			..'#define Vv_VK_'..out.name..'(_f, ...) _f(__VA_ARGS__)\n'
+
 		if pro.type == vkraw.void then out.type.__call.nomainret = true else
 			table.insert(out.type.__call, pro)
 		end
@@ -322,10 +325,10 @@ end
 -- Add them as custom header lines to the resulting header
 for t,consts in pairs(ifdefs) do
 	for i,v in ipairs(consts) do consts[i] = '!defined('..v..')' end
-	vk.__customheader = (vk.__customheader or '')..'\n'
+	vk.__customheader = (vk.__customheader or '')
 		..'#if '..table.concat(consts, ' || ')..'\n'
 		..'typedef '..consts.otherwise..' '..t.__raw.C..';\n'
-		..'#endif'
+		..'#endif\n'
 end
 
 -- Return the resulting spec
