@@ -128,6 +128,12 @@ for c,rmc in rpairs(vk.Vk.__index) do
 
 			-- The first few fields are often provided by the self. Mark them as such.
 			for _=1,#sargs do table.remove(c.type.__call, 1) end
+
+			-- Add in the transmutation macro
+			for i,v in ipairs(sargs) do sargs[i] = v:gsub('^self', '_s'):gsub('%.', '->') end
+			vk.__customheader = vk.__customheader
+				..'#define Vv_VK_'..c.name..'(_f, _s, ...) _f('
+				..table.concat(sargs, ', ')..',##__VA_ARGS__)\n'
 		end
 
 		-- Some fields are actually return values: mark them for later.

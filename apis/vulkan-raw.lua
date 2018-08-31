@@ -285,9 +285,6 @@ for t in xtrav(xml.root, {_name='commands'}, {_name='command'}) do
 		out.type.__raw.call = 'Vv_VK_'..out.name
 		pro.name, pro.ret, pro.mainret = nil, true, true
 
-		vk.__customheader = (vk.__customheader or '')
-			..'#define Vv_VK_'..out.name..'(_f, ...) _f(__VA_ARGS__)\n'
-
 		if pro.type == vkraw.void then out.type.__call.nomainret = true else
 			table.insert(out.type.__call, pro)
 		end
