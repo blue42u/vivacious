@@ -295,31 +295,37 @@ for t in xtrav(xml.root, {_name='commands'}, {_name='command'}) do
 end
 
 -- Figure out the C ifdef's for everything
---[==[ TODO: Disabled for now, needs a decision to be made for conversion's sake.
-local voidf,voidp = {__raw={C='PFN_vkVoidFunction'}},{__raw={C='void*'}}
-local cmds = {}
+local cmds, ifdefs = {}, {}
 for _,c in ipairs(vk.Vk.__index) do cmds[c.name] = c.type or cmds[c.aliasof] end
 for ext in xtrav(xml.root, {_name='extensions'}, {_name='extension'}) do
-	for et in xtrav(ext, {_name='require'}, {_name={'type', 'command'}}) do
-		local t = (et.name == 'type' and vkraw or cmds)[et.attr.name]
+	for et in xtrav(ext, {_name='require'}, {_name='command'}) do
+		local t = cmds[et.attr.name]
 		assert(t, 'No vkraw for '..et.attr.name)
-		if not t.__ifdef then t.__ifdef = {} end
-		table.insert(t.__ifdef, ext.attr.name)
+		if not ifdefs[t] then ifdefs[t] = {} end
+		table.insert(ifdefs[t], ext.attr.name)
 		if et.parent.attr.extension then
-			table.insert(t.__ifdef, et.parent.attr.extension)
+			table.insert(ifdefs[t], et.parent.attr.extension)
 		end
-		t.__ifndef = et.name == 'type' and voidp or voidf
+		ifdefs[t].otherwise = 'PFN_vkVoidFunction'
 	end
 end
 for et in xtrav(xml.root, {_name='feature'}, {_name='require'},
-	{_name={'type', 'command'}}) do
+	{_name='command'}) do
 	if not et.attr.name:match '^[Vv][Kk]_' then
-		local t = (et.name == 'type' and vkraw or cmds)[et.attr.name]
+		local t = cmds[et.attr.name]
 		assert(t, 'No vkraw for '..et.attr.name)
-		t.__ifdef = nil
+		ifdefs[t] = nil
 	end
 end
---]==]
+
+-- Add them as custom header lines to the resulting header
+for t,consts in pairs(ifdefs) do
+	for i,v in ipairs(consts) do consts[i] = '!defined('..v..')' end
+	vk.__customheader = (vk.__customheader or '')..'\n'
+		..'#if '..table.concat(consts, ' || ')..'\n'
+		..'typedef '..consts.otherwise..' '..t.__raw.C..';\n'
+		..'#endif'
+end
 
 -- Return the resulting spec
 return vk
