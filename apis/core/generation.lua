@@ -356,7 +356,9 @@ for _,k in ipairs{
 	'premain', 'main', 'postmain',
 	'prefooter', 'footer', 'postfooter'} do
 	if generator.rules[k] then
-		for _,ty in ipairs(lintw.spectys) do write(lintw.wrappers[ty][k]) end
+		for _,ty in ipairs(lintw.spectys) do
+			if lintw.wrappers[ty][k] then write(lintw.wrappers[ty][k]) end
+		end
 	end
 end
 outfile:close()

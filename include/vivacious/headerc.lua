@@ -30,6 +30,8 @@ function g:postfooter()
 	end
 end
 
+function g:footer() if self.specname then return false end end
+
 function g:main()
 	local out = gen.collector()
 	if self.specname then
