@@ -234,6 +234,7 @@ local realtywrap = checkwrap(nil, {
 			end,
 		},
 	}),
+	__customheader = function(v) assert(type(v) == 'string', "Must be a string!") end,
 	__raw = checkwrap(nil, {
 		C = function(s) assert(type(s) == 'string', "Must contain a C version!") end,
 		call = function(v) assert(type(v) == 'string', "Must be a string!") end,

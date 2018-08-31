@@ -134,6 +134,7 @@ g:addrule('israw', 'ref', 'header', 'mref', function(self)
 		out('\n#ifndef H_Vv_',self.specname,'\n#define H_Vv_',self.specname)
 		out('\n#ifdef Vv_IMP_',self.specname,'\n#define IMP_CONST')
 		out('#else\n#define IMP_CONST const\n#endif\n')
+		if self.__customheader then out(self.__customheader) end
 		return false, nil, out
 	end
 
