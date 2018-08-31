@@ -19,18 +19,18 @@ local vk = require 'vulkan-raw'
 local human = require 'vulkan-human'
 
 -- Helper for for-loop accumulations, since I'm tired of typing it again
-local function acc(...)
- local r = {}
- for x in ... do r[#r+1] = x end
- return r
-end
+-- local function acc(...)
+--	local r = {}
+--	for x in ... do r[#r+1] = x end
+--	return r
+-- end
 
 -- Helpers for Human errors.
 local humanerror = false
 local function herror(s, v)
- if v then v = v.__name..(v.__raw and ' :{'..v.__raw.C..'}' or '') end
- io.stderr:write(tostring(s):gsub('{#}', v or '{#}')..'\n')
- humanerror = true
+	if v then v = v.__name..(v.__raw and ' :{'..v.__raw.C..'}' or '') end
+	io.stderr:write(tostring(s):gsub('{#}', v or '{#}')..'\n')
+	humanerror = true
 end
 local function hassert(t, ...) if not t then herror(...) end end
 human.herror, human.hassert = herror, hassert	-- Let the Human have access
@@ -53,8 +53,8 @@ local function rpairs(tab)
 end
 
 -- Build the translations of the raw C names for enums, changing Lua's name.
+--[==[ TODO: Disabled until a decision is made.
 local enumnames = {}
-local handled = {}
 for _,v in pairs(vk) do if v.__enum and not v.__mask and not handled[v.__enum] then
 	handled[v.__enum] = true
 
@@ -97,18 +97,14 @@ for _,v in pairs(vk) do if v.__enum and not v.__mask and not handled[v.__enum] t
 		enumnames[v.__raw.enum[e.name].C] = e.name
 	end
 end end
+--]==]
 
 -- Process the commands. There's a lot to do.
 local wrappers,wrapped,moveto = {},{},{}
 for c,rmc in rpairs(vk.Vk.__index) do
 	if not c.aliasof then
-		c.type.__call.method = true	-- All commands are methods in vV
-
-		-- For later reference, some useful markings
-		local names,raws = {},{}
-		for i,e in ipairs(c.type.__call) do if e.name then
-			names[e.name], raws[e.name] = e, c.type.__raw.call[i]
-		end end
+		-- TODO: Disabled until a decision is made on __call.method
+		-- c.type.__call.method = true	-- All commands are methods in vV
 
 		-- Figure out where all the commands should go, and move them there
 		local sargs = {human.self(c.type.__call, c.name)}
@@ -117,14 +113,13 @@ for c,rmc in rpairs(vk.Vk.__index) do
 		if rawself then
 			if not wrappers[rawself] then	-- Make the wrapper if it doesn't exist yet
 				wrappers[rawself] = {
-					__name = rawself.__name,
+					__name = rawself.__raw.C,
 					__index = {{name='real', type=rawself}, {name='parent'},
 						method{'destroy', version='0.1.0'}
 					},
 				}
-				vk[rawself.__name:gsub('^Vk', '')] = wrappers[rawself]
+				vk[wrappers[rawself].__name:gsub('^Vk', '')] = wrappers[rawself]
 				wrapped[wrappers[rawself]] = rawself
-				handled[wrappers[rawself]] = true
 			end
 			-- Move the command to its rightful owner or "self"
 			moveto[c.name] = wrappers[rawself]
@@ -132,10 +127,7 @@ for c,rmc in rpairs(vk.Vk.__index) do
 			rmc()
 
 			-- The first few fields are often provided by the self. Mark them as such.
-			for i,s in ipairs(sargs) do
-				c.type.__raw.call[i].value = s
-				table.remove(c.type.__call, 1)
-			end
+			for _=1,#sargs do table.remove(c.type.__call, 1) end
 		end
 
 		-- Some fields are actually return values: mark them for later.
@@ -151,6 +143,8 @@ for c,rmc in rpairs(vk.Vk.__index) do
 			hassert(foundit, "No argument to mark for returning called "..tostring(r))
 		end
 
+		-- TODO: Disabled until the custom header is ready to rock
+		--[==[
 		for _,e in ipairs(c.type.__call) do
 			-- Some fields merely indicate the length of others. Mark them as such.
 			if e._len then
@@ -176,6 +170,7 @@ for c,rmc in rpairs(vk.Vk.__index) do
 			e._islen = e._islen and rme()
 			e._extraptr = nil
 		end
+		]==]
 	end
 end
 
@@ -189,18 +184,19 @@ end
 
 -- Connect up the parent fields of the wrappers, so they actually make sense
 for rs,w in pairs(wrappers) do
-	local par = human.parent(rs._parent, rs.__name)
+	local par = human.parent(rs._parent, w.__name)
 	if par then assert(wrapped[vk[par]], "vk."..par.." isn't a wrapper!") end
 	w.__index[2].type = assert(vk[par or 'Vk'], 'No wrapper for '..(par or 'nil'))
 	rs._parent = nil
-	table.insert(vk[par or 'Vk'].__index, method{'wrap'..rs.__name, version='0.1.0',
+	table.insert(vk[par or 'Vk'].__index, method{'wrap'..w.__name, version='0.1.0',
 		{'internal', rs},
 		{'wrapped', w, ret=true}
 	})
-	rs.__name = 'opaque handle/'..rs.__name
 end
 
 -- Process the _lens and _values of accessable structures.
+-- TODO: Disabled until the custom header is ready to rock
+--[==[
 for _,v in pairs(vk) do if (v.__newindex or v.__call) and not handled[v] then
 	handled[v] = true
 	local es,rs = v.__newindex or v.__call,
@@ -242,8 +238,11 @@ for _,v in pairs(vk) do if (v.__newindex or v.__call) and not handled[v] then
 	-- Merge the length fields for Lua
 	for e,rme in rpairs(es) do e._islen = e._islen and rme() end
 end end
+]==]
 
 -- Almost all Vulkan structures are dereferenced to allow for expandability.
+-- TODO: Disabled until a decision is made on __raw.dereference
+--[==[
 for _,v in pairs(vk) do
 	if v.__newindex and v.__raw and v.__newindex[1].name == 'sType' then
 		v.__raw.dereference = true
@@ -253,14 +252,12 @@ vk.ClearColorValue.__raw.dereference = true
 vk.ClearDepthStencilValue.__raw.dereference = true
 vk.AllocationCallbacks.__raw.dereference = true
 vk.ImageSubresource.__raw.dereference = true
+]==]
 
 -- Last handy things
 vk.version = {__raw={C='uint32_t'}, __name="'M.m.p'"}
 vk.__index = {
-	callable{'createVk', version='0.1.0',
-		{'vulkan', vk.Vk, canbenil=true, ret=true},
-		{'error', 'string', canbenil=true, ret=true}
-	}
+	callable{'createVk', version='0.1.0', {'vulkan', vk.Vk, ret=true}}
 }
 table.insert(vk.Vk.__index, method{'destroy', version='0.1.0'})
 

@@ -130,14 +130,12 @@ g:addrule('methods', 'theM', function(self)
 			out('\tobj->_M = &m_',rt.__name,';')
 			for n,e in pairs(rt.__index) do if e.type then
 				local r
-				out(e.type.ifdefpre)
 				if n == 'real' then r = 'internal'
 				elseif n == 'parent' then r = 'self'
 				elseif e.type and e.type.__call and e.type.__raw then
 					r = '('..e.type.ref:gsub('`', '')..')'..pa:format(n)
 				end
 				if r then out('\tobj->',n,' = ',r,';') end
-				out(e.type.ifdefpost)
 			end end
 
 			out '\treturn obj;'
