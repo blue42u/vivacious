@@ -210,7 +210,7 @@ local function transform(res, t)
 		if res.type.__raw.C:find '*$' then arr = arr - 1 end
 		-- Sometimes Vulkan has an extra pointer that's not an array, detect this.
 		if arr == 1 and not res._len then
-			res._extraptr = true
+			-- res._extraptr = true	-- TODO: Disabled for the time being
 		elseif arr > 0 then
 			assert(not array[res.type].__newindex or res._len, 'Arrays need lengths! '..res.name)
 			if res.type == vkraw.char then
@@ -221,6 +221,7 @@ local function transform(res, t)
 		end
 	end
 
+	res._len = nil	-- TODO: _len disabled for the time being
 	return res
 end
 
