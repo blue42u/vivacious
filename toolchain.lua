@@ -35,6 +35,6 @@ for part,dep in pairs{
 } do
 	local nam = 'TARG_'..part
 	if tup.getconfig(part) ~= '' then _G[nam] = tup.getconfig(part)
-	elseif dep and tup.getconfig('HOST_'..dep) then _G[nam] = ''
+	elseif dep and tup.getconfig('HOST_'..dep) ~= '' then _G[nam] = ''
 	else _G[nam] = _G['HOST_'..part] end
 end
