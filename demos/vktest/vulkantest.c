@@ -22,6 +22,7 @@
 int main() {
 	loadVulkan();
 	createInst();
+/*
 	startDebug();
 	createWindow();
 	createDev();
@@ -107,6 +108,7 @@ int main() {
 	destroyDev();
 	destroyWindow();
 	endDebug();
+*/
 	destroyInst();
 	unloadVulkan();
 	return 0;

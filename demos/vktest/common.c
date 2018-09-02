@@ -26,15 +26,13 @@ void error(const char* format, ...) {
 	exit(1);
 }
 
-Vv V;
-
 struct Common com;
 
 void loadVulkan() {
-	V = vV();
-	vVvk_load();
+	com.vk = vVcreateVk();
+	if(!com.vk) error("Error creating Vk!\n");
 }
 
 void unloadVulkan() {
-	vVvk_unload();
+	vVdestroy(com.vk);
 }

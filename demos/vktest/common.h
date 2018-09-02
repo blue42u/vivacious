@@ -26,48 +26,37 @@
 // A wrapper for vfprintf to print to stderr, then exit's with 1.
 void error(const char*, ...);
 
-// The Vv structure
-extern Vv V;
-
 // Standard common pieces.
 struct CBuffs {
-	VkCommandBuffer readyRend;
-	VkCommandBuffer readyPres;
-	VkCommandBuffer blue;
-	VkCommandBuffer red;
+	VvVkCommandBuffer* readyRend;
+	VvVkCommandBuffer* readyPres;
+	VvVkCommandBuffer* blue;
+	VvVkCommandBuffer* red;
 };
 struct Common {
-	VkInstance inst;
-	VkPhysicalDevice pdev;
+	VvVk* vk;
+	VvVkInstance* inst;
+	VvVkPhysicalDevice* pdev;
 	uint32_t qfam;
-	VkDevice dev;
-	VkSurfaceKHR surf;
-	VkSwapchainKHR schain;
-	uint32_t simagecnt;
-	VkImage* simages;
+	VvVkDevice* dev;
 	VkQueue queue;
 	union {
 		struct CBuffs* cb;
-		VkCommandBuffer* cbuffs;
+		VvVkCommandBuffer** cbuffs;
 	};
 };
 extern struct Common com;
 
 // And now the functions that do specific tasks around here.
+void startDebug();
+void endDebug();
 void loadVulkan();
 void unloadVulkan();
 void createInst();
 void destroyInst();
 void createDev();
 void destroyDev();
-void createWindow();
-void destroyWindow();
-void startDebug();
-void endDebug();
-void createSChain();
-void destroySChain();
 void createCBuffs();
 void destroyCBuffs();
-void loadCBuffs();
 
 #endif // H_common

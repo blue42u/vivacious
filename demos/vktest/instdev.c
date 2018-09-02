@@ -29,18 +29,21 @@ static const char* lays[] = {
 };
 
 void createInst() {
-	VkInstanceCreateInfo ico = {
-		VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-		NULL, 0,
-		NULL,
-		sizeof(lays)/sizeof(char*), lays,
-		sizeof(exts)/sizeof(char*), exts
-	};
-	VkResult r = vVvk_CreateInstance(&ico, NULL, &com.inst);
-	if(r<0) error("Error creating instance: %d!\n", r);
-	vVvk_loadInst(com.inst, VK_FALSE);
+	com.inst = vVcreateVkInstance(com.vk, (&(VkInstanceCreateInfo){
+		.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
+		.enabledLayerCount = sizeof(lays)/sizeof(lays[0]),
+		.ppEnabledLayerNames = lays,
+		.enabledExtensionCount = sizeof(exts)/sizeof(exts[0]),
+		.ppEnabledExtensionNames = exts,
+	}), NULL);
+	if(!com.inst) error("Error creating instance!\n");
 }
 
+void destroyInst() {
+	vVdestroy(com.inst);
+}
+
+/*
 void createDev() {
 	uint32_t cnt = 0;
 	VkResult r = vVvk_EnumeratePhysicalDevices(com.inst, &cnt, NULL);
@@ -106,7 +109,4 @@ void createDev() {
 void destroyDev() {
 	vVvk_DestroyDevice(com.dev, NULL);
 }
-
-void destroyInst() {
-	vVvk_DestroyInstance(com.inst, NULL);
-}
+*/
