@@ -134,6 +134,9 @@ for c,rmc in rpairs(vk.Vk.__index) do
 			vk.__customheader = vk.__customheader
 				..'#define Vv_VK_'..c.name..'(_f, _s, ...) _f('
 				..table.concat(sargs, ', ')..',##__VA_ARGS__)\n'
+		else
+			vk.__customheader = vk.__customheader
+				..'#define Vv_VK_'..c.name..'(_f, _, ...) _f(__VA_ARGS__)\n'
 		end
 
 		-- Some fields are actually return values: mark them for later.
@@ -198,6 +201,34 @@ for rs,w in pairs(wrappers) do
 		{'internal', rs},
 		{'wrapped', w, ret=true}
 	})
+	-- Add in a helper macro for performing "create" and "wrap" in sequence.
+	for _,e in ipairs(vk[par or 'Vk'].__index) do
+		if e.name:sub(1,2) == 'vk' and e.type then
+			local foundit
+			for _,ae in ipairs(e.type.__call) do
+				if ae.ret and ae.type == wrapped[w] then foundit = true; break end
+			end
+			if foundit then
+				local margs, cargs = {'_s'}, {'_s'}
+				for i,ae in ipairs(e.type.__call) do
+					if ae.ret then
+						if ae.type == vk.Result then -- Do nothing
+						elseif ae.type == wrapped[w] then table.insert(cargs, '&_i')
+						else error("???") end
+					else table.insert(margs, '_a'..i); table.insert(cargs, '_a'..i) end
+				end
+				margs = table.concat(margs, ', ')
+				cargs = table.concat(cargs, ', ')
+				vk.__customheader = vk.__customheader
+					..'#ifdef __GNUC__\n'
+					..'#define vVcreate'..w.__name..'('..margs..') ({ '
+					..wrapped[w].__raw.C..' _i; VkResult _r = vV'..e.name..'('..cargs..'); '
+					..'_r < 0 ? NULL : vVwrap'..w.__name..'(_s, _i); })\n'
+					..'#endif\n'
+				break
+			end
+		end
+	end
 end
 
 -- Process the _lens and _values of accessable structures.
