@@ -47,6 +47,9 @@ struct Common {
 };
 extern struct Common com;
 
+// Temporary command buffer count to allocate
+#define CBUFFS 12
+
 // And now the functions that do specific tasks around here.
 // Vk (common.c)
 void loadVulkan();

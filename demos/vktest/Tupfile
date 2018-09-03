@@ -1,7 +1,7 @@
 include_rules
 
-SRC += vulkantest.c common.c instdev.c debug.c
-#window.c swapchain.c cbuffers.c
+SRC += vulkantest.c common.c instdev.c debug.c cbuffers.c
+#window.c swapchain.c
 
 ifeq (@(ENABLE_DEMOS),y)
 	: foreach $(SRC) |> !tcc |> %B.o

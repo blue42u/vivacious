@@ -24,10 +24,10 @@ int main() {
 	createInst();
 	startDebug();
 	createDev();
+	createCBuffs();
 /*
 	createWindow();
 	createSChain();
-	createCBuffs();
 
 	printf("Alright, begin!\n");
 
@@ -103,13 +103,14 @@ int main() {
 	vVvk_DestroySemaphore(com.dev, donePres, NULL);
 	vVvk_DestroySemaphore(com.dev, doneRend, NULL);
 
-	destroyCBuffs();
 	destroySChain();
 	destroyWindow();
 */
+	destroyCBuffs();
 	destroyDev();
 	endDebug();
 	destroyInst();
 	unloadVulkan();
+	printf("Closing down without error!\n");
 	return 0;
 }

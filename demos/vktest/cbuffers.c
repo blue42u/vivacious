@@ -15,7 +15,7 @@
 ***************************************************************************/
 
 #include "common.h"
-
+/*
 void loadCBuffs() {
 	VkCommandBufferBeginInfo cbbi = {
 		VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, NULL,
@@ -62,34 +62,37 @@ void loadCBuffs() {
 		vVvk_EndCommandBuffer(com.cb[i].readyPres);
 	}
 }
+*/
+static VvVkCommandPool* pool;
 
-static VkCommandPool pool;
+#define CBCNT (CBUFFS*sizeof(struct CBuffs)/sizeof(VvVkCommandBuffer*))
 
 void createCBuffs() {
-	VkCommandPoolCreateInfo cpci = {
-		VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO, NULL,
-		0, com.qfam,
-	};
-	VkResult r = vVvk_CreateCommandPool(com.dev, &cpci, NULL, &pool);
-	if(r<0) error("Error creating command pool: %d!\n", r);
+	pool = vVcreateVkCommandPool(com.dev, (&(VkCommandPoolCreateInfo){
+		.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+		.queueFamilyIndex = com.qfam,
+	}), NULL);
+	if(!pool) error("Error creating command pool!\n");
 
-	com.cbuffs = malloc(com.simagecnt*sizeof(struct CBuffs));
-
-	VkCommandBufferAllocateInfo cbai = {
-		VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO, NULL,
-		pool, VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-		com.simagecnt*sizeof(struct CBuffs)/sizeof(VkCommandBuffer),
-	};
-	r = vVvk_AllocateCommandBuffers(com.dev, &cbai, com.cbuffs);
-
-	loadCBuffs();
+	com.cb = malloc(CBUFFS*sizeof(struct CBuffs));
+	VkCommandBuffer* cbs = malloc(CBCNT*sizeof(VkCommandBuffer));
+	VkResult r = vVvkAllocateCommandBuffers(com.dev, &(VkCommandBufferAllocateInfo){
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+		.commandPool = pool->real,
+		.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+		.commandBufferCount = CBCNT,
+	}, cbs);
+	for(int i=0; i<CBCNT; i++) com.cbuffs[i] = vVwrapVkCommandBuffer(pool, cbs[i]);
+	free(cbs);
+	// loadCBuffs();
 }
 
 void destroyCBuffs() {
-	vVvk_FreeCommandBuffers(com.dev, pool,
-		com.simagecnt*sizeof(struct CBuffs)/sizeof(VkCommandBuffer),
-		com.cbuffs);
-	vVvk_DestroyCommandPool(com.dev, pool, NULL);
+	VkCommandBuffer* cbs = malloc(CBCNT*sizeof(VkCommandBuffer));
+	for(int i=0; i<CBCNT; i++) { cbs[i] = com.cbuffs[i]->real; vVdestroy(com.cbuffs[i]); }
 	free(com.cbuffs);
+	vVvkFreeCommandBuffers(pool, CBCNT, cbs);
+	free(cbs);
+	vVdestroy(pool);
 }
 
