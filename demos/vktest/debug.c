@@ -76,23 +76,21 @@ VkBool32 debugFunc(
 	return VK_FALSE;
 }
 
-static VkDebugReportCallbackEXT drc;
+static VvVkDebugReportCallbackEXT* drc;
+
+const VkDebugReportCallbackCreateInfoEXT debug_ci = {
+	.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT,
+	.flags = VK_DEBUG_REPORT_ERROR_BIT_EXT
+		| VK_DEBUG_REPORT_WARNING_BIT_EXT
+		| VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT,
+	.pfnCallback = debugFunc,
+};
 
 void startDebug() {
-	VkDebugReportCallbackCreateInfoEXT drcci = {
-		VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT,
-		NULL,
-		VK_DEBUG_REPORT_ERROR_BIT_EXT |
-			VK_DEBUG_REPORT_WARNING_BIT_EXT |
-			VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT |
-//			VK_DEBUG_REPORT_INFORMATION_BIT_EXT |
-			0,
-		debugFunc,
-		NULL
-	};
-	vVvk_CreateDebugReportCallbackEXT(com.inst, &drcci, NULL, &drc);
+	drc = vVcreateVkDebugReportCallbackEXT(com.inst, &debug_ci, NULL);
+	if(!drc) error("Error creating debug callback!");
 }
 
 void endDebug() {
-	vVvk_DestroyDebugReportCallbackEXT(com.inst, drc, NULL);
+	vVdestroy(drc);
 }

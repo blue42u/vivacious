@@ -1,13 +1,13 @@
 include_rules
 
-SRC += vulkantest.c common.c instdev.c
-#window.c debug.c swapchain.c cbuffers.c
+SRC += vulkantest.c common.c instdev.c debug.c
+#window.c swapchain.c cbuffers.c
 
 ifeq (@(ENABLE_DEMOS),y)
 	: foreach $(SRC) |> !tcc |> %B.o
 	: *.o &(lib)/libvivacious.a |> !tld |> vktest-demo
 	ifeq (@(RUN_DEMOS),y)
 		export DISPLAY
-		: vktest-demo |> @(RUN_WRAPPER) ./vktest-demo |>
+		: vktest-demo |> ^ Ran demo %f^ @(RUN_WRAPPER) ./vktest-demo |>
 	endif
 endif

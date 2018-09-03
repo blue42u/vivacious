@@ -39,7 +39,7 @@ struct Common {
 	VvVkPhysicalDevice* pdev;
 	uint32_t qfam;
 	VvVkDevice* dev;
-	VkQueue queue;
+	VvVkQueue* queue;
 	union {
 		struct CBuffs* cb;
 		VvVkCommandBuffer** cbuffs;
@@ -48,14 +48,19 @@ struct Common {
 extern struct Common com;
 
 // And now the functions that do specific tasks around here.
-void startDebug();
-void endDebug();
+// Vk (common.c)
 void loadVulkan();
 void unloadVulkan();
+// Debug Callback (debug.c)
+extern const VkDebugReportCallbackCreateInfoEXT debug_ci;
+void startDebug();
+void endDebug();
+// Instance & Device (instdev.c)
 void createInst();
 void destroyInst();
 void createDev();
 void destroyDev();
+// Command Buffers (cbuffers.c)
 void createCBuffs();
 void destroyCBuffs();
 

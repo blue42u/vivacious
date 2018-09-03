@@ -22,10 +22,10 @@
 int main() {
 	loadVulkan();
 	createInst();
-/*
 	startDebug();
-	createWindow();
 	createDev();
+/*
+	createWindow();
 	createSChain();
 	createCBuffs();
 
@@ -105,10 +105,10 @@ int main() {
 
 	destroyCBuffs();
 	destroySChain();
-	destroyDev();
 	destroyWindow();
-	endDebug();
 */
+	destroyDev();
+	endDebug();
 	destroyInst();
 	unloadVulkan();
 	return 0;

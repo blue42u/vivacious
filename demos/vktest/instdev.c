@@ -29,8 +29,18 @@ static const char* lays[] = {
 };
 
 void createInst() {
+	if(com.vk->vkEnumerateInstanceVersion) {
+		uint32_t ver;
+		VkResult r = vVvkEnumerateInstanceVersion(com.vk, &ver);
+		if(r<0) error("Error getting Instance version!\n");
+		printf("Vk Instance version loaded: %d.%d.%d!\n",
+			VK_VERSION_MAJOR(ver),
+			VK_VERSION_MINOR(ver),
+			VK_VERSION_PATCH(ver));
+	}
 	com.inst = vVcreateVkInstance(com.vk, (&(VkInstanceCreateInfo){
 		.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
+		.pNext = &debug_ci,
 		.enabledLayerCount = sizeof(lays)/sizeof(lays[0]),
 		.ppEnabledLayerNames = lays,
 		.enabledExtensionCount = sizeof(exts)/sizeof(exts[0]),
@@ -43,22 +53,23 @@ void destroyInst() {
 	vVdestroy(com.inst);
 }
 
-/*
 void createDev() {
 	uint32_t cnt = 0;
-	VkResult r = vVvk_EnumeratePhysicalDevices(com.inst, &cnt, NULL);
+	VkResult r = vVvkEnumeratePhysicalDevices(com.inst, &cnt, NULL);
 	if(r<0) error("Error enum'ing PDevs: %d!\n", r);
-	VkPhysicalDevice* pdevs = malloc(cnt*sizeof(VkPhysicalDevice));
-	r = vVvk_EnumeratePhysicalDevices(com.inst, &cnt, pdevs);
+	VkPhysicalDevice* pdev_is = malloc(cnt*sizeof(VkPhysicalDevice));
+	r = vVvkEnumeratePhysicalDevices(com.inst, &cnt, pdev_is);
 	if(r<0) error("Error enum'ing PDevs: %d!\n", r);
+	VvVkPhysicalDevice** pdevs = malloc(cnt*sizeof(VvVkPhysicalDevice*));
+	for(int i=0; i<cnt; i++)
+	pdevs[i] = vVwrapVkPhysicalDevice(com.inst, pdev_is[i]);
+	free(pdev_is);
 
 	for(int i=0; i<cnt; i++) {
 		uint32_t qcnt = 0;
-		vVvk_GetPhysicalDeviceQueueFamilyProperties(pdevs[i],
-			&qcnt, NULL);
+		vVvkGetPhysicalDeviceQueueFamilyProperties(pdevs[i], &qcnt, NULL);
 		VkQueueFamilyProperties* qfps = malloc(qcnt*sizeof(VkQueueFamilyProperties));
-		vVvk_GetPhysicalDeviceQueueFamilyProperties(pdevs[i],
-			&qcnt, qfps);
+		vVvkGetPhysicalDeviceQueueFamilyProperties(pdevs[i], &qcnt, qfps);
 
 		uint32_t qfam = -1;
 		for(int i=0; i<cnt; i++) {
@@ -70,18 +81,21 @@ void createDev() {
 		free(qfps);
 		if(qfam == -1) continue;
 
+		/*
 		VkBool32 supported;
 		vVvk_GetPhysicalDeviceSurfaceSupportKHR(pdevs[i],
 			0, com.surf, &supported);
 		if(!supported) continue;
+		*/
 
 		com.pdev = pdevs[i];
 		com.qfam = qfam;
 	}
+	for(int i=0; i<cnt; i++) if(pdevs[i] != com.pdev) vVdestroy(pdevs[i]);
 	free(pdevs);
 
 	VkPhysicalDeviceProperties pdp;
-	vVvk_GetPhysicalDeviceProperties(com.pdev, &pdp);
+	vVvkGetPhysicalDeviceProperties(com.pdev, &pdp);
 	printf("Vk version loaded: %d.%d.%d!\n",
 		VK_VERSION_MAJOR(pdp.apiVersion),
 		VK_VERSION_MINOR(pdp.apiVersion),
@@ -99,14 +113,14 @@ void createDev() {
 		sizeof(dexts)/sizeof(char*), dexts,
 		NULL
 	};
-	r = vVvk_CreateDevice(com.pdev, &dci, NULL, &com.dev);
-	if(r<0) error("Error creating device: %d!\n", r);
-	vVvk_loadDev(com.dev, VK_TRUE);
+	com.dev = vVcreateVkDevice(com.pdev, &dci, NULL);
+	if(!com.dev) error("Error creating device!\n");
 
-	vVvk_GetDeviceQueue(com.dev, com.qfam, 0, &com.queue);
+	com.queue = vVcreateVkQueue(com.dev, com.qfam, 0);
 }
 
 void destroyDev() {
-	vVvk_DestroyDevice(com.dev, NULL);
+	vVdestroy(com.queue);
+	vVdestroy(com.dev);
+	vVdestroy(com.pdev);
 }
-*/
