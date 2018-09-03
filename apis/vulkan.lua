@@ -210,21 +210,31 @@ for rs,w in pairs(wrappers) do
 			end
 			if foundit then
 				local margs, cargs = {'_s'}, {'_s'}
+				local canfail = false
 				for i,ae in ipairs(e.type.__call) do
 					if ae.ret then
-						if ae.type == vk.Result then -- Do nothing
+						if ae.type == vk.Result then canfail = true
 						elseif ae.type == wrapped[w] then table.insert(cargs, '&_i')
 						else error("???") end
 					else table.insert(margs, '_a'..i); table.insert(cargs, '_a'..i) end
 				end
 				margs = table.concat(margs, ', ')
 				cargs = table.concat(cargs, ', ')
-				vk.__customheader = vk.__customheader
-					..'#ifdef __GNUC__\n'
-					..'#define vVcreate'..w.__name..'('..margs..') ({ '
-					..wrapped[w].__raw.C..' _i; VkResult _r = vV'..e.name..'('..cargs..'); '
-					..'_r < 0 ? NULL : vVwrap'..w.__name..'(_s, _i); })\n'
-					..'#endif\n'
+				if canfail then
+					vk.__customheader = vk.__customheader
+						..'#ifdef __GNUC__\n'
+						..'#define vVcreate'..w.__name..'('..margs..') ({ '
+						..wrapped[w].__raw.C..' _i; VkResult _r = vV'..e.name..'('..cargs..'); '
+						..'_r < 0 ? NULL : vVwrap'..w.__name..'(_s, _i); })\n'
+						..'#endif\n'
+				else
+					vk.__customheader = vk.__customheader
+							..'#ifdef __GNUC__\n'
+							..'#define vVcreate'..w.__name..'('..margs..') ({ '
+							..wrapped[w].__raw.C..' _i; vV'..e.name..'('..cargs..'); '
+							..'vVwrap'..w.__name..'(_s, _i); })\n'
+							..'#endif\n'
+				end
 				break
 			end
 		end
