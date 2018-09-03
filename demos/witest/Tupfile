@@ -2,7 +2,7 @@ include_rules
 
 ifeq (@(ENABLE_DEMOS),y)
 	: foreach main.c |> !tcc |> %B.o
-	: *.o &(src)/libvivacious.a |> !tld |> witest-demo
+	: *.o &(lib)/libvivacious.a |> !tld |> witest-demo
 
 	ifeq (@(RUN_DEMOS),y)
 		export DISPLAY

@@ -28,6 +28,7 @@ AR = $(TARG_AR)
 &src = src
 &inc = include
 &incvV = include/vivacious
+&lib = lib
 
 # Macros for running the generator system. The spec name comes after the macro.
 !gen = | &(external)/lua53 |> ^o Generated %o using %b^ \

@@ -1,0 +1,6 @@
+include_rules
+
+SRC = ../src/*.o ../src/vulkan/*.o
+
+: $(SRC) |> !tar |> libvivacious.a
+: $(SRC) |> !tso |> libvivacious.so

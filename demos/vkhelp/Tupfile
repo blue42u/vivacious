@@ -9,7 +9,7 @@ ifeq (@(ENABLE_DEMOS),y)
 	: shaders.lua | *.spv &(external)/lua53 |> ^o Generated shaders.h^ \
 		&(external)/lua53 %f %o |> shaders.h
 	: foreach main.c debug.c | shaders.h |> !tcc |> %B.o
-	: *.o &(src)/libvivacious.a |> !tld |> vkhelp-demo
+	: *.o &(lib)/libvivacious.a |> !tld |> vkhelp-demo
 	ifeq (@(RUN_DEMOS),y)
 		export DISPLAY
 		: vkhelp-demo |> @(RUN_WRAPPER) ./vkhelp-demo |>
