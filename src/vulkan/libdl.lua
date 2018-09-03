@@ -18,7 +18,7 @@
 -- Certain wrappers are more special than others. This marks them by name.
 local special = {Vk='init', VkInstance='instance', VkDevice='device'}
 
-local g = gen.rules(require 'apis.core.headerc')
+local g = gen.rules(require 'include.vivacious.headerc')
 
 function g:header()
 	if self.specname then
